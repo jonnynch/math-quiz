@@ -147,6 +147,32 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('importReplaceButton')); ok(store().profiles.length===2,'second tap replaces everything with the backup');
   click($('profilesClose'));
 
+  // ---- failed saves are reported for settings changes and profile deletion
+  const realSetItem=w.Storage.prototype.setItem;
+  w.Storage.prototype.setItem=function(){ throw new Error('QuotaExceededError'); };
+  click($('settingsButton'));
+  ok($('settingsMessage').classList.contains('hidden'),'no settings warning when nothing failed');
+  click(d.querySelector('[data-setting=text][data-value=xlarge]'));
+  ok(!$('settingsMessage').classList.contains('hidden')&&$('settingsMessage').textContent.includes('would not save'),'settings change shows a warning when the browser cannot save');
+  ok(d.documentElement.dataset.text==='xlarge','the setting still applies for this session');
+  w.Storage.prototype.setItem=realSetItem;
+  click(d.querySelector('[data-setting=text][data-value=large]'));
+  ok($('settingsMessage').classList.contains('hidden'),'the warning clears after a successful save');
+  click($('settingsClose'));
+  click($('profilesButton'));
+  ok($('profileListMessage').classList.contains('hidden'),'no profile warning before deleting');
+  w.Storage.prototype.setItem=function(){ throw new Error('QuotaExceededError'); };
+  const delFailBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][0];
+  const profilesBeforeFail=store().profiles.length;
+  click(delFailBtn()); click(delFailBtn());
+  ok(!$('profileListMessage').classList.contains('hidden')&&$('profileListMessage').textContent.includes('would not save'),'deleting a profile shows a warning when the browser cannot save');
+  ok($('profile1').options.length===profilesBeforeFail,'the profile is removed from the selectors for this session');
+  w.Storage.prototype.setItem=realSetItem;
+  click($('profilesClose'));
+  // restore the saved data to what the next section expects
+  click($('profilesButton')); $('profileName').value='Mia2'; click($('addProfileButton')); click($('profilesClose'));
+  click($('settingsButton')); click(d.querySelector('[data-setting=text][data-value=normal]')); click($('settingsClose'));
+
   // ---- guest streak stickers are not saved
   change($('profile1'),''); change($('profile2'),'');
   click(d.querySelector('[data-mode=solo]')); click(d.querySelector('[data-length=endless]'));

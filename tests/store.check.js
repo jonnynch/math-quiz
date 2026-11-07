@@ -37,6 +37,25 @@ const failed = S.addProfile('Zed', '🐸');
 ok(failed.profile && failed.saved === false && S.isAvailable() === false, 'addProfile reports a failed save (storage full/blocked)');
 globalThis.__fail = false;
 
+// --- settings and deletion report failed saves too
+({ S, mem } = freshStore());
+S.addProfile('Del', '🐸');
+const setOk = S.setSetting('text', 'large');
+ok(setOk.saved === true && S.getSettings().text === 'large', 'setSetting reports a successful save');
+ok(S.setSetting('palette', 'nope').error && S.setSetting('bogus', 'x').error, 'setSetting rejects unknown settings/values');
+globalThis.__fail = true;
+const setFail = S.setSetting('palette', 'cb');
+ok(setFail.saved === false && S.getSettings().palette === 'cb' && S.isAvailable() === false, 'setSetting reports a failed save (the change still applies for this session)');
+const delId = S.getProfiles()[0].id;
+const delFail = S.deleteProfile(delId);
+ok(delFail.deleted === true && delFail.saved === false && S.getProfiles().length === 0, 'deleteProfile reports a failed save');
+globalThis.__fail = false;
+S.addProfile('Del2', '🐸');
+const delOk = S.deleteProfile(S.getProfiles()[0].id);
+ok(delOk.deleted === true && delOk.saved === true, 'deleteProfile reports a successful save');
+const delNone = S.deleteProfile('does-not-exist');
+ok(delNone.deleted === false && delNone.saved === true, 'deleting an unknown id changes nothing and is not an error');
+
 // --- backup parsing
 ({ S, mem } = freshStore());
 S.addProfile('Mia', '🦊'); S.addProfile('Leo', '🦁');
