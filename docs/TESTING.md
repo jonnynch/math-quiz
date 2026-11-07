@@ -11,6 +11,9 @@ No framework. Plain Node scripts in `tests/`. Install once: `npm install` (only 
 | `npm run test:flow` | ~20 s | In jsdom, drives the real UI: topics shown only for grades (and per-grade lists), Settings applied/saved, profile add/duplicate/XSS-safe names, scoreboard names, streak badge at 2, sticker + confetti at 3, wrong answer resets streak, profile totals/history/last setup saved, stars, "choosing a profile restores its level/topic", duplicate profile prevention, timed game ends and records a personal best, delete needs two taps, guest games don't touch saved profiles. Also covers the backup UI (copy text, check/preview, merge, undo, replace needs two taps). Expect `62 PASS` and no `FAIL`. |
 | `npm run test:layout` | ~1–3 min | In headless Chromium: (a) `layout-game.check.js` – game screen across phone landscape sizes × text sizes (normal/large/xlarge) × Solo/1 vs 1 × endless/timed × 15 level/topic configs, with long profile names, a streak badge and a long feedback message injected as a stress test; (b) `layout-screens.check.js` – setup, both windows, game and result screens on landscape/portrait phones, tablet and desktop, checking no horizontal overflow, windows inside the viewport, score numbers inside their cards. |
 
+### Exit codes
+Every check script exits non-zero when anything fails, so `npm test` (and CI) goes red. The only tolerated result is the **known limit** below, which `layout-game.check.js` counts separately ("accepted known limit") and does not fail on.
+
 ### Layout check options
 - `VP=667x300,844x390` limit viewports. `TEXTS=normal,large,xlarge`. `REPS=1` fewer repetitions (questions are random). `SHOW=5` print example failures.
 - Browser: Linux x64 uses the bundled `@sparticuz/chromium`. Elsewhere set `CHROME_PATH=/path/to/chrome`.

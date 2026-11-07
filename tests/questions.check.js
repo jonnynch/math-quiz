@@ -76,3 +76,5 @@ console.log('failing groups:',keys.length);
 keys.slice(0,15).forEach(k=>console.log(k,fails[k].length,'e.g.',fails[k][0].slice(0,230)));
 // show position spread for a few groups
 ['g4/mixed','g4/fractions','g5/fractions','g3/clock','g4/clock','g5/shapes','g6/shapes','g2/money','g4/money','g6/fractions','g4/shapes'].forEach(k=>{const p=global.POS[k];if(p){const t=Object.values(p).reduce((a,b)=>a+b,0);console.log(k.padEnd(14),Object.keys(p).sort().map(i=>i+':'+Math.round(p[i]/t*100)+'%').join(' '))}});
+// Fail the run (and CI) if any generated question was wrong.
+process.exit(keys.length ? 1 : 0);
