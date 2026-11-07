@@ -14,6 +14,9 @@ No framework. Plain Node scripts in `tests/`. Install once: `npm install` (only 
 ### Exit codes
 Every check script exits non-zero when anything fails, so `npm test` (and CI) goes red. The only tolerated result is the **known limit** below, which `layout-game.check.js` counts separately ("accepted known limit") and does not fail on.
 
+### Continuous integration
+`.github/workflows/ci.yml` runs on every push and pull request: checkout → Node 22 → `npm ci` (exact versions from `package-lock.json`) → `npm test`. It uses the Chromium bundled with `@sparticuz/chromium`, needs no secrets, and takes about 3–4 minutes. If `package.json` changes, run `npm install` and commit the updated `package-lock.json`, otherwise `npm ci` fails. Node must be 22.22 or newer (jsdom and puppeteer-core requirement).
+
 ### Layout check options
 - `VP=667x300,844x390` limit viewports. `TEXTS=normal,large,xlarge`. `REPS=1` fewer repetitions (questions are random). `SHOW=5` print example failures.
 - Browser: Linux x64 uses the bundled `@sparticuz/chromium`. Elsewhere set `CHROME_PATH=/path/to/chrome`.

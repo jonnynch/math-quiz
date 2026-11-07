@@ -89,4 +89,4 @@ All questions are generated automatically in the browser. There are no question 
 `public/questions.js` (question generators), `public/store.js` (saved profiles and settings), `public/menus.js` (Settings and Profiles windows), `public/game.js` (game flow, rewards), `public/style.css`, `public/index.html`.
 
 ## For developers and AI assistants
-Start with `AGENTS.md` (project overview, rules that must not be broken, file map). Details are in `docs/` (architecture, question rules, UI/layout, testing, owner requirements). Tests: `npm install` then `npm test` (question validation, UI flow, and layout checks in headless Chromium).
+Start with `AGENTS.md` (project overview, rules that must not be broken, file map). Details are in `docs/` (architecture, question rules, UI/layout, testing, owner requirements). Tests: `npm install` then `npm test` (GitHub Actions runs the same on every push and pull request) (question validation, UI flow, and layout checks in headless Chromium).

@@ -45,6 +45,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.
 - **Change layout/CSS** → `docs/UI-AND-LAYOUT.md`. Run `npm run test:layout` (needs a browser; see `docs/TESTING.md`).
 - **Change game flow, rewards or profiles** → `docs/ARCHITECTURE.md`. Run `npm run test:flow`.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci && npm test` on every push and pull request; keep `package-lock.json` in step with `package.json` and make sure `npm test` passes before pushing.
 - **Run the game locally without Docker**: `cd public && python3 -m http.server 8080`, then open `http://localhost:8080`.
 
 ## Conventions
