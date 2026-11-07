@@ -647,8 +647,8 @@
       profile.lastSetup = { difficulty: player.difficulty, topic: player.topic };
       outcome.set(player.id, { newBest });
     });
-    if (outcome.size) Store.save();
-    return outcome;
+    const saved = outcome.size ? Store.save() : true;
+    return { outcome, saved };
   }
 
   function endGame(timedOut) {
@@ -666,7 +666,8 @@
       : `Endless game · played ${formatClock((performance.now() - state.startedAt) / 1000)}`;
     $('finalScores').innerHTML = '';
 
-    const outcome = recordProfileResults();
+    const { outcome, saved } = recordProfileResults();
+    if (!saved) $('resultMeta').textContent += ' · ⚠️ Progress could not be saved on this device';
     const highest = Math.max(...state.players.map(player => player.score));
     const winners = state.players.filter(player => player.score === highest);
     $('resultTitle').textContent = state.players.length === 1

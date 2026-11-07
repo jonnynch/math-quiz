@@ -19,15 +19,19 @@ Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + 
 11. **Phone landscape**: question and answers visible in Solo and 1 vs 1. **Must keep.**
 12. **Enhancements chosen by the owner**: rewards (streaks, confetti, stars, stickers), more topics **for Grade 1–6 only (not the age levels)**, saved profiles, settings (colour-blind friendly palette, larger text).
 
+13. **Profile backup/restore** (after an independent review): export/import with preview, merge or replace, Undo, schema version, and clear messages when the browser cannot save. Reason: profiles are per browser/device/web address and iOS can clear Safari storage after a period of non-use.
+
+14. **Installable and offline** (PWA): manifest, icons, service worker, update notice, install help in Settings. Reason: reload and play without internet once loaded, and run full screen from the home screen.
+
 ## Product decisions made along the way (and why)
 - Score = number of correct answers. Streaks/stickers/stars are celebration only, so 1 vs 1 fairness is unaffected.
 - Accuracy counts every tapped answer; average time is first tap per question.
 - Empty slots in the object stage are invisible (outlines would let a child count the gaps to get the answer).
 - Money answers are in cents and there are no decimals anywhere (decimal division was rejected earlier).
-- Profiles live in `localStorage` (this device/browser only) because the server is static; there is no backend by design.
+- Profiles live in `localStorage` (this device/browser only) because the server is static; there is no backend by design. Moving them between devices is done with Export/Import, not a cloud account (avoids storing children's data online).
 - Topics are filtered per grade so a Grade 1 child never sees times tables, etc.
 - Long-press/double-tap/selection are suppressed on buttons (`touch-action: manipulation`, `user-select: none`) for kids tapping quickly.
 - Text-size scaling is capped slightly on very short landscape screens so all answers still fit.
 
 ## Ideas not done (from the owner's suggestion list)
-Read-aloud / sound effects for young children, automatic level-up, review of missed questions, avoiding repeated questions within a game, keyboard shortcuts for laptops, installable PWA/offline with wake lock, parent CSV export, race-to-N / best-of-N for 1 vs 1.
+Read-aloud / sound effects for young children, automatic level-up, review of missed questions / mistake history, avoiding repeated questions within a game, keyboard shortcuts for laptops, wake lock, parent CSV export, focus trapping in windows, GitHub Actions CI + lockfile, security headers, race-to-N / best-of-N for 1 vs 1.

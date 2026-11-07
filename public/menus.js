@@ -109,6 +109,7 @@
     }
     profiles.forEach(profile => list.append(profileCard(profile)));
     $('addProfileButton').disabled = profiles.length >= Store.MAX_PROFILES;
+    refreshBackupButtons();
   }
 
   function profileCard(profile) {
@@ -208,8 +209,9 @@
       message.classList.add('error');
       return;
     }
-    message.textContent = '';
-    message.classList.remove('error');
+    message.textContent = result.saved ? '' : 'The profile was created, but this browser would not save it, so it will be lost when the page closes.';
+    message.classList.toggle('error', !result.saved);
+    if (result.saved) Store.requestPersistence();
     input.value = '';
     expandedId = null;
     api.refreshProfileSelects();
@@ -223,8 +225,143 @@
     renderProfiles();
   }
 
+  // ---------- backup and restore ----------
+  let pendingImport = null;
+  let replaceArmed = false;
+
+  function backupMessage(text, kind) {
+    const node = $('backupMessage');
+    node.textContent = text;
+    node.classList.toggle('error', kind === 'error');
+    node.classList.toggle('good', kind === 'good');
+  }
+
+  function refreshBackupButtons() {
+    const none = Store.getProfiles().length === 0;
+    $('exportButton').disabled = none;
+    $('copyBackupButton').disabled = none;
+    $('undoImportButton').classList.toggle('hidden', !Store.hasBackup());
+  }
+
+  function exportFile() {
+    const blob = new Blob([Store.exportText()], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `math-quiz-profiles-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    backupMessage('Backup file created. Keep it somewhere safe.', 'good');
+  }
+
+  async function copyBackup() {
+    const text = Store.exportText();
+    try {
+      await navigator.clipboard.writeText(text);
+      $('exportText').classList.add('hidden');
+      backupMessage('Backup text copied. Paste it somewhere safe, e.g. a note.', 'good');
+    } catch (error) {
+      // Clipboard is not available on plain http:// addresses; show the text to copy by hand.
+      const box = $('exportText');
+      box.value = text;
+      box.classList.remove('hidden');
+      box.focus();
+      box.select();
+      backupMessage('Copy the text above and keep it somewhere safe.', 'good');
+    }
+  }
+
+  function resetImportPreview() {
+    pendingImport = null;
+    replaceArmed = false;
+    $('importPreview').classList.add('hidden');
+    $('importReplaceButton').textContent = 'Replace all profiles';
+  }
+
+  function checkImport() {
+    resetImportPreview();
+    const parsed = Store.parseBackup($('importText').value);
+    if (parsed.error) { backupMessage(parsed.error, 'error'); return; }
+    pendingImport = parsed;
+    const names = parsed.profiles.map(p => `${p.avatar} ${p.name}`).join(', ');
+    $('importSummary').textContent = `Found ${parsed.profiles.length} profile${parsed.profiles.length === 1 ? '' : 's'}: ${names}.` +
+      (parsed.skipped ? ` ${parsed.skipped} unusable entr${parsed.skipped === 1 ? 'y was' : 'ies were'} ignored.` : '') +
+      ' "Add" keeps your current profiles (same-name profiles are renamed). "Replace" swaps everything for the backup.';
+    $('importPreview').classList.remove('hidden');
+    backupMessage('', '');
+  }
+
+  function finishImport(result) {
+    resetImportPreview();
+    $('importText').value = '';
+    $('importPanel').classList.add('hidden');
+    $('importToggleButton').setAttribute('aria-expanded', 'false');
+    api.refreshProfileSelects();
+    expandedId = null;
+    renderProfiles();
+    const parts = [];
+    if (result.added) parts.push(`${result.added} added`);
+    if (result.replaced) parts.push(`${result.replaced} updated`);
+    if (result.renamed) parts.push(`${result.renamed} renamed to avoid a duplicate name`);
+    if (result.skipped) parts.push(`${result.skipped} skipped (limit is ${Store.MAX_PROFILES} profiles)`);
+    let text = `Import finished: ${parts.join(', ') || 'nothing changed'}.`;
+    if (!result.saved) text += ' This browser would not save the data, so it will be lost when the page closes.';
+    backupMessage(text, result.saved ? 'good' : 'error');
+    if (result.saved) Store.requestPersistence();
+    refreshBackupButtons();
+  }
+
+  function runImport(mode) {
+    if (!pendingImport) return;
+    if (mode === 'replace' && !replaceArmed) {
+      replaceArmed = true;
+      $('importReplaceButton').textContent = 'Tap again to replace everything';
+      return;
+    }
+    finishImport(Store.applyBackup(pendingImport, mode));
+  }
+
+  function initBackup() {
+    $('exportButton').addEventListener('click', exportFile);
+    $('copyBackupButton').addEventListener('click', copyBackup);
+    $('importToggleButton').addEventListener('click', () => {
+      const panel = $('importPanel');
+      const open = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !open);
+      $('importToggleButton').setAttribute('aria-expanded', String(open));
+      resetImportPreview();
+      if (open) $('importText').focus();
+    });
+    $('chooseFileButton').addEventListener('click', () => $('importFile').click());
+    $('importFile').addEventListener('change', async () => {
+      const file = $('importFile').files && $('importFile').files[0];
+      if (!file) return;
+      if (file.size > 1000000) { backupMessage('That file is too large to be a profile backup.', 'error'); return; }
+      try { $('importText').value = await file.text(); } catch (error) { backupMessage('That file could not be read.', 'error'); return; }
+      $('importFile').value = '';
+      checkImport();
+    });
+    $('importText').addEventListener('input', resetImportPreview);
+    $('checkImportButton').addEventListener('click', checkImport);
+    $('importMergeButton').addEventListener('click', () => runImport('merge'));
+    $('importReplaceButton').addEventListener('click', () => runImport('replace'));
+    $('undoImportButton').addEventListener('click', () => {
+      if (Store.restoreBackup()) {
+        api.refreshProfileSelects();
+        expandedId = null;
+        renderProfiles();
+        backupMessage('The last import was undone.', 'good');
+      } else {
+        backupMessage('Could not undo the import.', 'error');
+      }
+      refreshBackupButtons();
+    });
+  }
+
   function init() {
     applySettings();
+    initBackup();
     wireModal('settingsModal', 'settingsButton', 'settingsClose');
     wireModal('profilesModal', 'profilesButton', 'profilesClose');
 

@@ -71,7 +71,11 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 ## Profiles
 - Open 👤 Profiles to add up to 8 profiles (name and picture). Each player picks "Who is playing?" before starting, or plays as a Guest.
 - A profile remembers its last level and topic, totals, best streak, stickers, best timed scores (per level, topic and duration) and its 30 most recent games. A "New personal best" badge appears on timed games.
-- Profiles are stored in the browser's local storage on that device and browser only (not on the laptop server), so use the same tablet/browser each time. Clearing browser data removes them. Two players cannot choose the same profile.
+- Profiles are stored in the browser's local storage on that device, browser and web address only (not on the server), so use the same tablet/browser each time. Clearing browser data removes them, and iPhone/iPad Safari can clear storage for sites not visited for a while.
+- **Backup and restore** (in the Profiles window): export to a file or copy the backup text, import by choosing a file or pasting text (check first, then add or replace), and undo the last import. Use this to move profiles to another device, browser or web address. Two players cannot choose the same profile.
+
+## Install and offline play
+Over **https://** (or `localhost`) the game installs like an app and keeps working offline after the first load: on Android/desktop Chrome use Settings → Install (or the browser's install option); on iPhone/iPad use Share → Add to Home Screen. New versions are picked up automatically when online, and a "new version is ready" notice offers a reload. On a plain `http://` home-network address (e.g. the Docker setup) the game works normally but cannot be installed or cached for offline use. An installed iPhone/iPad app has its own storage, separate from Safari, so move profiles with Backup and restore. Developers: when files are added, renamed or removed, update `FILES` and bump `VERSION` in `public/sw.js`.
 
 ## Settings
 Open ⚙️ Settings for:

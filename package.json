@@ -4,9 +4,11 @@
   "private": true,
   "description": "Static Math Quiz Battle game. Only the tests need npm packages; the game itself has no dependencies.",
   "scripts": {
-    "test": "npm run test:questions && npm run test:flow && npm run test:layout",
+    "test": "npm run test:store && npm run test:questions && npm run test:flow && npm run test:pwa && npm run test:layout",
+    "test:store": "node tests/store.check.js",
     "test:questions": "node tests/questions.check.js",
     "test:flow": "node tests/flow.check.js",
+    "test:pwa": "node tests/pwa.check.js",
     "test:layout": "node tests/layout-game.check.js && node tests/layout-screens.check.js"
   },
   "devDependencies": {

@@ -39,6 +39,9 @@ Goal: in Solo and 1 vs 1 the question/objects and **all** answers are visible wi
 ## Windows (Settings, Profiles)
 `.modal-backdrop` (fixed, flex-centred, respects safe-area insets) > `.modal` (max-height 100%, scrolls inside). The `Done` button sits in the header so it stays reachable. `body.modal-open` disables background scroll. Escape and backdrop tap close.
 
+## Update notice
+`.update-banner` sits at the top of `.app` (hidden by default and during play). Settings has an Install block (`#installInfo`, `#installIos`, `#installButton`).
+
 ## Rewards visuals
 `.streak-badge`, `.star-rating`, `.best-badge`, `.earned-stickers/.sticker-row`, `.sticker-book/.sticker(.locked)`, `.confetti-layer/.confetto` (fixed overlay, `pointer-events: none`, so it never blocks a tap).
 

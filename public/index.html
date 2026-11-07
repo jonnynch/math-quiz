@@ -5,10 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#172554">
   <title>Math Quiz Battle</title>
+  <meta name="description" content="A maths quiz for one shared touch screen: Solo or 1 vs 1, from counting to Grade 6.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Math Quiz">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main class="app">
+    <div id="updateBanner" class="update-banner hidden" role="status">
+      <span>A new version of the game is ready.</span>
+      <button id="updateReload" class="secondary-button small" type="button">Reload</button>
+    </div>
     <header class="topbar">
       <div>
         <p class="eyebrow">LOCAL MULTIPLAYER</p>
@@ -142,6 +153,12 @@
         </div>
         <p class="setting-help setting-sample">Sample: What is 7 + 5?</p>
       </div>
+      <div class="setting-block">
+        <p class="setting-title">Install on this device</p>
+        <p id="installInfo" class="setting-help"></p>
+        <p id="installIos" class="setting-help hidden"></p>
+        <button id="installButton" class="primary-button compact hidden" type="button">Install app</button>
+      </div>
       <p class="setting-help">Settings are saved on this device.</p>
     </div>
   </div>
@@ -163,6 +180,34 @@
         <p id="profileMessage" class="setting-help" role="status"></p>
         <button id="addProfileButton" class="primary-button compact" type="button">Add profile</button>
       </div>
+      <div class="backup-block">
+        <p class="setting-title">Backup and restore</p>
+        <p class="setting-help">Profiles live in this browser on this device only. Export a backup file to keep them safe, or to move them to another device or web address.</p>
+        <div class="backup-actions">
+          <button id="exportButton" class="secondary-button small" type="button">Export to file</button>
+          <button id="copyBackupButton" class="secondary-button small" type="button">Copy backup text</button>
+          <button id="importToggleButton" class="secondary-button small" type="button" aria-expanded="false">Import…</button>
+        </div>
+        <textarea id="exportText" class="backup-text hidden" rows="4" readonly aria-label="Backup text to copy"></textarea>
+        <div id="importPanel" class="import-panel hidden">
+          <label for="importText">Paste backup text, or choose a backup file</label>
+          <textarea id="importText" class="backup-text" rows="4" placeholder="Paste the backup text here" spellcheck="false"></textarea>
+          <div class="backup-actions">
+            <button id="chooseFileButton" class="secondary-button small" type="button">Choose file…</button>
+            <button id="checkImportButton" class="primary-button compact" type="button">Check backup</button>
+            <input id="importFile" type="file" accept=".json,application/json,text/plain" hidden>
+          </div>
+          <div id="importPreview" class="import-preview hidden">
+            <p id="importSummary" class="setting-help"></p>
+            <div class="backup-actions">
+              <button id="importMergeButton" class="primary-button compact" type="button">Add to my profiles</button>
+              <button id="importReplaceButton" class="secondary-button small danger" type="button">Replace all profiles</button>
+            </div>
+          </div>
+        </div>
+        <p id="backupMessage" class="setting-help" role="status"></p>
+        <button id="undoImportButton" class="secondary-button small hidden" type="button">Undo last import</button>
+      </div>
       <p class="setting-help">Profiles, stickers and best scores are saved on this device and browser only.</p>
     </div>
   </div>
@@ -171,5 +216,6 @@
   <script src="store.js"></script>
   <script src="menus.js"></script>
   <script src="game.js"></script>
+  <script src="pwa.js"></script>
 </body>
 </html>

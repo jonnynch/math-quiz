@@ -56,9 +56,10 @@ article.question-board.{blue|orange}[.solo][.toddler]
 - Confetti is skipped under `prefers-reduced-motion`.
 
 ## Profiles & storage (`store.js`)
-One JSON object under `localStorage['mathQuizBattle.v1']`:
+One JSON object under `localStorage['mathQuizBattle.v1']` (the key name is fixed; the format version is the `schema` field inside):
 ```json
 {
+  "schema": 1,
   "settings": { "palette": "standard|cb", "text": "normal|large|xlarge" },
   "profiles": [{
     "id": "p…", "name": "≤14 chars", "avatar": "🦊", "created": 0,
@@ -71,7 +72,26 @@ One JSON object under `localStorage['mathQuizBattle.v1']`:
   }]
 }
 ```
+`schema` is the data-format version (`SCHEMA` in `store.js`). When the format changes: bump `SCHEMA`, add an upgrade step in `migrate()`, and keep reading older data (data with no `schema` counts as 1). Never rename the key to drop old profiles.
+
 Limits: 8 profiles, 30 history entries, names unique (case-insensitive). Loading runs everything through `clean()` (validates and trims). `bests` keys are `level|topic|seconds` and only timed games set them. Games with zero taps are not recorded. Guests are never saved. Two players cannot pick the same profile (options disabled in the other select; `startGame` also guards).
+
+## Backup and restore (`store.js` + `menus.js`)
+Profiles cannot move between browsers, devices or web addresses by themselves (each origin has its own `localStorage`; a home-screen app on iOS has separate storage from Safari). So the Profiles window offers:
+- **Export to file** (`math-quiz-profiles-<date>.json`) and **Copy backup text** (falls back to a text box when the clipboard API is unavailable, e.g. on plain `http://`).
+- **Import…**: choose a file or paste text → **Check backup** (validates, changes nothing, shows a preview) → **Add to my profiles** (merge) or **Replace all profiles** (two taps).
+- Backup format: `{ "app": "mathQuizBattle", "schema": 1, "exportedAt", "settings", "profiles": [...] }`. `Store.parseBackup()` rejects empty/invalid JSON, other apps' files, newer schemas and files over 1 MB; every profile goes through `cleanProfile()` (names ≤14 chars, ids reduced to `[A-Za-z0-9_-]`, stickers must be known, numbers ≥ 0).
+- Merge rules: same `id` → the backup's profile replaces it; same name with a different id → renamed `Name (2)`; stops at 8 profiles and reports how many were skipped. Replace also restores settings; merge does not touch settings.
+- Before any import the current data is copied to `localStorage['mathQuizBattle.backup']`; **Undo last import** restores it.
+- Save failures are surfaced: `Store.save()`/`addProfile`/`applyBackup` report `saved: false`; the Profiles window and the result screen show a warning. `Store.requestPersistence()` asks the browser not to evict the data (best effort).
+
+## Offline and install (`sw.js`, `pwa.js`, `manifest.webmanifest`)
+- Works only in a secure context: `https://` (e.g. Cloudflare) or `http://localhost`. On a plain `http://192.168…` address the service worker cannot register; the game still works online and Settings says why it cannot be installed.
+- `sw.js` precaches the files in `FILES` on install (cache name `mathquiz-<VERSION>`), then serves **network-first** (`fetch(request, { cache: 'no-cache' })`, 4 s timeout) and falls back to the cache offline; navigation requests fall back to `index.html`. `skipWaiting()` + `clients.claim()`; old `mathquiz-*` caches are deleted on activate. Because it always revalidates, the browser's HTTP cache cannot hold back a new release.
+- Registered with `updateViaCache: 'none'`. `pwa.js` re-checks for a new version when the app returns to the foreground. If a new worker activates while an older page is open, `#updateBanner` ("A new version is ready" + Reload) appears (hidden during play).
+- Settings has an **Install** section: an Install button on browsers that fire `beforeinstallprompt`, and Add-to-Home-Screen instructions on iPhone/iPad. An installed iOS app has **separate storage from Safari**, so profiles must be moved with Backup and restore.
+- Icons are generated PNGs (`icons/`: 192, 512, maskable 512, apple-touch 180) plus `favicon.svg`; the design is four tiles with + − × ÷.
+- Release rule: if the file list changes, edit `FILES` and bump `VERSION` in `sw.js`.
 
 ## Menus (`menus.js`)
 - Settings: `.seg-button[data-setting][data-value]` → `MQStore.setSetting` → `html[data-palette]`, `html[data-text]`.

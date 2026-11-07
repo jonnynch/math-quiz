@@ -126,15 +126,36 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click(delBtn()); ok(store().profiles.length===1&&$('profile1').options.length===2,'profile deleted after second tap; selectors updated');
   click($('profilesClose'));
 
+  // ---- backup: copy text, import (merge / replace / undo), error messages
+  click($('profilesButton'));
+  click($('copyBackupButton')); await sleep(30);
+  const copied=$('exportText').value;
+  ok(!$('exportText').classList.contains('hidden')&&JSON.parse(copied).app==='mathQuizBattle','copy backup shows the backup text when the clipboard is unavailable');
+  click($('importToggleButton')); ok(!$('importPanel').classList.contains('hidden'),'import panel opens');
+  $('importText').value='not json'; click($('checkImportButton')); ok($('backupMessage').classList.contains('error'),'invalid backup shows an error message');
+  const backup=JSON.parse(copied); backup.profiles.push({id:'extra1',name:'Nina',avatar:'🐙',stickers:['🐱']}); backup.profiles[0].name='Mia';
+  $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
+  ok(!$('importPreview').classList.contains('hidden')&&$('importSummary').textContent.includes('Found 2 profiles'),'valid backup shows a preview before anything changes');
+  ok(store().profiles.length===1,'nothing is changed by only checking the backup');
+  click($('importMergeButton'));
+  ok(store().profiles.length===2&&store().profiles.some(p=>p.name==='Nina'),'merge adds the new profile');
+  ok($('backupMessage').textContent.includes('added')&&!$('undoImportButton').classList.contains('hidden'),'import summary shown and Undo offered');
+  ok($('profile1').options.length===3,'profile selectors updated after import');
+  click($('undoImportButton')); ok(store().profiles.length===1&&$('backupMessage').textContent.includes('undone'),'undo restores the previous profiles');
+  click($('importToggleButton')); $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
+  click($('importReplaceButton')); ok(store().profiles.length===1,'replace needs a second tap (nothing replaced yet)');
+  click($('importReplaceButton')); ok(store().profiles.length===2,'second tap replaces everything with the backup');
+  click($('profilesClose'));
+
   // ---- guest streak stickers are not saved
   change($('profile1'),''); change($('profile2'),'');
   click(d.querySelector('[data-mode=solo]')); click(d.querySelector('[data-length=endless]'));
   change($('difficulty1'),'grade3'); change($('topic1'),'compare');
-  const gamesBefore=store().profiles[0].totals.games;
+  const gamesBefore=store().profiles[0].totals.games, countBefore=store().profiles.length;
   click($('startButton')); await sleep(80);
   for(let i=0;i<3;i++){ tap(answerBtn()); await sleep(900); }
   click($('stopButton'));
   ok($('finalScores').textContent.includes('create a profile to keep them'),'guest sees the "create a profile" hint for stickers');
-  ok(store().profiles.length===1&&store().profiles[0].totals.games===gamesBefore,'guest game did not change saved profiles');
+  ok(store().profiles.length===countBefore&&store().profiles[0].totals.games===gamesBefore,'guest game did not change saved profiles');
   process.exit(process.exitCode||0);
 })().catch(e=>{console.error('ERROR',e);process.exit(1)});
