@@ -47,5 +47,6 @@ const seed=JSON.stringify({settings:{palette:'cb',text:'normal'},profiles:[mkPro
     }
   }
   console.log('problems',problems.length,'| screenshots in',OUT); problems.forEach(p=>console.log(' ',p));
+  process.exitCode = problems.length ? 1 : 0;
   await browser.close();
 })().catch(e=>{console.error('ERR',e.message);process.exit(1)});

@@ -119,9 +119,8 @@
     setSetting(name, value) {
       if (name === 'palette' && PALETTES.includes(value)) data.settings.palette = value;
       else if (name === 'text' && TEXT_SIZES.includes(value)) data.settings.text = value;
-      else return false;
-      save();
-      return true;
+      else return { error: 'Unknown setting.' };
+      return { saved: save() };
     },
     getProfiles: () => data.profiles,
     getProfile: (id) => data.profiles.find(p => p.id === id) || null,
@@ -137,8 +136,8 @@
     deleteProfile(id) {
       const before = data.profiles.length;
       data.profiles = data.profiles.filter(p => p.id !== id);
-      if (data.profiles.length !== before) save();
-      return data.profiles.length !== before;
+      const deleted = data.profiles.length !== before;
+      return { deleted, saved: deleted ? save() : true };
     },
     save,
 

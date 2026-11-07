@@ -31,22 +31,37 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function networkFirst(request) {
-  const cache = await caches.open(CACHE);
+// The timeout only covers waiting for the server to start answering. It is cleared as soon as the
+// response headers arrive, so it can never cut off the body while it is being cached.
+async function fetchFresh(request) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
   try {
-    const fresh = await fetch(request, { cache: 'no-cache', signal: controller.signal });
-    if (fresh && fresh.ok) cache.put(request, fresh.clone());
-    return fresh;
+    return await fetch(request, { cache: 'no-cache', signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE);
+  let response;
+  try {
+    response = await fetchFresh(request);
   } catch (error) {
     const cached = await cache.match(request, { ignoreSearch: true })
       || (request.mode === 'navigate' ? await cache.match('index.html') : undefined);
     if (cached) return cached;
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  if (response.ok) {
+    // Finish writing the cache before returning the response, so the browser cannot stop the worker
+    // half-way through. A failed write (e.g. storage full) must never break the page itself.
+    try {
+      await cache.put(request, response.clone());
+    } catch (error) { /* serve the network response anyway */ }
+  }
+  return response;
 }
 
 self.addEventListener('fetch', (event) => {

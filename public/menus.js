@@ -62,6 +62,19 @@
     });
   }
 
+  // Shown when the browser refuses to write to its storage (full, blocked, private mode).
+  function settingsMessage(saved) {
+    const node = $('settingsMessage');
+    node.textContent = saved ? '' : 'This browser would not save your settings, so they will be lost when the page is closed.';
+    node.classList.toggle('hidden', saved);
+  }
+
+  function profileListMessage(text) {
+    const node = $('profileListMessage');
+    node.textContent = text;
+    node.classList.toggle('hidden', !text);
+  }
+
   // ---------- modal helpers ----------
   function openModal(id) {
     lastFocus = document.activeElement;
@@ -79,7 +92,8 @@
 
   function wireModal(id, openButtonId, closeButtonId) {
     $(openButtonId).addEventListener('click', () => {
-      if (id === 'profilesModal') { pendingDeleteId = null; renderProfiles(); }
+      if (id === 'profilesModal') { pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
+      if (id === 'settingsModal') settingsMessage(true);
       openModal(id);
     });
     $(closeButtonId).addEventListener('click', () => closeModal(id));
@@ -133,11 +147,12 @@
     del.type = 'button';
     del.addEventListener('click', () => {
       if (pendingDeleteId !== profile.id) { pendingDeleteId = profile.id; renderProfiles(); return; }
-      Store.deleteProfile(profile.id);
+      const result = Store.deleteProfile(profile.id);
       pendingDeleteId = null;
       if (expandedId === profile.id) expandedId = null;
       api.refreshProfileSelects();
       renderProfiles();
+      profileListMessage(result.saved ? '' : 'The profile was deleted, but this browser would not save the change, so it may come back when the page is reloaded.');
     });
     actions.append(details, del);
     head.append(actions);
@@ -367,8 +382,9 @@
 
     document.querySelectorAll('.seg-button').forEach(button => {
       button.addEventListener('click', () => {
-        Store.setSetting(button.dataset.setting, button.dataset.value);
+        const result = Store.setSetting(button.dataset.setting, button.dataset.value);
         applySettings();
+        settingsMessage(result.saved !== false);
       });
     });
 

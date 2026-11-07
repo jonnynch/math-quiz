@@ -67,7 +67,13 @@ const REPS=Number(process.env.REPS||2);
       }
     }
   }
-  console.log('checks',checks,'problems',problems.length);
+  // Known, accepted limit (docs/TESTING.md): Extra large text on the smallest phone (568x280) in 1 vs 1 may
+  // need a small scroll. Anything else, or anything worse (clipped answers), fails the run.
+  const isKnownLimit = (p) => /^xlarge 568x280 [^:]+: needs vertical scroll \d+>\d+(; feedback outside viewport)?$/.test(p);
+  const known = problems.filter(isKnownLimit);
+  const failing = problems.filter(p => !isKnownLimit(p));
+  console.log('checks',checks,'problems',problems.length,`(accepted known limit: ${known.length}, failing: ${failing.length})`);
+  process.exitCode = failing.length ? 1 : 0;
   const agg={};problems.forEach(p=>{const parts=p.split(': ');const head=parts[0].split(' ');const k=head[0]+' '+head[1]+' | '+parts.slice(1).join(': ').replace(/\d+/g,'#').slice(0,100);agg[k]=(agg[k]||0)+1;});
   Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,30).forEach(([k,v])=>console.log(v,k));
   if(process.env.SHOW) problems.slice(0,Number(process.env.SHOW)).forEach(p=>console.log('  e.g.',p));
