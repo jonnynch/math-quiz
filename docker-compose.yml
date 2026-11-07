@@ -1,0 +1,9 @@
+services:
+  math-quiz:
+    image: nginx:alpine
+    container_name: math-quiz-game
+    ports:
+      - "8080:80"
+    volumes:
+      - ./public:/usr/share/nginx/html:ro
+    restart: unless-stopped

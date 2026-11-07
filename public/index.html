@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#172554">
+  <title>Math Quiz Battle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LOCAL MULTIPLAYER</p>
+        <h1>Math Quiz Battle</h1>
+      </div>
+      <div class="top-actions">
+        <button id="profilesButton" class="secondary-button small" type="button">👤 Profiles</button>
+        <button id="settingsButton" class="secondary-button small" type="button">⚙️ Settings</button>
+        <span id="gameStatus" class="status-pill">Ready to play</span>
+      </div>
+    </header>
+
+    <section id="setupPanel" class="panel setup-panel">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">SET UP YOUR GAME</p>
+          <h2>Choose your players</h2>
+        </div>
+      </div>
+      <div class="mode-picker" role="group" aria-label="Game mode">
+        <button class="mode-button selected" data-mode="solo" type="button">Solo</button>
+        <button class="mode-button" data-mode="versus" type="button">1 vs 1</button>
+      </div>
+      <div class="length-setup">
+        <label id="lengthLabel">Game length</label>
+        <div class="mode-picker length-picker" role="group" aria-labelledby="lengthLabel">
+          <button class="length-button selected" data-length="endless" type="button">Endless</button>
+          <button class="length-button" data-length="timed" type="button">Timed</button>
+        </div>
+        <div id="durationConfig" class="duration-config hidden">
+          <label for="duration">Duration</label>
+          <select id="duration">
+            <option value="30">30 seconds</option>
+            <option value="60" selected>60 seconds</option>
+            <option value="90">90 seconds</option>
+            <option value="120">2 minutes</option>
+            <option value="180">3 minutes</option>
+            <option value="300">5 minutes</option>
+          </select>
+        </div>
+      </div>
+      <div id="playerSetup" class="player-setup">
+        <div class="player-config player-one">
+          <div class="player-title"><span class="player-dot blue"></span><h3>Player 1</h3></div>
+          <div class="field">
+            <label for="profile1">Who is playing?</label>
+            <select id="profile1"></select>
+          </div>
+          <div class="field">
+            <label for="difficulty1">Level</label>
+            <select id="difficulty1"></select>
+          </div>
+          <div id="topicRow1" class="field hidden">
+            <label for="topic1">Topic</label>
+            <select id="topic1"></select>
+          </div>
+        </div>
+        <div id="playerTwoConfig" class="player-config player-two hidden">
+          <div class="player-title"><span class="player-dot orange"></span><h3>Player 2</h3></div>
+          <div class="field">
+            <label for="profile2">Who is playing?</label>
+            <select id="profile2"></select>
+          </div>
+          <div class="field">
+            <label for="difficulty2">Level</label>
+            <select id="difficulty2"></select>
+          </div>
+          <div id="topicRow2" class="field hidden">
+            <label for="topic2">Topic</label>
+            <select id="topic2"></select>
+          </div>
+        </div>
+      </div>
+      <p class="setup-note">In 1 vs 1, each player has their own answer area. Topics are available from Grade 1.</p>
+      <button id="startButton" class="primary-button" type="button">Start Game <span aria-hidden="true">→</span></button>
+    </section>
+
+    <section id="gamePanel" class="hidden">
+      <div class="scoreboard" id="scoreboard"></div>
+      <div class="round-banner">
+        <div>
+          <p class="eyebrow">ROUND <span id="roundNumber">1</span></p>
+          <h2 id="roundHeading">Solve the question</h2>
+        </div>
+        <div class="round-actions">
+          <span id="countdown" class="countdown hidden" role="timer" aria-label="Time left">⏱ 1:00</span>
+          <button id="stopButton" class="secondary-button" type="button">Stop Game</button>
+        </div>
+      </div>
+      <div id="questionBoards" class="question-boards"></div>
+      <p id="roundFeedback" class="round-feedback" aria-live="polite">Tap the correct answer to score a point.</p>
+    </section>
+
+    <section id="resultPanel" class="panel result-panel hidden">
+      <div class="result-icon">🏆</div>
+      <p id="resultEyebrow" class="eyebrow">GAME FINISHED</p>
+      <h2 id="resultTitle">Final scores</h2>
+      <p id="resultMeta" class="result-meta"></p>
+      <div id="finalScores" class="final-scores"></div>
+      <div class="result-actions">
+        <button id="rematchButton" class="primary-button" type="button">Play Again</button>
+        <button id="changeSetupButton" class="secondary-button" type="button">Change Settings</button>
+      </div>
+    </section>
+
+    <footer><span>Math Quiz Battle</span><span>Made for your home network</span></footer>
+  </main>
+
+  <div id="confettiLayer" class="confetti-layer" aria-hidden="true"></div>
+
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <button id="settingsClose" class="primary-button compact" type="button" data-autofocus>Done</button>
+      </div>
+      <div class="setting-block">
+        <p class="setting-title">Colours</p>
+        <div class="seg" role="group" aria-label="Colour palette">
+          <button class="seg-button" data-setting="palette" data-value="standard" type="button">Standard</button>
+          <button class="seg-button" data-setting="palette" data-value="cb" type="button">Colour-blind friendly</button>
+        </div>
+        <p class="setting-help">Uses blue and orange for the players, plus ✓ and ✗ marks, so right and wrong never depend on red and green.</p>
+      </div>
+      <div class="setting-block">
+        <p class="setting-title">Text size</p>
+        <div class="seg" role="group" aria-label="Text size">
+          <button class="seg-button" data-setting="text" data-value="normal" type="button">Normal</button>
+          <button class="seg-button" data-setting="text" data-value="large" type="button">Large</button>
+          <button class="seg-button" data-setting="text" data-value="xlarge" type="button">Extra large</button>
+        </div>
+        <p class="setting-help setting-sample">Sample: What is 7 + 5?</p>
+      </div>
+      <p class="setting-help">Settings are saved on this device.</p>
+    </div>
+  </div>
+
+  <div id="profilesModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profilesTitle">
+      <div class="modal-head">
+        <h2 id="profilesTitle">Profiles</h2>
+        <button id="profilesClose" class="primary-button compact" type="button" data-autofocus>Done</button>
+      </div>
+      <p id="storageNote" class="setting-help error hidden">This browser is not allowing saved data (private mode?), so profiles will not be kept.</p>
+      <div id="profileList" class="profile-list"></div>
+      <div class="profile-form">
+        <p class="setting-title">Add a profile</p>
+        <label for="profileName">Name</label>
+        <input id="profileName" type="text" maxlength="14" autocomplete="off" placeholder="Type a name">
+        <p class="setting-title small">Picture</p>
+        <div id="avatarPicker" class="avatar-picker"></div>
+        <p id="profileMessage" class="setting-help" role="status"></p>
+        <button id="addProfileButton" class="primary-button compact" type="button">Add profile</button>
+      </div>
+      <p class="setting-help">Profiles, stickers and best scores are saved on this device and browser only.</p>
+    </div>
+  </div>
+
+  <script src="questions.js"></script>
+  <script src="store.js"></script>
+  <script src="menus.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

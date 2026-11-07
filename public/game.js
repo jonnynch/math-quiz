@@ -1,0 +1,766 @@
+// Game flow and screens. Question generators are in questions.js, saved data in store.js,
+// and the Settings/Profiles windows in menus.js.
+(() => {
+  'use strict';
+
+  const Q = window.MQQuestions;
+  const Store = window.MQStore;
+  const Menus = window.MQMenus;
+  const { shuffledCopy, choose, intBetween } = Q;
+
+  const state = {
+    mode: 'solo',
+    players: [],
+    questionSets: {},
+    round: 0,
+    active: false,
+    locked: false,
+    timer: null,
+    advanceTimer: null,
+    roundStart: 0,
+    length: 'endless',      // 'endless' or 'timed'
+    durationSeconds: 60,
+    startedAt: 0,
+    deadline: 0,
+    clockTimer: null
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const setupPanel = $('setupPanel');
+  const gamePanel = $('gamePanel');
+  const resultPanel = $('resultPanel');
+  const playerTwoConfig = $('playerTwoConfig');
+
+  const levelLabel = (player) => {
+    const base = Q.difficultyLabel(player.difficulty);
+    return player.topic !== 'mixed' ? `${base} · ${Q.topicLabel(player.topic)}` : base;
+  };
+
+  function setStatus(text) {
+    $('gameStatus').textContent = text;
+  }
+
+  function clearTimers() {
+    if (state.timer) clearTimeout(state.timer);
+    if (state.advanceTimer) clearTimeout(state.advanceTimer);
+    state.timer = null;
+    state.advanceTimer = null;
+  }
+
+  function stopClock() {
+    if (state.clockTimer) clearInterval(state.clockTimer);
+    state.clockTimer = null;
+  }
+
+  function formatClock(totalSeconds) {
+    const seconds = Math.max(0, Math.round(totalSeconds));
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function tickClock() {
+    if (!state.active || state.length !== 'timed') return;
+    const remaining = Math.max(0, Math.ceil((state.deadline - performance.now()) / 1000));
+    const countdown = $('countdown');
+    countdown.textContent = `⏱ ${formatClock(remaining)}`;
+    countdown.classList.toggle('urgent', remaining <= 10);
+    if (remaining <= 0) endGame(true);
+  }
+
+  function setLength(length) {
+    state.length = length;
+    document.querySelectorAll('.length-button').forEach(button => {
+      const selected = button.dataset.length === length;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    $('durationConfig').classList.toggle('hidden', length !== 'timed');
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    document.querySelectorAll('.mode-button').forEach(button => {
+      const selected = button.dataset.mode === mode;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    playerTwoConfig.classList.toggle('hidden', mode !== 'versus');
+  }
+
+  // ---------- level and topic selectors ----------
+  function fillDifficultySelect(select, selected) {
+    select.innerHTML = '';
+    Q.DIFFICULTIES.forEach(item => {
+      const option = document.createElement('option');
+      option.value = item.value;
+      option.textContent = item.label;
+      select.append(option);
+    });
+    select.value = selected;
+  }
+
+  // Topics exist only for Grade 1-6; the age levels keep their own fixed activity.
+  function refreshTopicSelect(number, preferred) {
+    const difficulty = $('difficulty' + number).value;
+    const row = $('topicRow' + number);
+    const select = $('topic' + number);
+    const topics = Q.topicsFor(difficulty);
+    if (!topics.length) {
+      row.classList.add('hidden');
+      select.innerHTML = '';
+      return;
+    }
+    const keep = preferred || select.value;
+    select.innerHTML = '';
+    topics.forEach(topic => {
+      const option = document.createElement('option');
+      option.value = topic.value;
+      option.textContent = topic.label;
+      select.append(option);
+    });
+    select.value = topics.some(t => t.value === keep) ? keep : 'mixed';
+    row.classList.remove('hidden');
+  }
+
+  const topicValue = (number) => Q.normaliseTopic($('difficulty' + number).value, $('topic' + number).value);
+
+  // Choosing a saved profile brings back the level and topic that child played last.
+  function applyProfileSetup(number, profile) {
+    const last = profile && profile.lastSetup;
+    if (!last || !Q.DIFFICULTIES.some(d => d.value === last.difficulty)) return;
+    $('difficulty' + number).value = last.difficulty;
+    refreshTopicSelect(number, last.topic);
+  }
+
+  // ---------- question banks and players ----------
+  async function loadQuestionSet(difficulty, topic) {
+    const key = `${difficulty}|${topic}`;
+    if (state.questionSets[key]) return state.questionSets[key];
+    // Build a fresh bank locally in the browser. No JSON files, server API or internet needed.
+    const generated = [];
+    for (let i = 0; i < 500; i++) generated.push(Q.generateQuestion(difficulty, topic));
+    state.questionSets[key] = shuffledCopy(generated);
+    return state.questionSets[key];
+  }
+
+  function createPlayer(number, difficulty, topic, profile) {
+    const key = `${difficulty}|${topic}`;
+    return {
+      id: number,
+      name: profile ? `${profile.avatar} ${profile.name}` : `Player ${number}`,
+      profile,
+      difficulty,
+      topic,
+      setKey: key,
+      questions: shuffledCopy(state.questionSets[key]),
+      questionIndex: 0,
+      currentQuestion: null,
+      score: 0,
+      lockedOut: false,
+      answeredThisRound: false,
+      streak: 0,
+      bestStreak: 0,
+      stickers: [],
+      stats: { taps: 0, correctTaps: 0, timedQuestions: 0, totalSeconds: 0 },
+      color: number === 1 ? 'blue' : 'orange'
+    };
+  }
+
+  function nextQuestionFor(player) {
+    if (player.questionIndex >= player.questions.length) {
+      player.questions = shuffledCopy(state.questionSets[player.setKey]);
+      player.questionIndex = 0;
+    }
+    player.currentQuestion = player.questions[player.questionIndex++];
+    return player.currentQuestion;
+  }
+
+  async function startGame() {
+    clearTimers();
+    stopClock();
+    $('startButton').disabled = true;
+    setStatus('Loading questions…');
+    const versus = state.mode === 'versus';
+    const d1 = $('difficulty1').value, t1 = topicValue(1);
+    const d2 = $('difficulty2').value, t2 = topicValue(2);
+    const p1 = Menus.selectedProfile(1);
+    let p2 = versus ? Menus.selectedProfile(2) : null;
+    if (p1 && p2 && p1.id === p2.id) p2 = null;
+    try {
+      await Promise.all(versus
+        ? [loadQuestionSet(d1, t1), loadQuestionSet(d2, t2)]
+        : [loadQuestionSet(d1, t1)]);
+
+      state.players = [createPlayer(1, d1, t1, p1)];
+      if (versus) state.players.push(createPlayer(2, d2, t2, p2));
+      state.round = 0;
+      state.active = true;
+      state.locked = false;
+      setupPanel.classList.add('hidden');
+      resultPanel.classList.add('hidden');
+      gamePanel.classList.remove('hidden');
+      setStatus('Game in progress');
+      document.body.classList.add('playing');
+      renderScoreboard();
+      state.startedAt = performance.now();
+      state.durationSeconds = Number($('duration').value) || 60;
+      const countdown = $('countdown');
+      countdown.classList.toggle('hidden', state.length !== 'timed');
+      if (state.length === 'timed') {
+        state.deadline = state.startedAt + state.durationSeconds * 1000;
+        countdown.classList.remove('urgent');
+        countdown.textContent = `⏱ ${formatClock(state.durationSeconds)}`;
+        state.clockTimer = setInterval(tickClock, 200);
+      }
+      showNextRound();
+    } catch (error) {
+      alert(`${error.message}\n\nPlease try starting the game again.`);
+      setStatus('Ready to play');
+    } finally {
+      $('startButton').disabled = false;
+    }
+  }
+
+  function renderScoreboard() {
+    $('scoreboard').innerHTML = '';
+    state.players.forEach(player => {
+      const card = document.createElement('div');
+      card.className = `score-card ${player.color}`;
+      const details = document.createElement('div');
+      const name = document.createElement('span');
+      name.className = 'score-name';
+      const nameText = document.createElement('span');
+      nameText.className = 'name-text';
+      nameText.textContent = player.name;
+      name.append(nameText);
+      if (player.streak >= 2) {
+        const badge = document.createElement('span');
+        badge.className = 'streak-badge';
+        badge.textContent = `🔥 ${player.streak}`;
+        badge.setAttribute('aria-label', `${player.streak} correct in a row`);
+        name.append(badge);
+      }
+      const difficulty = document.createElement('span');
+      difficulty.className = 'score-detail';
+      difficulty.textContent = levelLabel(player);
+      details.append(name, difficulty);
+      const score = document.createElement('span');
+      score.className = 'score-value';
+      score.textContent = String(player.score);
+      score.setAttribute('aria-label', `${player.name} score`);
+      card.append(details, score);
+      $('scoreboard').append(card);
+    });
+  }
+
+  function showNextRound() {
+    if (!state.active) return;
+    clearTimers();
+    state.round += 1;
+    state.locked = false;
+    state.roundStart = performance.now();
+    $('roundNumber').textContent = String(state.round);
+    $('roundHeading').textContent = state.mode === 'solo' ? 'Solve the question' : 'Who will answer first?';
+    const boards = $('questionBoards');
+    boards.className = `question-boards ${state.mode === 'solo' ? 'solo' : 'versus'}`;
+    boards.innerHTML = '';
+    state.players.forEach(player => {
+      player.lockedOut = false;
+      player.answeredThisRound = false;
+      const question = nextQuestionFor(player);
+      boards.append(createQuestionBoard(player, question));
+    });
+    const feedback = $('roundFeedback');
+    feedback.className = 'round-feedback';
+    feedback.textContent = state.mode === 'solo'
+      ? 'Tap the correct answer to score a point.'
+      : 'First correct answer wins the point. One wrong answer and you are out for this question.';
+  }
+
+  // ---------- figures: analogue clock and polygons (SVG) ----------
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgEl(name, attrs) {
+    const node = document.createElementNS(SVG_NS, name);
+    Object.entries(attrs || {}).forEach(([k, v]) => node.setAttribute(k, String(v)));
+    return node;
+  }
+
+  function createClockSvg(hour, minute) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-clock', role: 'img', 'aria-label': 'Analogue clock' });
+    svg.append(svgEl('circle', { cx: 50, cy: 50, r: 47, class: 'clock-face' }));
+    for (let i = 0; i < 60; i++) {
+      const major = i % 5 === 0;
+      const angle = (i * 6 * Math.PI) / 180;
+      const r1 = major ? 40 : 43.5, r2 = 45.5;
+      svg.append(svgEl('line', {
+        x1: 50 + r1 * Math.sin(angle), y1: 50 - r1 * Math.cos(angle),
+        x2: 50 + r2 * Math.sin(angle), y2: 50 - r2 * Math.cos(angle),
+        class: major ? 'clock-tick major' : 'clock-tick'
+      }));
+    }
+    for (let n = 1; n <= 12; n++) {
+      const angle = (n * 30 * Math.PI) / 180;
+      const text = svgEl('text', { x: 50 + 32 * Math.sin(angle), y: 50 - 32 * Math.cos(angle) + 3.6, class: 'clock-number', 'text-anchor': 'middle' });
+      text.textContent = String(n);
+      svg.append(text);
+    }
+    const hand = (degrees, length, cls) => {
+      const a = (degrees * Math.PI) / 180;
+      return svgEl('line', { x1: 50, y1: 50, x2: 50 + length * Math.sin(a), y2: 50 - length * Math.cos(a), class: cls });
+    };
+    svg.append(hand(((hour % 12) + minute / 60) * 30, 22, 'clock-hand hour'));
+    svg.append(hand(minute * 6, 33, 'clock-hand minute'));
+    svg.append(svgEl('circle', { cx: 50, cy: 50, r: 2.6, class: 'clock-center' }));
+    return svg;
+  }
+
+  function createPolygonSvg(sides) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-polygon', role: 'img', 'aria-label': 'A shape' });
+    const offset = sides % 2 === 0 ? -90 + 180 / sides : -90;
+    const points = Array.from({ length: sides }, (_, i) => {
+      const a = ((offset + (360 / sides) * i) * Math.PI) / 180;
+      return `${(50 + 40 * Math.cos(a)).toFixed(2)},${(50 + 40 * Math.sin(a)).toFixed(2)}`;
+    }).join(' ');
+    svg.append(svgEl('polygon', { points, class: 'poly' }));
+    return svg;
+  }
+
+  function createFigure(figure) {
+    return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
+  }
+
+  function createQuestionBoard(player, question) {
+    const board = document.createElement('article');
+    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}`;
+    board.dataset.playerId = String(player.id);
+
+    const topline = document.createElement('div');
+    topline.className = 'question-topline';
+    const label = document.createElement('span');
+    label.className = 'player-label';
+    label.textContent = player.name;
+    const level = document.createElement('span');
+    level.className = 'difficulty-label';
+    level.textContent = levelLabel(player);
+    topline.append(label, level);
+
+    const text = document.createElement('h3');
+    text.className = 'question-text';
+    text.textContent = question.question;
+
+    const grid = document.createElement('div');
+    grid.className = 'answer-grid';
+    grid.setAttribute('role', 'group');
+    grid.setAttribute('aria-label', `${player.name} answers`);
+
+    question.answers.forEach((answer, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'answer-button';
+      button.textContent = question.simple ? answer : `${String.fromCharCode(65 + index)}. ${answer}`;
+      // pointerdown fires immediately for every finger, even when two players touch the screen at
+      // nearly the same time (Safari can swallow 'click' events during multi-touch).
+      button.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        event.preventDefault();
+        handleAnswer(player.id, index, button);
+      });
+      // Keyboard activation (Enter/Space) still works; real taps/clicks have detail > 0 and are ignored here.
+      button.addEventListener('click', (event) => {
+        if (event.detail === 0) handleAnswer(player.id, index, button);
+      });
+      grid.append(button);
+    });
+
+    // .board-info holds the question side (name, objects, text); .answer-grid is the answer side.
+    // Normally they stack; on a phone held sideways they sit side by side (see style.css).
+    const body = document.createElement('div');
+    body.className = 'board-body';
+    const info = document.createElement('div');
+    info.className = 'board-info';
+    info.append(topline);
+    if (question.stage) info.append(createStage(question.stage));
+    if (question.figure) info.append(createFigure(question.figure));
+    info.append(text);
+    if (question.visual) {
+      const visual = document.createElement('div');
+      visual.className = `counting-visual${question.rowsOfFive ? ' rows-of-five' : ''}`;
+      visual.setAttribute('role', 'img');
+      visual.setAttribute('aria-label', question.visualLabel);
+      question.visual.forEach(emoji => {
+        const item = document.createElement('span');
+        item.textContent = emoji;
+        item.setAttribute('aria-hidden', 'true');
+        visual.append(item);
+      });
+      info.append(visual);
+    }
+    body.append(info, grid);
+    board.append(body);
+    return board;
+  }
+
+  // Ten fixed slots (2 rows of 5) are always rendered, so the block keeps the same height
+  // before and after objects are added or removed and nothing below it moves.
+  const STAGE_SLOTS = 10;
+
+  function stageLabel(stage, done) {
+    const before = `${stage.baseCount} ${stage.base.name}`;
+    if (!done) return before;
+    return stage.op === 'add'
+      ? `${before} and ${stage.change} ${stage.added.name} added`
+      : `${before}, ${stage.change} removed`;
+  }
+
+  function createStage(stage) {
+    const box = document.createElement('div');
+    box.className = 'object-stage';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', stageLabel(stage, false));
+    for (let i = 0; i < STAGE_SLOTS; i++) {
+      const slot = document.createElement('span');
+      slot.className = 'slot';
+      slot.setAttribute('aria-hidden', 'true');
+      slot.textContent = i < stage.baseCount ? stage.base.emoji : '';
+      box.append(slot);
+    }
+    return box;
+  }
+
+  // Called when the correct answer is known: add objects of another type, or remove some.
+  function showResult(board, question) {
+    if (!board || !question || !question.stage || board.dataset.resultShown) return;
+    board.dataset.resultShown = '1';
+    const stage = question.stage;
+    const box = board.querySelector('.object-stage');
+    const slots = box ? box.querySelectorAll('.slot') : [];
+    for (let i = 0; i < stage.change; i++) {
+      if (stage.op === 'add') {
+        const slot = slots[stage.baseCount + i];
+        if (!slot) continue;
+        slot.textContent = stage.added.emoji;
+        slot.style.setProperty('--delay', `${i * 0.12}s`);
+        slot.classList.add('pop');
+      } else {
+        const slot = slots[stage.baseCount - 1 - i];
+        if (!slot) continue;
+        slot.style.setProperty('--delay', `${i * 0.12}s`);
+        slot.classList.add('leaving');
+      }
+    }
+    if (box) box.setAttribute('aria-label', stageLabel(stage, true));
+    const text = board.querySelector('.question-text');
+    if (text && question.resultText) text.textContent = question.resultText;
+  }
+
+  // ---------- rewards: streaks, stickers, stars and confetti ----------
+  const isMilestone = (n) => n === 3 || n === 5 || n === 10 || (n > 10 && n % 5 === 0);
+  const CONFETTI_COLORS = ['#E69F00', '#56B4E9', '#009E73', '#F0E442', '#0072B2', '#D55E00', '#CC79A7'];
+
+  function launchConfetti(count) {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const layer = $('confettiLayer');
+    if (layer.childElementCount > 160) return;
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('span');
+      piece.className = 'confetto';
+      piece.style.left = `${Math.random() * 100}%`;
+      piece.style.background = choose(CONFETTI_COLORS);
+      piece.style.setProperty('--dx', `${intBetween(-90, 90)}px`);
+      piece.style.setProperty('--rot', `${intBetween(180, 900)}deg`);
+      piece.style.animationDuration = `${(1.3 + Math.random() * 1.1).toFixed(2)}s`;
+      piece.style.animationDelay = `${(Math.random() * 0.25).toFixed(2)}s`;
+      piece.addEventListener('animationend', () => piece.remove());
+      layer.append(piece);
+    }
+  }
+
+  // A sticker the player does not own yet (saved profiles keep them; guests keep them for this game).
+  function awardSticker(player) {
+    const owned = new Set([...(player.profile ? player.profile.stickers : []), ...player.stickers]);
+    const available = Store.STICKERS.filter(s => !owned.has(s));
+    if (!available.length) return null;
+    const sticker = choose(available);
+    player.stickers.push(sticker);
+    if (player.profile) {
+      player.profile.stickers.push(sticker);
+      Store.save();
+    }
+    return sticker;
+  }
+
+  // 3 stars for 90%+ correct answers, 2 for 70%+, otherwise 1 (none if nothing was correct).
+  function starsFor(player) {
+    const { taps, correctTaps } = player.stats;
+    if (!correctTaps) return 0;
+    const accuracy = correctTaps / taps;
+    return accuracy >= 0.9 ? 3 : accuracy >= 0.7 ? 2 : 1;
+  }
+
+  function handleAnswer(playerId, answerIndex, button) {
+    if (!state.active || state.locked) return;
+    const player = state.players.find(item => item.id === playerId);
+    if (!player || !player.currentQuestion || player.lockedOut) return;
+    if (button.disabled) return;
+
+    const versus = state.players.length > 1;
+    const feedback = $('roundFeedback');
+    const correct = answerIndex === player.currentQuestion.correct;
+
+    // Statistics: accuracy counts every answer tapped; response time is measured from when the
+    // question appeared to the player's first answer on that question.
+    player.stats.taps += 1;
+    if (correct) player.stats.correctTaps += 1;
+    if (!player.answeredThisRound) {
+      player.answeredThisRound = true;
+      player.stats.timedQuestions += 1;
+      player.stats.totalSeconds += (performance.now() - state.roundStart) / 1000;
+    }
+
+    if (!correct) {
+      button.classList.add('wrong');
+      button.disabled = true;
+      player.streak = 0;
+      renderScoreboard();
+
+      if (!versus) {
+        // Solo: keep trying until the correct answer is chosen.
+        feedback.className = 'round-feedback error';
+        feedback.textContent = `${player.name} — not quite. Try another answer.`;
+        return;
+      }
+
+      // 1 vs 1: one wrong answer locks this player out for the rest of the question.
+      player.lockedOut = true;
+      const board = boardFor(playerId);
+      if (board) {
+        board.classList.add('locked-out');
+        board.querySelectorAll('.answer-button').forEach(b => { b.disabled = true; });
+        const badge = document.createElement('span');
+        badge.className = 'lock-badge';
+        badge.textContent = 'Out this question';
+        board.querySelector('.question-topline').append(badge);
+      }
+
+      if (state.players.every(p => p.lockedOut)) {
+        // Everyone got it wrong: no points, show the answers, move on.
+        state.locked = true;
+        state.players.forEach(p => {
+          const b = boardFor(p.id);
+          if (!b) return;
+          const buttons = b.querySelectorAll('.answer-button');
+          if (buttons[p.currentQuestion.correct]) buttons[p.currentQuestion.correct].classList.add('reveal');
+          showResult(b, p.currentQuestion);
+        });
+        const anyStage = state.players.some(p => p.currentQuestion.stage);
+        feedback.className = 'round-feedback error';
+        feedback.textContent = 'Both answers were wrong — no point this time. Next question!';
+        state.advanceTimer = setTimeout(() => {
+          if (state.active) showNextRound();
+        }, anyStage ? 2400 : 1800);
+      } else {
+        feedback.className = 'round-feedback error';
+        feedback.textContent = `${player.name} is out for this question. The other player can still answer!`;
+      }
+      return;
+    }
+
+    // First correct tap locks all players' answer buttons immediately.
+    state.locked = true;
+    player.score += 1;
+
+    // Streak: consecutive questions answered correctly. In 1 vs 1, winning a round also ends the
+    // other player's streak. Streaks never change the score, so 1 vs 1 stays fair.
+    player.streak += 1;
+    player.bestStreak = Math.max(player.bestStreak, player.streak);
+    state.players.forEach(p => { if (p !== player) p.streak = 0; });
+    let message = `${player.name} answered correctly! +1 point`;
+    if (player.streak >= 2) message += ` · 🔥 ${player.streak} in a row!`;
+    if (isMilestone(player.streak)) {
+      const sticker = awardSticker(player);
+      if (sticker) message += ` New sticker ${sticker}`;
+      launchConfetti(player.streak >= 10 ? 90 : 55);
+    }
+
+    feedback.className = 'round-feedback success';
+    feedback.textContent = message;
+    const board = boardFor(playerId);
+    const buttons = board ? board.querySelectorAll('.answer-button') : [];
+    buttons.forEach((answerButton, index) => {
+      answerButton.disabled = true;
+      if (index === answerIndex) answerButton.classList.add('correct');
+    });
+    $('questionBoards').querySelectorAll('.answer-button').forEach(answerButton => {
+      answerButton.disabled = true;
+    });
+    renderScoreboard();
+    showResult(board, player.currentQuestion);
+
+    // Briefly show the result (a little longer when objects are animating), then load the next round.
+    state.advanceTimer = setTimeout(() => {
+      if (state.active) showNextRound();
+    }, player.currentQuestion.stage ? 1700 : 850);
+  }
+
+  function boardFor(playerId) {
+    return $('questionBoards').querySelector(`[data-player-id="${playerId}"]`);
+  }
+
+  function stopGame() {
+    endGame(false);
+  }
+
+  // Saves each saved profile's result: totals, recent games, best timed score and last level played.
+  function recordProfileResults() {
+    const outcome = new Map();
+    state.players.forEach(player => {
+      const profile = player.profile;
+      const { taps, correctTaps, timedQuestions, totalSeconds } = player.stats;
+      if (!profile || !taps) return;
+      const seconds = state.length === 'timed' ? state.durationSeconds : 0;
+      profile.totals.games += 1;
+      profile.totals.correct += player.score;
+      profile.totals.taps += taps;
+      profile.totals.correctTaps += correctTaps;
+      profile.totals.bestStreak = Math.max(profile.totals.bestStreak, player.bestStreak);
+      let newBest = false;
+      if (seconds) {
+        const key = `${player.difficulty}|${player.topic}|${seconds}`;
+        const previous = profile.bests[key];
+        if (previous === undefined || player.score > previous) {
+          newBest = previous !== undefined;
+          profile.bests[key] = player.score;
+        }
+      }
+      profile.history.unshift({
+        t: Date.now(),
+        level: player.difficulty,
+        topic: player.topic,
+        mode: state.players.length > 1 ? 'versus' : 'solo',
+        seconds,
+        score: player.score,
+        taps,
+        correctTaps,
+        avgTime: timedQuestions ? Number((totalSeconds / timedQuestions).toFixed(2)) : 0,
+        streak: player.bestStreak
+      });
+      profile.history.length = Math.min(profile.history.length, Store.MAX_HISTORY);
+      profile.lastSetup = { difficulty: player.difficulty, topic: player.topic };
+      outcome.set(player.id, { newBest });
+    });
+    if (outcome.size) Store.save();
+    return outcome;
+  }
+
+  function endGame(timedOut) {
+    if (!state.active) return;
+    state.active = false;
+    clearTimers();
+    stopClock();
+    document.body.classList.remove('playing');
+    gamePanel.classList.add('hidden');
+    resultPanel.classList.remove('hidden');
+    setStatus(timedOut ? 'Time’s up' : 'Game finished');
+    $('resultEyebrow').textContent = timedOut ? 'TIME’S UP' : 'GAME FINISHED';
+    $('resultMeta').textContent = state.length === 'timed'
+      ? `Timed game · ${formatClock(state.durationSeconds)}`
+      : `Endless game · played ${formatClock((performance.now() - state.startedAt) / 1000)}`;
+    $('finalScores').innerHTML = '';
+
+    const outcome = recordProfileResults();
+    const highest = Math.max(...state.players.map(player => player.score));
+    const winners = state.players.filter(player => player.score === highest);
+    $('resultTitle').textContent = state.players.length === 1
+      ? 'Great effort!'
+      : winners.length === 1 ? `${winners[0].name} wins!` : 'It’s a tie!';
+
+    state.players.forEach(player => {
+      const card = document.createElement('div');
+      card.className = 'final-score';
+      const name = document.createElement('span');
+      name.textContent = `${player.name} · ${levelLabel(player)}`;
+      const score = document.createElement('strong');
+      score.textContent = String(player.score);
+      card.append(name, score);
+
+      const stars = starsFor(player);
+      if (stars) {
+        const rating = document.createElement('div');
+        rating.className = 'star-rating';
+        rating.textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+        rating.setAttribute('aria-label', `${stars} out of 3 stars`);
+        card.append(rating);
+      }
+      if (outcome.get(player.id) && outcome.get(player.id).newBest) {
+        const best = document.createElement('div');
+        best.className = 'best-badge';
+        best.textContent = '🏅 New personal best!';
+        card.append(best);
+      }
+
+      const { taps, correctTaps, timedQuestions, totalSeconds } = player.stats;
+      const accuracy = taps ? `${Math.round((correctTaps / taps) * 100)}% (${correctTaps}/${taps})` : '–';
+      const average = timedQuestions ? `${(totalSeconds / timedQuestions).toFixed(1)} s` : '–';
+      const stats = document.createElement('div');
+      stats.className = 'final-stats';
+      [['Correct answers', accuracy], ['Average time', average], ['Best streak', player.bestStreak ? `🔥 ${player.bestStreak}` : '–']].forEach(([labelText, valueText]) => {
+        const row = document.createElement('div');
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        const value = document.createElement('b');
+        value.textContent = valueText;
+        row.append(label, value);
+        stats.append(row);
+      });
+      card.append(stats);
+
+      if (player.stickers.length) {
+        const earned = document.createElement('div');
+        earned.className = 'earned-stickers';
+        const caption = document.createElement('span');
+        caption.textContent = player.profile ? 'New stickers' : 'Stickers won (create a profile to keep them)';
+        const row = document.createElement('div');
+        row.className = 'sticker-row';
+        row.textContent = player.stickers.join(' ');
+        earned.append(caption, row);
+        card.append(earned);
+      }
+      $('finalScores').append(card);
+    });
+    if (state.players.some(player => player.score > 0)) launchConfetti(70);
+  }
+
+  function changeSetup() {
+    clearTimers();
+    stopClock();
+    document.body.classList.remove('playing');
+    state.active = false;
+    gamePanel.classList.add('hidden');
+    resultPanel.classList.add('hidden');
+    setupPanel.classList.remove('hidden');
+    setStatus('Ready to play');
+  }
+
+  // ---------- start-up ----------
+  fillDifficultySelect($('difficulty1'), 'grade3');
+  fillDifficultySelect($('difficulty2'), 'grade4');
+  [1, 2].forEach(n => {
+    $('difficulty' + n).addEventListener('change', () => refreshTopicSelect(n));
+    refreshTopicSelect(n);
+  });
+
+  document.querySelectorAll('.mode-button').forEach(button => {
+    button.addEventListener('click', () => setMode(button.dataset.mode));
+  });
+  document.querySelectorAll('.length-button').forEach(button => {
+    button.addEventListener('click', () => setLength(button.dataset.length));
+  });
+  $('startButton').addEventListener('click', startGame);
+  $('stopButton').addEventListener('click', stopGame);
+  $('rematchButton').addEventListener('click', startGame);
+  $('changeSetupButton').addEventListener('click', changeSetup);
+
+  Menus.onProfileChosen = applyProfileSetup;
+  Menus.init();
+  setMode('solo');
+  setLength('endless');
+})();
