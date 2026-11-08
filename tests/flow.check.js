@@ -29,11 +29,11 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   // ---- topics only for grades
   const topicIds=s=>[...$(s).options].map(o=>o.value);
   ok(!$('topicRow1').classList.contains('hidden'),'topic row visible for default Grade 3');
-  ok(topicIds('topic1').join()==='mixed,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 11 topics');
+  ok(topicIds('topic1').join()==='mixed,all,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 12 topics (incl. Mixed All Questions)');
   change($('difficulty1'),'grade1');
-  ok(topicIds('topic1').join()==='mixed,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
+  ok(topicIds('topic1').join()==='mixed,all,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
   change($('difficulty1'),'grade5');
-  ok(topicIds('topic1').join()==='mixed,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
+  ok(topicIds('topic1').join()==='mixed,all,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
   for(const lv of ['toddler','age4','age5','age6']){ change($('difficulty1'),lv); ok($('topicRow1').classList.contains('hidden'),`no topic row for ${lv}`); }
   change($('difficulty1'),'grade3');
 
@@ -119,7 +119,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));
   const detailsBtn=[...d.querySelectorAll('.profile-card .secondary-button')].find(b=>b.textContent==='Details'); click(detailsBtn);
-  ok(d.querySelectorAll('.sticker-book .sticker').length===w.MQStore.STICKERS.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows every sticker, 1 collected');
+  ok(d.querySelectorAll('.sticker-book .sticker').length===24&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows 24 stickers, 1 collected');
   ok(d.querySelector('.detail-list').textContent.length>0,'recent games listed');
   const delBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][1];
   click(delBtn()); ok(delBtn().textContent.includes('again'),'delete asks for a second tap');
@@ -183,5 +183,19 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('stopButton'));
   ok($('finalScores').textContent.includes('create a profile to keep them'),'guest sees the "create a profile" hint for stickers');
   ok(store().profiles.length===countBefore&&store().profiles[0].totals.games===gamesBefore,'guest game did not change saved profiles');
+
+  // ---- Mixed All Questions: Solo and 1 vs 1
+  click($('changeSetupButton'));
+  change($('difficulty1'),'grade4'); change($('topic1'),'all');
+  ok($('topic1').value==='all','Mixed All Questions can be selected');
+  click(d.querySelector('[data-mode=solo]')); click($('startButton')); await sleep(80);
+  ok(d.querySelectorAll('.question-board').length===1&&btns(0).length>=3,'Mixed All Questions starts a solo game with answers');
+  ok(d.querySelector('.score-detail').textContent==='Grade 4 · Mixed All Questions','scoreboard shows the Mixed All Questions topic');
+  click($('stopButton')); click($('changeSetupButton'));
+  click(d.querySelector('[data-mode=versus]'));
+  change($('difficulty2'),'grade2'); change($('topic2'),'all');
+  click($('startButton')); await sleep(80);
+  ok(d.querySelectorAll('.question-board').length===2&&btns(0).length>=3&&btns(1).length>=3,'Mixed All Questions starts a 1 vs 1 game with two boards');
+  click($('stopButton'));
   process.exit(process.exitCode||0);
 })().catch(e=>{console.error('ERROR',e);process.exit(1)});

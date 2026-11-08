@@ -19,6 +19,7 @@
   const ALL = [1, 2, 3, 4, 5, 6];
   const TOPICS = [
     { value: 'mixed', label: 'Mixed arithmetic', grades: ALL },
+    { value: 'all', label: 'Mixed All Questions', grades: ALL },
     { value: 'add', label: 'Addition only', grades: ALL },
     { value: 'sub', label: 'Subtraction only', grades: ALL },
     { value: 'mul', label: 'Multiplication only', grades: [2, 3, 4, 5, 6] },
@@ -562,20 +563,29 @@
     return makeQuestion(a, operator, b, answer, grade >= 4);
   }
 
+  // "Mixed All Questions" draws each question from one of these categories (only those the grade offers).
+  // 'mixed' covers + − × ÷ (÷ and × from Grade 2); add/sub/mul/div are not listed so arithmetic is not over-weighted.
+  const ALL_MIX_TOPICS = ['mixed', 'tables', 'compare', 'fractions', 'money', 'clock', 'shapes'];
+
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeCountingQuestion();
     if (difficulty === 'age4') return makeCounting10Question();
     if (difficulty === 'age5') return makeBondsTo10Question();
     if (difficulty === 'age6') return makeWithin10Question();
     const grade = gradeOf(difficulty);
-    switch (normaliseTopic(difficulty, topic)) {
+    let name = normaliseTopic(difficulty, topic);
+    if (name === 'all') {
+      const offered = topicsFor(difficulty).map(t => t.value);
+      name = choose(ALL_MIX_TOPICS.filter(t => offered.includes(t)));
+    }
+    switch (name) {
       case 'tables': return makeTablesQuestion(grade);
       case 'compare': return makeCompareNumbersQuestion(grade);
       case 'fractions': return makeFractionsQuestion(grade);
       case 'money': return makeMoneyQuestion(grade);
       case 'clock': return makeClockQuestion(grade);
       case 'shapes': return makeShapesQuestion(grade);
-      default: return arithmeticQuestion(grade, normaliseTopic(difficulty, topic));
+      default: return arithmeticQuestion(grade, name);
     }
   }
 
@@ -600,3 +610,4 @@
   root.MQQuestions = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
+
