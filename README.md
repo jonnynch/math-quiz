@@ -65,7 +65,7 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 ## Rewards
 - Streaks: a 🔥 badge appears from 2 correct answers in a row. At 3, 5, 10 and every 5 after that there is confetti and a new sticker. In 1 vs 1, winning a round also ends the other player's streak. Streaks never change the score, so 1 vs 1 stays fair.
 - Stars: the result screen gives ⭐ for accuracy (3 stars for 90% or more, 2 for 70% or more, otherwise 1).
-- Stickers: 24 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
+- Stickers: 100 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
 - Confetti is skipped when the device asks for reduced motion.
 
 ## Profiles
