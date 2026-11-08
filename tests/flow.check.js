@@ -119,7 +119,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));
   const detailsBtn=[...d.querySelectorAll('.profile-card .secondary-button')].find(b=>b.textContent==='Details'); click(detailsBtn);
-  ok(d.querySelectorAll('.sticker-book .sticker').length===24&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows 24 stickers, 1 collected');
+  ok(d.querySelectorAll('.sticker-book .sticker').length===w.MQStore.STICKERS.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows every sticker, 1 collected');
   ok(d.querySelector('.detail-list').textContent.length>0,'recent games listed');
   const delBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][1];
   click(delBtn()); ok(delBtn().textContent.includes('again'),'delete asks for a second tap');
