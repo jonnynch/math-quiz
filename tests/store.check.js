@@ -104,5 +104,24 @@ const r4 = S.applyBackup(S.parseBackup(text), 'merge');
 ok(r4.saved === false && r4.backedUp === false, 'import reports when the browser would not save');
 globalThis.__fail = false;
 
+// --- stickers
+{
+  const ORIGINAL = ['🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
+    '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟'];
+  const st = freshStore();
+  ok(ORIGINAL.every((s, i) => st.S.STICKERS[i] === s), 'original 24 stickers keep their identity and order');
+  ok(new Set(st.S.STICKERS).size === st.S.STICKERS.length, 'no duplicate stickers');
+  ok(st.S.STICKERS.length >= 44, 'sticker collection has grown: ' + st.S.STICKERS.length);
+  ok(st.S.STICKERS.every(s => /^\p{Extended_Pictographic}\u{FE0F}?$/u.test(s)), 'every sticker is a single emoji');
+  const kid = st.S.addProfile('Stick', '🦊').profile;
+  kid.stickers = [...st.S.STICKERS]; st.S.save();
+  const again = freshStore(st.mem);
+  ok(again.S.getProfiles()[0].stickers.length === st.S.STICKERS.length, 'every sticker (old and new) survives save and reload');
+  const old = freshStore();
+  old.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 1, profiles: [{ id: 'o1', name: 'Old', stickers: ['🦄', '🚀', '❌'] }] });
+  const oldLoaded = freshStore(old.mem);
+  ok(oldLoaded.S.getProfiles()[0].stickers.join() === '🦄,🚀', 'previously earned stickers stay intact; unknown ones are dropped');
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
 process.exit(failures ? 1 : 0);
