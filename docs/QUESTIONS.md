@@ -47,6 +47,7 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 | Topic | Grades | Generator and notes |
 |---|---|---|
 | `mixed` (default) | 1–6 | `arithmeticQuestion`: + − (Grade 1), + − × ÷ from Grade 2. Ranges grow each grade. |
+| `all` (Mixed All Questions) | 1–6 | `generateRawQuestion` picks one of `ALL_MIX_TOPICS` (`mixed`, `tables`, `compare`, `fractions`, `money`, `clock`, `shapes`) that the grade offers, then uses that generator unchanged. Add new topics to `ALL_MIX_TOPICS` too. |
 | `add`, `sub` | 1–6 | same generator, one operator |
 | `mul`, `div` | 2–6 | same generator, one operator (division is always exact) |
 | `tables` | 2–4 | `makeTablesQuestion`: × and ÷ facts and `a × ? = p`. G2 tables of 2/5/10; G3 up to 10×10; G4 12×12 emphasis |
