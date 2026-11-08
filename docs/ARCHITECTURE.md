@@ -1,10 +1,11 @@
 # Architecture
 
 ## Overview
-Static single-page app. No framework, no build. Four scripts share three globals:
+Static single-page app. No framework, no build. Scripts share these globals:
 
 ```
 questions.js  -> window.MQQuestions   (pure generators; also module.exports for Node tests)
+trophies.js   -> window.MQTrophies    (trophy targets + progress rules; pure; also module.exports)
 store.js      -> window.MQStore       (localStorage; also module.exports)
 menus.js      -> window.MQMenus       (Settings/Profiles windows + profile <select>s)
 game.js       -> uses all three; owns game state, rounds, rewards, results
@@ -49,6 +50,12 @@ article.question-board.{blue|orange}[.solo][.toddler]
 ```
 `.board-body` and `.board-info` are `display: contents` normally (no effect) and become a two-column grid in the phone-landscape layout. `.toddler` means "simple" questions (large centred number buttons, no letter prefix).
 
+## Trophies (`trophies.js`, `game.js`, Achievements window in `menus.js`)
+- `TARGETS` (level id → bronze/silver/gold target) is the single place to tune them; `LEVELS` follow its key order and must match `DIFFICULTIES`.
+- Progress lives in `profile.trophies[level] = { completed, correct, streak, best, unlocked[] }` (schema 2, `cleanAll()` validates it; schema 1 data migrates to `{}`). Bronze = completed, Silver = correct, Gold = `best` run of correct first answers.
+- `game.js` `settleRound()` calls `Trophies.record()` once when a round is decided (a correct answer, or everyone out). Each player who answered is credited with one completed question, correct only if their FIRST tap was right (no inflation by retrying). Players who never answered are not credited. A wrong tap calls `Trophies.resetStreak()` at once. Guests never earn trophies. Trophies never touch scores, stars, streaks or stickers.
+- `#achievementsModal` lists every level with its 3 trophies for the chosen profile; locked ones are silhouettes with a 🔒 label.
+
 ## Rewards (in `game.js`)
 - Streak = consecutive correct questions; wrong tap resets it; in 1 vs 1 a round won by the other player also resets it. Milestones at 3, 5, 10, then every 5 → `awardSticker()` + `launchConfetti()`.
 - `awardSticker` prefers stickers not owned (profile stickers + this game's); saves to the profile immediately.
@@ -59,11 +66,12 @@ article.question-board.{blue|orange}[.solo][.toddler]
 One JSON object under `localStorage['mathQuizBattle.v1']` (the key name is fixed; the format version is the `schema` field inside):
 ```json
 {
-  "schema": 1,
+  "schema": 2,
   "settings": { "palette": "standard|cb", "text": "normal|large|xlarge" },
   "profiles": [{
     "id": "p…", "name": "≤14 chars", "avatar": "🦊", "created": 0,
     "stickers": ["🦄"],
+    "trophies": { "grade3": { "completed": 40, "correct": 31, "streak": 2, "best": 9, "unlocked": ["bronze"] } },
     "totals": { "games": 0, "correct": 0, "taps": 0, "correctTaps": 0, "bestStreak": 0 },
     "bests": { "grade3|fractions|60": 14 },
     "history": [{ "t": 0, "level": "grade3", "topic": "fractions", "mode": "solo|versus",
@@ -80,7 +88,7 @@ Limits: 8 profiles, 30 history entries, names unique (case-insensitive). Loading
 Profiles cannot move between browsers, devices or web addresses by themselves (each origin has its own `localStorage`; a home-screen app on iOS has separate storage from Safari). So the Profiles window offers:
 - **Export to file** (`math-quiz-profiles-<date>.json`) and **Copy backup text** (falls back to a text box when the clipboard API is unavailable, e.g. on plain `http://`).
 - **Import…**: choose a file or paste text → **Check backup** (validates, changes nothing, shows a preview) → **Add to my profiles** (merge) or **Replace all profiles** (two taps).
-- Backup format: `{ "app": "mathQuizBattle", "schema": 1, "exportedAt", "settings", "profiles": [...] }`. `Store.parseBackup()` rejects empty/invalid JSON, other apps' files, newer schemas and files over 1 MB; every profile goes through `cleanProfile()` (names ≤14 chars, ids reduced to `[A-Za-z0-9_-]`, stickers must be known, numbers ≥ 0).
+- Backup format: `{ "app": "mathQuizBattle", "schema": 2, "exportedAt", "settings", "profiles": [...] }`. `Store.parseBackup()` rejects empty/invalid JSON, other apps' files, newer schemas and files over 1 MB; every profile goes through `cleanProfile()` (names ≤14 chars, ids reduced to `[A-Za-z0-9_-]`, stickers must be known, numbers ≥ 0).
 - Merge rules: same `id` → the backup's profile replaces it; same name with a different id → renamed `Name (2)`; stops at 8 profiles and reports how many were skipped. Replace also restores settings; merge does not touch settings.
 - Before any import the current data is copied to `localStorage['mathQuizBattle.backup']`; **Undo last import** restores it.
 - Save failures are surfaced everywhere data is written: `addProfile`, `deleteProfile`, `setSetting`, `applyBackup` and `restoreBackup` report `saved: false` (and `Store.save()` returns `false`). The UI shows a warning in the Profiles window (add / delete / import), in the Settings window (`#settingsMessage`) and on the result screen. The change still applies for the current session; the warning says it will be lost when the page closes. `Store.requestPersistence()` asks the browser not to evict the data (best effort).

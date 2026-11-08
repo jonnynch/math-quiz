@@ -4,7 +4,7 @@
 
   const KEY = 'mathQuizBattle.v1';
   const BACKUP_KEY = 'mathQuizBattle.backup';   // copy of the data taken just before an import (for Undo)
-  const SCHEMA = 1;                              // version of the saved data format (see migrate())
+  const SCHEMA = 2;                              // version of the saved data format (see migrate())
   const MAX_IMPORT_CHARS = 1000000;
   const STICKERS = ['🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
     '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟',
@@ -28,6 +28,9 @@
   const PALETTES = ['standard', 'cb'];
   const TEXT_SIZES = ['normal', 'large', 'xlarge'];
 
+  // Trophy rules live in trophies.js (loaded first in the browser; required directly in Node tests).
+  const Trophies = root.MQTrophies || (typeof require === 'function' ? require('./trophies.js') : null);
+
   let available = true;
   const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
 
@@ -38,8 +41,16 @@
   // Saved data and backup files carry a schema number. When the format changes, bump SCHEMA and add a
   // step here that upgrades older data, e.g.  if (raw.schema === 1) { /* transform */ raw.schema = 2; }
   // Data saved before the number existed counts as schema 1.
+  // Schema 2 added per-profile trophy progress (`trophies`); older profiles simply start with none.
   function migrate(raw) {
-    return raw;
+    const out = { ...raw };
+    let schema = Number(out.schema) || 1;
+    if (schema < 2) {
+      out.profiles = (Array.isArray(out.profiles) ? out.profiles : []).map(p => (p && typeof p === 'object' && !p.trophies ? { ...p, trophies: {} } : p));
+      schema = 2;
+    }
+    out.schema = schema;
+    return out;
   }
 
   function cleanSettings(raw) {
@@ -81,6 +92,7 @@
       totals: { games: num(totals.games), correct: num(totals.correct), taps: num(totals.taps), correctTaps: num(totals.correctTaps), bestStreak: num(totals.bestStreak) },
       bests,
       history,
+      trophies: Trophies ? Trophies.cleanAll(raw.trophies) : {},
       lastSetup: last
     };
   }

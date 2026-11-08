@@ -10,8 +10,9 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 ## File map
 | Path | Role |
 |---|---|
-| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `store.js`, `menus.js`, `game.js`, `pwa.js`. |
+| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `store.js`, `menus.js`, `game.js`, `pwa.js`. |
 | `public/questions.js` | **Pure logic, no DOM.** Level/topic definitions and every question generator. `window.MQQuestions` (also `module.exports` for Node tests). |
+| `public/trophies.js` | **Pure logic, no DOM.** Trophy targets (`TARGETS`, the one place to tune them) and the rules that record progress. `window.MQTrophies`. Trophies never change scores, stars, streaks or stickers. |
 | `public/store.js` | **No DOM.** Profiles + settings in `localStorage` (key `mathQuizBattle.v1`). `window.MQStore`. |
 | `public/menus.js` | Settings window, Profiles window, the "Who is playing?" selects. `window.MQMenus`. |
 | `public/game.js` | Game flow: setup, rounds, answers, timers, rewards, results, SVG figures. Wires everything together. |

@@ -6,6 +6,7 @@
   const Q = window.MQQuestions;
   const Store = window.MQStore;
   const Menus = window.MQMenus;
+  const Trophies = window.MQTrophies;
   const { shuffledCopy, choose, intBetween } = Q;
 
   const state = {
@@ -160,6 +161,8 @@
       streak: 0,
       bestStreak: 0,
       stickers: [],
+      trophies: [],            // trophies unlocked during this game (for the result card)
+      firstTapCorrect: null,   // was the first answer tapped on this question correct?
       stats: { taps: 0, correctTaps: 0, timedQuestions: 0, totalSeconds: 0 },
       color: number === 1 ? 'blue' : 'orange'
     };
@@ -266,6 +269,7 @@
     state.players.forEach(player => {
       player.lockedOut = false;
       player.answeredThisRound = false;
+      player.firstTapCorrect = null;
       const question = nextQuestionFor(player);
       boards.append(createQuestionBoard(player, question));
     });
@@ -496,6 +500,27 @@
     return accuracy >= 0.9 ? 3 : accuracy >= 0.7 ? 2 : 1;
   }
 
+  // Trophies: a question counts once, when the round is decided (someone answered correctly, or everyone was
+  // out). Every player who answered it gets one completed question; it counts as correct only if their FIRST
+  // answer was right, so retrying cannot inflate progress. Players who never answered are not credited.
+  // Returns text for the feedback line when a trophy was unlocked. Scores, streaks and stickers are untouched.
+  function settleRound() {
+    const notes = [];
+    let touched = false;
+    state.players.forEach(p => {
+      if (!p.profile || !p.answeredThisRound) return;
+      touched = true;
+      const won = Trophies.record(p.profile, p.difficulty, p.firstTapCorrect === true);
+      if (!won.length) return;
+      p.trophies.push(...won.map(t => t.icon));
+      notes.push(`${state.players.length > 1 ? `${p.name} ` : ''}${won.map(t => `${t.icon} ${t.name}`).join(', ')}`);
+    });
+    if (touched) Store.save();
+    if (!notes.length) return '';
+    launchConfetti(90);
+    return ` · 🏆 New trophy: ${notes.join('; ')}`;
+  }
+
   function handleAnswer(playerId, answerIndex, button) {
     if (!state.active || state.locked) return;
     const player = state.players.find(item => item.id === playerId);
@@ -512,6 +537,7 @@
     if (correct) player.stats.correctTaps += 1;
     if (!player.answeredThisRound) {
       player.answeredThisRound = true;
+      player.firstTapCorrect = correct;
       player.stats.timedQuestions += 1;
       player.stats.totalSeconds += (performance.now() - state.roundStart) / 1000;
     }
@@ -520,6 +546,8 @@
       button.classList.add('wrong');
       button.disabled = true;
       player.streak = 0;
+      // A wrong answer also ends the trophy run straight away (saved profiles only).
+      if (player.profile && Trophies.resetStreak(player.profile, player.difficulty)) Store.save();
       renderScoreboard();
 
       if (!versus) {
@@ -544,6 +572,7 @@
       if (state.players.every(p => p.lockedOut)) {
         // Everyone got it wrong: no points, show the answers, move on.
         state.locked = true;
+        const trophyNote = settleRound();
         state.players.forEach(p => {
           const b = boardFor(p.id);
           if (!b) return;
@@ -553,7 +582,7 @@
         });
         const anyStage = state.players.some(p => p.currentQuestion.stage);
         feedback.className = 'round-feedback error';
-        feedback.textContent = 'Both answers were wrong — no point this time. Next question!';
+        feedback.textContent = 'Both answers were wrong — no point this time. Next question!' + trophyNote;
         state.advanceTimer = setTimeout(() => {
           if (state.active) showNextRound();
         }, anyStage ? 2400 : 1800);
@@ -580,6 +609,7 @@
       if (sticker) message += ` New sticker ${sticker}`;
       launchConfetti(player.streak >= 10 ? 90 : 55);
     }
+    message += settleRound();
 
     feedback.className = 'round-feedback success';
     feedback.textContent = message;
@@ -724,6 +754,17 @@
         row.textContent = player.stickers.join(' ');
         earned.append(caption, row);
         card.append(earned);
+      }
+      if (player.trophies.length) {
+        const won = document.createElement('div');
+        won.className = 'earned-stickers';
+        const caption = document.createElement('span');
+        caption.textContent = 'New trophies';
+        const row = document.createElement('div');
+        row.className = 'sticker-row';
+        row.textContent = player.trophies.join(' ');
+        won.append(caption, row);
+        card.append(won);
       }
       $('finalScores').append(card);
     });

@@ -4,7 +4,7 @@ const dir=require('path').join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
 const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;
-['questions.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
+['questions.js','trophies.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -78,6 +78,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('stopButton'));
   const st=mia();
   ok(st.totals.games===1&&st.totals.correct===4&&st.totals.taps===5&&st.totals.correctTaps===4&&st.totals.bestStreak===3,'profile totals saved: '+JSON.stringify(st.totals));
+  ok(st.trophies.grade2&&st.trophies.grade2.completed===4&&st.trophies.grade2.correct===3&&st.trophies.grade2.streak===0&&st.trophies.grade2.best===3,'trophy progress: 4 completed, 3 correct first tries (the retried question is completed but not correct): '+JSON.stringify(st.trophies.grade2));
   ok(st.history.length===1&&st.history[0].level==='grade2'&&st.history[0].topic==='tables'&&st.history[0].mode==='solo','game added to history');
   ok(st.lastSetup.difficulty==='grade2'&&st.lastSetup.topic==='tables','last level and topic remembered');
   const card=$('finalScores').textContent;
@@ -100,6 +101,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok([...$('profile1').options].find(o=>o.value===leoId).disabled===true,'Player 1 cannot pick the profile Player 2 chose');
   ok([...$('profile2').options].find(o=>o.value===mia().id).disabled===true,'Player 2 cannot pick the profile Player 1 chose');
   change($('difficulty2'),'grade3'); change($('topic2'),'compare'); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  w.MQTrophies.TARGETS.grade3={bronze:1,silver:1,gold:2}; // tiny targets so unlocking can be seen in this test
   click(d.querySelector('[data-length=timed]')); $('duration').innerHTML='<option value="1" selected>1</option>';
   click($('startButton')); await sleep(80);
   ok(d.querySelectorAll('.question-board').length===2,'two boards in 1 vs 1');
@@ -109,12 +111,23 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok(!$('resultPanel').classList.contains('hidden')&&$('resultEyebrow').textContent.includes('TIME'),'timed versus game ended');
   ok(mia().bests['grade3|compare|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
   ok(store().profiles[1].history.length===0&&store().profiles[1].totals.games===0,'player 2 (never tapped) not recorded');
+  ok(mia().trophies.grade3.completed===1&&mia().trophies.grade3.correct===1&&mia().trophies.grade3.unlocked.slice().sort().join()==='bronze,silver','1 vs 1: the winner is credited and unlocks bronze + silver');
+  ok(!store().profiles[1].trophies.grade3,'1 vs 1: the player who never answered gets no trophy progress');
   // second timed game, higher score → new personal best
   click($('rematchButton')); await sleep(80);
   tap(answerBtn(0)); await sleep(900); tap(answerBtn(0)); await sleep(500);
   await sleep(700);
   ok(!$('resultPanel').classList.contains('hidden'),'second game ended');
   ok($('finalScores').textContent.includes('New personal best'),'new personal best badge shown');
+  ok($('finalScores').textContent.includes('New trophies')&&mia().trophies.grade3.unlocked.includes('gold')&&mia().trophies.grade3.best===3,'gold unlocked by consecutive correct answers across games; result card lists new trophies');
+  ok(mia().trophies.grade3.completed===3&&mia().trophies.grade3.correct===3&&mia().totals.correct===store().profiles[0].totals.correct,'trophy counters did not change the normal score totals');
+  click($('achievementsButton')); change($('achievementsProfile'),mia().id);
+  ok(!$('achievementsModal').classList.contains('hidden')&&d.querySelectorAll('.trophy-card').length===30,'Achievements window shows 3 trophies for each of the 10 levels');
+  ok(d.querySelectorAll('.trophy-card:not(.locked)').length===3&&d.querySelectorAll('.trophy-card.locked').length===27,'only the 3 unlocked trophies are shown as unlocked');
+  ok([...d.querySelectorAll('.trophy-progress')].some(n=>/^\d+ \/ \d+$/.test(n.textContent))&&$('achievementsSummary').textContent.includes('3 / 30'),'progress is shown as numbers and the summary counts trophies');
+  change($('achievementsProfile'),store().profiles[1].id);
+  ok(d.querySelectorAll('.trophy-card:not(.locked)').length===0,'the other profile has no trophies');
+  click($('achievementsClose')); ok($('achievementsModal').classList.contains('hidden'),'Achievements window closes');
 
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));

@@ -4,6 +4,7 @@
 
   const Store = root.MQStore;
   const Q = root.MQQuestions;
+  const Trophies = root.MQTrophies;
   const $ = (id) => document.getElementById(id);
   let lastFocus = null;
   let expandedId = null;
@@ -94,6 +95,7 @@
     $(openButtonId).addEventListener('click', () => {
       if (id === 'profilesModal') { pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
       if (id === 'settingsModal') settingsMessage(true);
+      if (id === 'achievementsModal') openAchievements();
       openModal(id);
     });
     $(closeButtonId).addEventListener('click', () => closeModal(id));
@@ -240,6 +242,65 @@
     renderProfiles();
   }
 
+  // ---------- achievements window ----------
+  function renderAchievements() {
+    const list = $('achievementsList');
+    list.innerHTML = '';
+    const profiles = Store.getProfiles();
+    $('achievementsProfileRow').classList.toggle('hidden', !profiles.length);
+    if (!profiles.length) {
+      $('achievementsSummary').textContent = '';
+      list.append(element('p', 'empty-note', 'Create a profile to start earning trophies. Guests do not collect them.'));
+      return;
+    }
+    const profile = Store.getProfile($('achievementsProfile').value) || profiles[0];
+    const total = Trophies.LEVELS.length * Trophies.TIERS.length;
+    $('achievementsSummary').textContent = `🏆 ${Trophies.unlockedCount(profile)} / ${total} trophies collected`;
+    Trophies.LEVELS.forEach(level => {
+      const trophies = Trophies.progressFor(profile, level);
+      const section = element('section', 'trophy-level');
+      const head = element('div', 'trophy-level-head');
+      head.append(element('h3', '', Q.difficultyLabel(level)),
+        element('span', 'trophy-level-count', `${trophies.filter(t => t.unlocked).length} / ${trophies.length}`));
+      const grid = element('div', 'trophy-grid');
+      trophies.forEach(t => {
+        const card = element('div', `trophy-card ${t.unlocked ? 'unlocked' : 'locked'}`);
+        const icon = element('span', 'trophy-icon', t.tier.icon);
+        icon.setAttribute('aria-hidden', 'true');
+        const bar = element('div', 'trophy-bar');
+        bar.setAttribute('role', 'progressbar');
+        bar.setAttribute('aria-valuemin', '0');
+        bar.setAttribute('aria-valuemax', String(t.target));
+        bar.setAttribute('aria-valuenow', String(t.value));
+        bar.setAttribute('aria-label', t.tier.name);
+        const fill = element('span');
+        fill.style.width = `${Math.round((t.value / t.target) * 100)}%`;
+        bar.append(fill);
+        card.append(icon, element('strong', 'trophy-name', t.tier.name), element('span', 'trophy-desc', t.description), bar,
+          element('span', 'trophy-progress', `${t.value} / ${t.target}`),
+          element('span', 'trophy-state', t.unlocked ? '✓ Unlocked' : '🔒 Locked'));
+        grid.append(card);
+      });
+      section.append(head, grid);
+      list.append(section);
+    });
+  }
+
+  // Opens on Player 1's profile when one is chosen, otherwise the first profile.
+  function openAchievements() {
+    const select = $('achievementsProfile');
+    const preferred = api.selectedProfile(1);
+    select.innerHTML = '';
+    Store.getProfiles().forEach(p => {
+      const option = document.createElement('option');
+      option.value = p.id;
+      option.textContent = `${p.avatar} ${p.name}`;
+      select.append(option);
+    });
+    if (preferred) select.value = preferred.id;
+    renderAchievements();
+  }
+
   // ---------- backup and restore ----------
   let pendingImport = null;
   let replaceArmed = false;
@@ -379,6 +440,8 @@
     initBackup();
     wireModal('settingsModal', 'settingsButton', 'settingsClose');
     wireModal('profilesModal', 'profilesButton', 'profilesClose');
+    wireModal('achievementsModal', 'achievementsButton', 'achievementsClose');
+    $('achievementsProfile').addEventListener('change', renderAchievements);
 
     document.querySelectorAll('.seg-button').forEach(button => {
       button.addEventListener('click', () => {
