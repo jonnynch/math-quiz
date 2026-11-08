@@ -69,11 +69,11 @@ ok(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 99, profiles: [
 ok(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [{ name: '' }, 5, null] })).error.includes('no usable'), 'a backup with no valid profiles is rejected');
 ok(S.parseBackup('x'.repeat(1000001)).error.includes('too large'), 'oversized input is rejected');
 const hostile = S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [
-  { id: '../<script>a1', name: '<img src=x onerror=1>LongNameThatIsTooLong', avatar: 'nope', stickers: ['🦄', 'x', '🦄'], totals: { games: -5, correct: 'a' }, history: [{ score: -1, level: 'gr[...]
+  { id: '../<script>a1', name: '<img src=x onerror=1>LongNameThatIsTooLong', avatar: 'nope', stickers: ['🦄', 'x', '🦄'], totals: { games: -5, correct: 'a' }, history: [{ score: -1, level: 'grade3' }], bests: { 'k': 'z' } },
   { id: '../<script>a1', name: 'Duplicate id' }] }));
 const hp = hostile.profiles[0];
 ok(hostile.profiles.length === 1 && hostile.skipped === 1, 'duplicate ids inside a backup are dropped');
-ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'backup sanitises unsafe ids, names and values');
+ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'ids, names, stickers, numbers and avatars are sanitised');
 
 // --- merge
 const before = S.getProfiles().map(p => p.id);
