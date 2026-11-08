@@ -7,7 +7,14 @@
   const SCHEMA = 1;                              // version of the saved data format (see migrate())
   const MAX_IMPORT_CHARS = 1000000;
   const STICKERS = ['🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
-    '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟'];
+    '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟',
+    // Added later. Only ever append: profiles store the emoji itself, so reordering or removing breaks saved stickers.
+    '🐰', '🦖', '🦕', '🐨', '🐧', '🐬',        // animals
+    '🍩', '🍓', '🍉', '🧁', '🍪',              // food
+    '👽', '🛸', '🌙', '🌍',                    // space
+    '🐉', '🧚', '🔮', '🏰',                    // fantasy
+    '🚗', '🚒', '🧸', '🎁', '⛵',              // objects
+    '🥇', '🥳', '👑', '💎', '🎯'];             // achievement
   const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐙', '🐢', '🦁', '🐶', '🐱', '🚀', '🌟'];
   const MAX_PROFILES = 8;
   const MAX_HISTORY = 30;
