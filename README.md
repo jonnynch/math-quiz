@@ -66,6 +66,7 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 ## Rewards
 - Streaks: a 🔥 badge appears from 2 correct answers in a row. At 3, 5, 10 and every 5 after that there is confetti and a new sticker. In 1 vs 1, winning a round also ends the other player's streak. Streaks never change the score, so 1 vs 1 stays fair.
 - Stars: the result screen gives ⭐ for accuracy (3 stars for 90% or more, 2 for 70% or more, otherwise 1).
+- Trophies: Bronze (questions completed), Silver (questions answered correctly) and Gold (correct answers in a row) for every level, with targets that grow from Age 2–3 to Grade 6. Only a question's first answer counts, so retrying cannot inflate progress; in 1 vs 1 each player is credited separately. Progress is kept per saved profile and level (and included in backups). Open 🏆 Achievements to see them. Targets are set in `public/trophies.js`.
 - Stickers: 100 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
 - Confetti is skipped when the device asks for reduced motion.
 

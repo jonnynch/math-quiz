@@ -22,7 +22,7 @@ const seed=JSON.stringify({settings:{palette:'cb',text:'normal'},profiles:[mkPro
       await page.evaluate(()=>{document.querySelector('[data-mode=versus]').click();document.querySelector('[data-length=timed]').click();document.getElementById('profile1').value='a1';document.getElementById('profile2').value='b2';});
       await overflow('setup');
       // modals
-      for(const [open,modal,close] of [['settingsButton','settingsModal','settingsClose'],['profilesButton','profilesModal','profilesClose']]){
+      for(const [open,modal,close] of [['settingsButton','settingsModal','settingsClose'],['profilesButton','profilesModal','profilesClose'],['achievementsButton','achievementsModal','achievementsClose']]){
         await page.evaluate((o)=>document.getElementById(o).click(),open);
         if(modal==='profilesModal') await page.evaluate(()=>{const b=[...document.querySelectorAll('.profile-card .secondary-button')].find(x=>x.textContent==='Details');b&&b.click();});
         const m=await page.evaluate((id)=>{const e=document.querySelector('#'+id+' .modal');const r=e.getBoundingClientRect();const done=document.querySelector('#'+id+' .primary-button').getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,H:innerHeight,W:innerWidth,doneTop:done.top,doneBottom:done.bottom,scrolls:e.scrollHeight>e.clientHeight+1};},modal);

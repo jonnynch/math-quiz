@@ -26,6 +26,7 @@
         <h1>Math Quiz Battle</h1>
       </div>
       <div class="top-actions">
+        <button id="achievementsButton" class="secondary-button small" type="button">🏆 Achievements</button>
         <button id="profilesButton" class="secondary-button small" type="button">👤 Profiles</button>
         <button id="settingsButton" class="secondary-button small" type="button">⚙️ Settings</button>
         <span id="gameStatus" class="status-pill">Ready to play</span>
@@ -214,7 +215,24 @@
     </div>
   </div>
 
+  <div id="achievementsModal" class="modal-backdrop hidden">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="achievementsTitle">
+      <div class="modal-head">
+        <h2 id="achievementsTitle">Achievements</h2>
+        <button id="achievementsClose" class="primary-button compact" type="button" data-autofocus>Done</button>
+      </div>
+      <div id="achievementsProfileRow" class="field">
+        <label for="achievementsProfile">Whose trophies?</label>
+        <select id="achievementsProfile"></select>
+      </div>
+      <p id="achievementsSummary" class="setting-title"></p>
+      <div id="achievementsList" class="achievements-list"></div>
+      <p class="setting-help">Trophies are rewards for practising and never change scores. Only saved profiles earn them, not Guests.</p>
+    </div>
+  </div>
+
   <script src="questions.js"></script>
+  <script src="trophies.js"></script>
   <script src="store.js"></script>
   <script src="menus.js"></script>
   <script src="game.js"></script>
