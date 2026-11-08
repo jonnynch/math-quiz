@@ -69,11 +69,11 @@ ok(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 99, profiles: [
 ok(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [{ name: '' }, 5, null] })).error.includes('no usable'), 'a backup with no valid profiles is rejected');
 ok(S.parseBackup('x'.repeat(1000001)).error.includes('too large'), 'oversized input is rejected');
 const hostile = S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [
-  { id: '../<script>a1', name: '<img src=x onerror=1>LongNameThatIsTooLong', avatar: 'nope', stickers: ['🦄', 'x', '🦄'], totals: { games: -5, correct: 'a' }, history: [{ score: -1, level: 'grade3' }], bests: { 'k': 'z' } },
+  { id: '../<script>a1', name: '<img src=x onerror=1>LongNameThatIsTooLong', avatar: 'nope', stickers: ['🦄', 'x', '🦄'], totals: { games: -5, correct: 'a' }, history: [{ score: -1, level: 'gr[...]
   { id: '../<script>a1', name: 'Duplicate id' }] }));
 const hp = hostile.profiles[0];
 ok(hostile.profiles.length === 1 && hostile.skipped === 1, 'duplicate ids inside a backup are dropped');
-ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'ids, names, stickers, numbers and avatars are sanitised');
+ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'backup sanitises unsafe ids, names and values');
 
 // --- merge
 const before = S.getProfiles().map(p => p.id);
@@ -103,6 +103,25 @@ globalThis.__fail = true;
 const r4 = S.applyBackup(S.parseBackup(text), 'merge');
 ok(r4.saved === false && r4.backedUp === false, 'import reports when the browser would not save');
 globalThis.__fail = false;
+
+// --- stickers
+{
+  const ORIGINAL = ['🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
+    '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟'];
+  const st = freshStore();
+  ok(ORIGINAL.every((s, i) => st.S.STICKERS[i] === s), 'original 24 stickers keep their identity and order');
+  ok(new Set(st.S.STICKERS).size === st.S.STICKERS.length, 'no duplicate stickers');
+  ok(st.S.STICKERS.length >= 44, 'sticker collection has grown: ' + st.S.STICKERS.length);
+  ok(st.S.STICKERS.every(s => /^\p{Extended_Pictographic}\u{FE0F}?$/u.test(s)), 'every sticker is a single emoji');
+  const kid = st.S.addProfile('Stick', '🦊').profile;
+  kid.stickers = [...st.S.STICKERS]; st.S.save();
+  const again = freshStore(st.mem);
+  ok(again.S.getProfiles()[0].stickers.length === st.S.STICKERS.length, 'every sticker (old and new) survives save and reload');
+  const old = freshStore();
+  old.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 1, profiles: [{ id: 'o1', name: 'Old', stickers: ['🦄', '🚀', '❌'] }] });
+  const oldLoaded = freshStore(old.mem);
+  ok(oldLoaded.S.getProfiles()[0].stickers.join() === '🦄,🚀', 'previously earned stickers stay intact; unknown ones are dropped');
+}
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
 process.exit(failures ? 1 : 0);
