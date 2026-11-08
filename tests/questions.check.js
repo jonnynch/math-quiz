@@ -70,6 +70,28 @@ for(const g of grades){
   }
 }
 function q0(g,t){return 1}
+// "Mixed All Questions" (topic 'all'): every category the grade offers must appear, and nothing else.
+for(const g of grades){
+  const avail=new Set(Q.topicsFor('grade'+g).map(t=>t.value)); const k=`g${g}/all`; const seen={};
+  for(let i=0;i<3000;i++){
+    const q=Q.generateQuestion('grade'+g,'all'); total++; const x=q.question;
+    if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length) fail(k,'bad question',q);
+    let cat;
+    if(q.figure&&q.figure.type==='clock') cat='clock';
+    else if(q.figure&&q.figure.type==='polygon') cat='shapes';
+    else if(/^Compare: \d+ \? \d+$/.test(x)) cat='compare';
+    else if(/cents/.test(x)) cat='money';
+    else if(/\d\/\d|half of/.test(x)) cat='fractions';
+    else if(/cm|°|faces|edges|vertices|sides/.test(x)) cat='shapes';
+    else if(/^What is \d+ [+−×÷] \d+\?$|^\d+ × \? = \d+$/.test(x)) cat='arithmetic';
+    else { fail(k,'unrecognised mixed-all question',q); continue; }
+    seen[cat]=(seen[cat]||0)+1;
+    if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);
+  }
+  ['arithmetic','compare','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c)).forEach(c=>{
+    if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
+  });
+}
 console.log('questions checked:',total);
 const keys=Object.keys(fails);
 console.log('failing groups:',keys.length);

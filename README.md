@@ -52,6 +52,7 @@ Under each Grade level a Topic can be chosen. The age levels (2–3 to 6) do not
 | Topic | Grades | What it asks |
 |---|---|---|
 | Mixed arithmetic (default), Addition only, Subtraction only | 1–6 | + and − (Grade 1), plus × and ÷ from Grade 2 |
+| Mixed All Questions | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, comparing, fractions, money, clock, shapes |
 | Multiplication only, Division only | 2–6 | |
 | Times tables | 2–4 | × and ÷ facts, e.g. 7 × ? = 56 (Grade 2: tables of 2, 5, 10; Grade 4: up to 12 × 12) |
 | Comparing numbers | 1–4 | choose <, = or > (0–20, up to 99, 999, 9999) |
