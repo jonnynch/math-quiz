@@ -321,17 +321,24 @@
     },
 
     // Called once per question with the player's FIRST answer (retries are never reported). Progress is saved
-    // straight away, so it survives a refresh or a closed page.
+    // straight away, so it survives a refresh or a closed page. Returns false when the answer is not counted, else
+    // { counted: true, saved }. If the browser cannot save, the change is rolled back (so memory matches storage and a
+    // repeated call cannot count the same answer twice) and saved: false is returned for the caller to report.
     rewardAnswer(profile, sessionId, grade, correct) {
       if (!profile || !profile.rewards || !sessionId || !isRewardGrade(grade)) return false;
       const r = profile.rewards;
       if (r.settled.includes(sessionId)) return false;
+      const before = JSON.stringify(r);
       if (r.session && (r.session.id !== sessionId || r.session.grade !== grade)) closeStaleSession(profile);
       if (!r.session) r.session = { id: sessionId, grade, completed: 0, correct: 0 };
       r.session.completed += 1;
       if (correct) r.session.correct += 1;
-      save();
-      return true;
+      const saved = save();
+      if (!saved) {
+        Object.keys(r).forEach(key => { delete r[key]; });
+        Object.assign(r, JSON.parse(before));
+      }
+      return { counted: saved, saved };
     },
 
     // Ends a session: its answers join the pending questions for that grade and, if there are enough, a batch is
@@ -465,18 +472,26 @@
 
     // Undo the last import: put back the data taken just before it. Parent-only, because the copy can hold older
     // balances and reward settings. Returns { restored, denied?, error?, saved? }.
+    // The Undo copy is deleted only after the restored data has been saved. If saving fails, the in-memory data is
+    // put back as it was and the copy is kept, so the parent can try again.
     restoreBackup() {
       const denied = parentDenied(IMPORT_DENIED);
       if (denied) return { ...denied, restored: false };
+      const previous = data;
       try {
         const saved = JSON.parse(root.localStorage.getItem(BACKUP_KEY));
         if (!saved || !saved.data) return { restored: false };
         data = clean({ schema: SCHEMA, settings: saved.data.settings, profiles: saved.data.profiles });
-        root.localStorage.removeItem(BACKUP_KEY);
-        return { restored: true, saved: save() };
       } catch (error) {
+        data = previous;
         return { restored: false };
       }
+      if (!save()) {
+        data = previous;
+        return { restored: false, saved: false, kept: true, error: 'This browser would not save the change. The Undo copy was kept, so you can try again.' };
+      }
+      try { root.localStorage.removeItem(BACKUP_KEY); } catch (error) { /* restored data is already saved; a leftover copy is harmless */ }
+      return { restored: true, saved: true };
     },
 
     // Asks the browser not to clear saved data automatically (not every browser honours this).

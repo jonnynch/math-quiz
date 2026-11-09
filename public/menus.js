@@ -460,9 +460,9 @@
         api.refreshProfileSelects();
         expandedId = null;
         renderProfiles();
-        backupMessage(result.saved ? 'The last import was undone.' : 'The last import was undone, but this browser would not save the change.', result.saved ? 'good' : 'error');
+        backupMessage('The last import was undone.', 'good');
       } else {
-        backupMessage('Could not undo the import.', 'error');
+        backupMessage(result.kept ? result.error : 'Could not undo the import.', 'error');
       }
       refreshBackupButtons();
     };
