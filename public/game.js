@@ -692,7 +692,18 @@
 
   // "Screen time" block on the result card: the batch that was paid out, or progress towards the next one.
   function rewardSummary(result) {
-    if (!result || !result.settled) return null;
+    if (!result) return null;
+    if (result.saved === false) {
+      // Nothing was paid or settled (the store rolled back), so never show a payout here.
+      const failBox = document.createElement('div');
+      failBox.className = 'reward-summary';
+      const failLine = document.createElement('div');
+      failLine.className = 'reward-title';
+      failLine.textContent = '⚠️ Screen time could not be saved, so no minutes were added.';
+      failBox.append(failLine);
+      return failBox;
+    }
+    if (!result.settled) return null;
     const box = document.createElement('div');
     box.className = 'reward-summary';
     const line = (text, className) => {

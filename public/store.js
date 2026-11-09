@@ -342,16 +342,25 @@
     },
 
     // Ends a session: its answers join the pending questions for that grade and, if there are enough, a batch is
-    // paid out. Settling the same session twice does nothing.
+    // paid out. Settling the same session twice does nothing. Transactional: the reward state is snapshotted first
+    // and, if the browser cannot save, put back exactly as it was ({ settled: false, saved: false, error }), so the
+    // session is neither settled nor paid and a retry (or the next page load) settles it once.
     settleRewards(profile, sessionId) {
       const r = profile && profile.rewards;
       if (!r || r.settled.includes(sessionId) || !r.session || r.session.id !== sessionId) return { settled: false, saved: true };
+      const before = JSON.stringify(r);
       const grade = r.session.grade;
       r.settled.unshift(sessionId);
       r.settled.length = Math.min(r.settled.length, MAX_SETTLED);
       foldSession(profile);
       const batch = payOutBatch(profile, grade);
-      return { settled: true, grade, batch, pending: r.pending[grade] || null, minBatch: data.settings.rewards.minBatch, saved: save() };
+      const saved = save();
+      if (!saved) {
+        Object.keys(r).forEach(key => { delete r[key]; });
+        Object.assign(r, JSON.parse(before));
+        return { settled: false, saved: false, error: 'This browser would not save the screen time, so nothing was added.' };
+      }
+      return { settled: true, grade, batch, pending: r.pending[grade] || null, minBatch: data.settings.rewards.minBatch, saved: true };
     },
 
     // Unfinished progress per grade (including the running session), for the "progress to next reward" display.
@@ -421,15 +430,27 @@
 
     // mode 'merge': add to the current profiles (same id = replaced by the backup, same name = renamed).
     // mode 'replace': the backup becomes everything (settings too). The current data is copied first so Undo works.
-    // Parent-only (checked before anything is written, including the Undo copy).
+    // Parent-only (checked before anything is written, including the Undo copy). Safe when saving fails: if the Undo
+    // copy cannot be written nothing is imported; if the imported data cannot be saved the data in use and the previous
+    // Undo copy are put back. Failures return { imported: false, saved: false, error }.
     applyBackup(parsed, mode) {
       const denied = parentDenied(IMPORT_DENIED);
       if (denied) return denied;
-      let backedUp = true;
+      // The Undo copy comes first. If it cannot be written, nothing is imported. Any earlier Undo copy is remembered
+      // so a failed import can put it back (the new copy is kept only once the import has been saved).
+      let previousUndo = null;
       try {
+        previousUndo = root.localStorage.getItem(BACKUP_KEY);
         root.localStorage.setItem(BACKUP_KEY, JSON.stringify({ t: Date.now(), data: { settings: data.settings, profiles: data.profiles } }));
-      } catch (error) { backedUp = false; }
-      const result = { added: 0, replaced: 0, renamed: 0, skipped: parsed.skipped || 0, backedUp };
+      } catch (error) {
+        return { added: 0, replaced: 0, renamed: 0, skipped: 0, imported: false, backedUp: false, saved: false, error: 'This browser would not save an Undo copy, so nothing was imported.' };
+      }
+      // Merge changes the profiles array in place and Replace swaps it, but neither edits an existing profile object,
+      // so a shallow copy is enough to put everything back (and keeps references held by the UI valid).
+      const originalProfiles = data.profiles;
+      const originalList = originalProfiles.slice();
+      const originalSettings = data.settings;
+      const result = { added: 0, replaced: 0, renamed: 0, skipped: parsed.skipped || 0, backedUp: true };
       const uniqueName = (name, ignoreIndex) => {
         let candidate = name;
         let n = 2;
@@ -462,7 +483,19 @@
           }
         });
       }
-      result.saved = save();
+      if (!save()) {
+        originalProfiles.length = 0;
+        originalProfiles.push(...originalList);
+        data.profiles = originalProfiles;
+        data.settings = originalSettings;
+        try {
+          if (previousUndo === null) root.localStorage.removeItem(BACKUP_KEY);
+          else root.localStorage.setItem(BACKUP_KEY, previousUndo);
+        } catch (error) { /* nothing more can be done; the data in use is already back as it was */ }
+        return { added: 0, replaced: 0, renamed: 0, skipped: 0, imported: false, backedUp: false, saved: false, error: 'This browser would not save the imported data, so nothing was changed. Please try again.' };
+      }
+      result.imported = true;
+      result.saved = true;
       return result;
     },
 
