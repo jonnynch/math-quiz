@@ -32,6 +32,9 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 - `pickWithMistake` does the same for a "typical mistake" distractor (e.g. adding instead of multiplying) used by `makeNumericQuestion`, fractions and clock questions.
 - `tests/questions.check.js` prints the position distribution per level/topic; it should be roughly even (see `docs/TESTING.md`). Limits that are unavoidable: when the correct answer is the smallest possible value (e.g. a count of 1) it must be first; fixed `< = >` choices have fixed positions.
 
+## No repeats within a game
+`buildQuestionBank` makes up to 500 *distinct* questions per level/topic (identity = `questionKey`: wording + figure + correct answer; capped attempts, so tiny pools such as Age 5 simply give a smaller bank). `createQuestionDeck` deals each once in random order, then reshuffles (never stopping, never the same question twice in a row). `game.js` creates one deck per player per game, which is what resets tracking. Checked by `npm run test:norepeat`.
+
 ## Levels
 | Level | Generator | Notes |
 |---|---|---|

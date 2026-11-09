@@ -7,7 +7,7 @@
   const Store = window.MQStore;
   const Menus = window.MQMenus;
   const Trophies = window.MQTrophies;
-  const { shuffledCopy, choose, intBetween } = Q;
+  const { choose, intBetween } = Q;
 
   const state = {
     mode: 'solo',
@@ -137,9 +137,8 @@
     const key = `${difficulty}|${topic}`;
     if (state.questionSets[key]) return state.questionSets[key];
     // Build a fresh bank locally in the browser. No JSON files, server API or internet needed.
-    const generated = [];
-    for (let i = 0; i < 500; i++) generated.push(Q.generateQuestion(difficulty, topic));
-    state.questionSets[key] = shuffledCopy(generated);
+    // De-duplicated, so the same question is not dealt twice before the whole bank has been used.
+    state.questionSets[key] = Q.buildQuestionBank(difficulty, topic, 500);
     return state.questionSets[key];
   }
 
@@ -152,8 +151,7 @@
       difficulty,
       topic,
       setKey: key,
-      questions: shuffledCopy(state.questionSets[key]),
-      questionIndex: 0,
+      deck: Q.createQuestionDeck(state.questionSets[key]), // new per game = repeat tracking resets
       currentQuestion: null,
       score: 0,
       lockedOut: false,
@@ -171,11 +169,7 @@
   }
 
   function nextQuestionFor(player) {
-    if (player.questionIndex >= player.questions.length) {
-      player.questions = shuffledCopy(state.questionSets[player.setKey]);
-      player.questionIndex = 0;
-    }
-    player.currentQuestion = player.questions[player.questionIndex++];
+    player.currentQuestion = player.deck.next();
     return player.currentQuestion;
   }
 
