@@ -101,6 +101,14 @@ Profiles cannot move between browsers, devices or web addresses by themselves (e
 - Icons are generated PNGs (`icons/`: 192, 512, maskable 512, apple-touch 180) plus `favicon.svg`; the design is four tiles with + − × ÷.
 - Release rule: if the file list changes, edit `FILES` and bump `VERSION` in `sw.js`.
 
+## Screen-time bank (`store.js`, `menus.js`, `game.js`)
+Grade 1–6 only; age levels and guests never earn. Everything is stored per profile as `profile.rewards`, with the parent-adjustable numbers in `settings.rewards` (both travel with Backup and restore). The schema number is unchanged because the fields are additive: missing or damaged reward data is replaced by an empty bank (`cleanRewards`) and defaults (`cleanRewardConfig`).
+- **Defaults** (`REWARD_DEFAULTS`, `REWARD_TIER_MINS` in `store.js`): 0.1 min per correct first attempt; accuracy multiplier 1.0 / 1.2 / 1.4 / 1.5 from 80 / 90 / 95 / 100 %; Grade 1–6 multiplier 1.0 … 1.5; minimum 80 % and 20 completed questions per batch.
+- **Earning**: `minutes = floor(correct × base × accuracy multiplier × grade multiplier)`, rounded once per batch (`calcReward`). A question counts once, from the player's first tap (`player.answeredThisRound` block in `handleAnswer`), so retries cannot raise the correct count. In 1 vs 1 only questions a player actually answered count for that player; each profile is tracked separately.
+- **Progress is saved on every first answer** as `rewards.session`. `settleRewards(profile, sessionId)` (called from `endGame`) folds the session into `rewards.pending[grade]` and pays out when `pending.completed >= minBatch`; a batch under the minimum accuracy pays 0 and is used up. Smaller batches carry forward per grade (grades are never combined). A session left by a closed page is folded (and paid if complete) the next time the store loads. `rewards.settled` holds recent session ids so a session is never counted twice.
+- **Bank**: `balance = earned − redeemed` (never negative; `redeem` and `cleanRewards` enforce it); `earnTx` / `redeemTx` keep the last 30 entries.
+- **UI**: `#bankModal` ("⏱ Screen time" button), parent redeem (two taps) and Parent settings; the result card shows completed / correct / accuracy / minutes (`rewardSummary`). The game only tracks minutes; it cannot enforce screen time.
+
 ## Menus (`menus.js`)
 - Settings: `.seg-button[data-setting][data-value]` → `MQStore.setSetting` → `html[data-palette]`, `html[data-text]`.
 - Profiles window: list, expandable details (sticker book, best timed scores, last 5 games), two-step delete ("Tap again to delete"), add form with avatar picker. Rebuilds with `textContent` only.

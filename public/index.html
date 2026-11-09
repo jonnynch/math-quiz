@@ -28,6 +28,7 @@
       <div class="top-actions">
         <button id="achievementsButton" class="secondary-button small" type="button">🏆 Achievements</button>
         <button id="profilesButton" class="secondary-button small" type="button">👤 Profiles</button>
+        <button id="bankButton" class="secondary-button small" type="button">⏱ Screen time</button>
         <button id="settingsButton" class="secondary-button small" type="button">⚙️ Settings</button>
         <span id="gameStatus" class="status-pill">Ready to play</span>
       </div>
@@ -162,6 +163,27 @@
         <button id="installButton" class="primary-button compact hidden" type="button">Install app</button>
       </div>
       <p class="setting-help">Settings are saved on this device.</p>
+    </div>
+  </div>
+
+  <div id="bankModal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bankTitle">
+      <div class="modal-head">
+        <h2 id="bankTitle">⏱ Screen-time Bank</h2>
+        <button id="bankClose" class="primary-button compact" type="button" data-autofocus>Done</button>
+      </div>
+      <p id="bankNotice" class="setting-help hidden" role="status"></p>
+      <div id="bankPickerRow" class="field">
+        <label for="bankProfile">Whose bank?</label>
+        <select id="bankProfile"></select>
+      </div>
+      <div id="bankBody"></div>
+      <details class="bank-settings">
+        <summary>Parent settings</summary>
+        <div id="bankSettingsBody"></div>
+        <p id="bankSettingsMessage" class="setting-help hidden" role="status"></p>
+      </details>
+      <p class="setting-help">Minutes, history and these settings are saved on this device with the profiles (and included in Backup and restore).</p>
     </div>
   </div>
 
