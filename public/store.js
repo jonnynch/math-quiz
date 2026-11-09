@@ -210,6 +210,10 @@
   }
 
   // ---------- screen-time rewards (logic) ----------
+  // Parent-only actions call this first. Fails closed: with no parent module loaded nothing is allowed.
+  const parentDenied = () => (root.MQParent && root.MQParent.isUnlocked()
+    ? null
+    : { denied: true, error: 'Parent verification is needed first.', saved: false });
   const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
   const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
 
@@ -294,11 +298,25 @@
     // ---------- screen-time bank ----------
     REWARD_DEFAULTS, REWARD_TIER_MINS, isRewardGrade, calcReward, rewardBalance, rewardPercent,
     getRewardConfig: () => data.settings.rewards,
+    // Parent-only: needs a successful parent verification (see parent.js). Checked here, not just in the UI.
     setRewardConfig(changes) {
+      const denied = parentDenied();
+      if (denied) return { ...denied, config: data.settings.rewards };
       data.settings.rewards = cleanRewardConfig({ ...data.settings.rewards, ...changes });
       return { config: data.settings.rewards, saved: save() };
     },
-    resetRewardConfig() { return api.setRewardConfig(REWARD_DEFAULTS); },
+    // Parent-only. If the browser cannot save the defaults, the previous settings are kept and saved: false is returned.
+    resetRewardConfig() {
+      const denied = parentDenied();
+      if (denied) return { ...denied, config: data.settings.rewards };
+      const previous = data.settings.rewards;
+      const result = api.setRewardConfig(REWARD_DEFAULTS);
+      if (result.saved === false) {
+        data.settings.rewards = previous;
+        return { config: previous, saved: false, kept: true };
+      }
+      return result;
+    },
 
     // Called once per question with the player's FIRST answer (retries are never reported). Progress is saved
     // straight away, so it survives a refresh or a closed page.
@@ -348,7 +366,10 @@
       if (minutes > balance) return `Only ${balance} minute${balance === 1 ? ' is' : 's are'} available.`;
       return '';
     },
+    // Parent-only (needs a successful parent verification).
     redeem(profile, minutes) {
+      const denied = parentDenied();
+      if (denied) return denied;
       const error = api.checkRedeem(profile, minutes);
       if (error) return { error };
       profile.rewards.redeemed += minutes;

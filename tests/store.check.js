@@ -1,5 +1,8 @@
 // Unit checks for store.js: saving, schema, backup export/import/undo, validation, save failures. No browser needed.
 const path = require('path');
+const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // sets globalThis.MQParent, which store.js checks
+const solveParent = t => Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-'))();
+const unlockParent = () => Parent.submit(String(solveParent(Parent.current().text)));
 let failures = 0;
 const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
 
@@ -126,6 +129,7 @@ globalThis.__fail = false;
 {
   const rs = freshStore();
   const R = rs.S;
+  Parent.lock();
   const kid = R.addProfile('Kid', '🐼').profile;
   const cfg = R.getRewardConfig();
   ok(cfg.base === 0.1 && cfg.minAccuracy === 80 && cfg.minBatch === 20 && cfg.accuracy.join() === '1,1.2,1.4,1.5' && cfg.grades.join() === '1,1.1,1.2,1.3,1.4,1.5', 'reward defaults match the specification');
@@ -158,6 +162,10 @@ globalThis.__fail = false;
   const R2 = freshStore(rs.mem).S;
   const k2 = R2.getProfiles()[0];
   ok(R2.rewardBalance(k2) === 7 && !k2.rewards.session, 'progress is saved after every answer; a session left by a closed page is settled on the next load');
+  Parent.lock();
+  ok(R2.redeem(k2, 1).denied === true && k2.rewards.redeemed === 0 && R2.setRewardConfig({ base: 9 }).denied === true && R2.resetRewardConfig().denied === true && R2.getRewardConfig().base === 0.1, 'redeem, settings changes and reset are refused without parent verification (direct calls)');
+  ok(R2.rewardBalance(k2) === 7 && Array.isArray(R2.rewardProgress(k2)) && R2.getRewardConfig().minBatch === 20, 'balance and progress can still be viewed while locked');
+  unlockParent();
   ok(R2.redeem(k2, 8).error && R2.redeem(k2, 0).error && R2.redeem(k2, 1.5).error && R2.redeem(k2, -1).error && R2.rewardBalance(k2) === 7, 'redemption cannot overdraw the balance or take bad amounts');
   const rd = R2.redeem(k2, 5);
   ok(rd.redeemed === 5 && rd.saved && R2.rewardBalance(k2) === 2 && k2.rewards.earned === 7 && k2.rewards.redeemed === 5 && k2.rewards.redeemTx.length === 1, 'redeeming lowers the balance and is recorded');
@@ -178,6 +186,15 @@ globalThis.__fail = false;
   const set = R2.setRewardConfig({ base: 0.5, minBatch: 5, grades: [1, 1, 1, 1, 1, 2] });
   ok(set.saved && freshStore(rs.mem).S.getRewardConfig().base === 0.5 && R2.calcReward(6, 10, 10).minutes === 15, 'parent settings are saved and used in the calculation');
   ok(R2.setRewardConfig({ base: -1 }).config.base === 0.1 && R2.resetRewardConfig().config.minBatch === 20, 'invalid values fall back to defaults; reset restores them');
+
+  // Regression: reset must not report success when localStorage refuses the write, and must keep the old settings.
+  R2.setRewardConfig({ base: 0.5, minBatch: 5 });
+  globalThis.__fail = true;
+  const failedReset = R2.resetRewardConfig();
+  globalThis.__fail = false;
+  ok(failedReset.saved === false && R2.getRewardConfig().base === 0.5 && R2.getRewardConfig().minBatch === 5, 'reset reports a failed save and keeps the existing settings');
+  ok(R2.resetRewardConfig().saved === true && R2.getRewardConfig().minBatch === 20, 'reset works again once saving succeeds');
+  Parent.lock();
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
