@@ -7,6 +7,7 @@ Static single-page app. No framework, no build. Scripts share these globals:
 questions.js  -> window.MQQuestions   (pure generators; also module.exports for Node tests)
 trophies.js   -> window.MQTrophies    (trophy targets + progress rules; pure; also module.exports)
 parent.js     -> window.MQParent     (parent verification for the Screen-time Bank; pure; also module.exports)
+report.js     -> window.MQReport     (parent progress report + CSV; pure; also module.exports)
 store.js      -> window.MQStore       (localStorage; also module.exports)
 menus.js      -> window.MQMenus       (Settings/Profiles windows + profile <select>s)
 game.js       -> uses all three; owns game state, rounds, rewards, results
@@ -76,7 +77,7 @@ One JSON object under `localStorage['mathQuizBattle.v1']` (the key name is fixed
     "totals": { "games": 0, "correct": 0, "taps": 0, "correctTaps": 0, "bestStreak": 0 },
     "bests": { "grade3|fractions|60": 14 },
     "history": [{ "t": 0, "level": "grade3", "topic": "fractions", "mode": "solo|versus",
-                  "seconds": 60, "score": 10, "taps": 14, "correctTaps": 10, "avgTime": 3.1, "streak": 4 }],
+                  "seconds": 60, "score": 10, "taps": 14, "correctTaps": 10, "avgTime": 3.1, "streak": 4, "played": 75 }],
     "lastSetup": { "difficulty": "grade3", "topic": "fractions" }
   }]
 }
@@ -84,6 +85,14 @@ One JSON object under `localStorage['mathQuizBattle.v1']` (the key name is fixed
 `schema` is the data-format version (`SCHEMA` in `store.js`). When the format changes: bump `SCHEMA`, add an upgrade step in `migrate()`, and keep reading older data (data with no `schema` counts as 1). Never rename the key to drop old profiles.
 
 Limits: 8 profiles, 30 history entries, names unique (case-insensitive). Loading runs everything through `clean()` (validates and trims). `bests` keys are `level|topic|seconds` and only timed games set them. Games with zero taps are not recorded. Guests are never saved. Two players cannot pick the same profile (options disabled in the other select; `startGame` also guards).
+
+## Progress report (`report.js`, `#reportModal` in `menus.js`)
+- **📊 Progress** button → window that opens locked and asks the parent question (`renderParentChallenge`, prefix `report`). Report and CSV appear only after verification; closing the window locks again. `Report.build()` and `Report.toCsv()` also refuse (`{ denied: true }`) unless `MQParent.isUnlocked()`, so the check is not only in the UI.
+- Only saved profiles are listed; guests are never stored, so they cannot appear. Nothing is sent anywhere.
+- Data: headline numbers come from `profile.totals` (all games). Level, topic, per-day, trend and recent-games sections come from `profile.history` (last 30 games) and say so. "Answers" are taps (including Solo second tries); accuracy = correctTaps ÷ taps.
+- **Missing vs zero**: `state` is `none` (no games: real zero), `summary` (totals but no saved game list) or `detailed`. Unknown values are `null`/blank, never 0.
+- **Play time**: `history[].played` (whole seconds from game start to end, same clock as the result screen) was added later as an optional field: older games and backups simply lack it, and the report counts only games that have it. No schema bump (additive, like `rewards`); `cleanProfile` keeps it only when valid.
+- **CSV** (`math-quiz-progress-<name>-<local date>.csv`, CRLF, UTF-8 with BOM added by the download): summary, by level, by topic, by day, then every saved game. Values with commas, quotes or line breaks are quoted; text starting with `= + - @` gets a leading `'` so spreadsheets cannot run it. Blank cell = not recorded.
 
 ## Backup and restore (`store.js` + `menus.js`)
 Profiles cannot move between browsers, devices or web addresses by themselves (each origin has its own `localStorage`; a home-screen app on iOS has separate storage from Safari). So the Profiles window offers:

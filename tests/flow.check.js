@@ -4,7 +4,7 @@ const dir=require('path').join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
 const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;
-['questions.js','trophies.js','parent.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
+['questions.js','trophies.js','parent.js','report.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -83,6 +83,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(st.totals.games===1&&st.totals.correct===4&&st.totals.taps===5&&st.totals.correctTaps===4&&st.totals.bestStreak===3,'profile totals saved: '+JSON.stringify(st.totals));
   ok(st.trophies.grade2&&st.trophies.grade2.completed===4&&st.trophies.grade2.correct===3&&st.trophies.grade2.streak===0&&st.trophies.grade2.best===3,'trophy progress: 4 completed, 3 correct first tries (the retried question is completed but not correct): '+JSON.stringify(st.trophies.grade2));
   ok(st.history.length===1&&st.history[0].level==='grade2'&&st.history[0].topic==='tables'&&st.history[0].mode==='solo','game added to history');
+  ok(Number.isInteger(st.history[0].played)&&st.history[0].played>=1,'game history records the seconds actually played');
   ok(st.lastSetup.difficulty==='grade2'&&st.lastSetup.topic==='tables','last level and topic remembered');
   const card=$('finalScores').textContent;
   ok(card.includes('⭐')&&card.includes('Best streak')&&card.includes('🔥 3')&&card.includes('New stickers'),'result card shows stars, best streak and new stickers');

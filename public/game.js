@@ -656,6 +656,8 @@
       const { taps, correctTaps, timedQuestions, totalSeconds } = player.stats;
       if (!profile || !taps) return;
       const seconds = state.length === 'timed' ? state.durationSeconds : 0;
+      // Same clock as the result screen's "played m:ss". Left out when the game start was not recorded.
+      const played = state.startedAt ? Math.min(86400, Math.max(1, Math.round((performance.now() - state.startedAt) / 1000))) : 0;
       profile.totals.games += 1;
       profile.totals.correct += player.score;
       profile.totals.taps += taps;
@@ -680,7 +682,8 @@
         taps,
         correctTaps,
         avgTime: timedQuestions ? Number((totalSeconds / timedQuestions).toFixed(2)) : 0,
-        streak: player.bestStreak
+        streak: player.bestStreak,
+        ...(played ? { played } : {})
       });
       profile.history.length = Math.min(profile.history.length, Store.MAX_HISTORY);
       profile.lastSetup = { difficulty: player.difficulty, topic: player.topic };

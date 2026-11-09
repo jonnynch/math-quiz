@@ -148,7 +148,9 @@
       taps: num(h && h.taps),
       correctTaps: num(h && h.correctTaps),
       avgTime: num(h && h.avgTime),
-      streak: num(h && h.streak)
+      streak: num(h && h.streak),
+      // Seconds actually played. Added later: absent (not 0) on older games, which never recorded it.
+      ...(h && Number.isFinite(h.played) && h.played >= 0 ? { played: Math.min(Math.floor(h.played), 86400) } : {})
     }));
     const last = raw.lastSetup && typeof raw.lastSetup === 'object'
       ? { difficulty: String(raw.lastSetup.difficulty || '').slice(0, 20), topic: String(raw.lastSetup.topic || 'mixed').slice(0, 20) }
