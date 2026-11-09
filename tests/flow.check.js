@@ -25,8 +25,8 @@ const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.tex
 const wrongBtn=(i=0)=>btns(i).find(b=>b!==answerBtn(i));
 const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
 // Parent verification: solve the shown question through the public API (the answer is never exposed).
-const solveParent=t=>Function('return '+t.replace(/×/g,'*').replace(/−/g,'-'))();
-const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current().text)));
+const {solveParent}=require('./parent-solver');
+const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text));
 
 (async()=>{
   // ---- topics only for grades
@@ -153,14 +153,24 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
   $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
   ok(!$('importPreview').classList.contains('hidden')&&$('importSummary').textContent.includes('Found 2 profiles'),'valid backup shows a preview before anything changes');
   ok(store().profiles.length===1,'nothing is changed by only checking the backup');
+  const importUnlock=()=>{ $('importParentAnswer').value=solveParent($('importParentChallenge').textContent); click(d.querySelector('#backupParent .primary-button')); };
   click($('importMergeButton'));
-  ok(store().profiles.length===2&&store().profiles.some(p=>p.name==='Nina'),'merge adds the new profile');
+  ok(store().profiles.length===1&&!$('backupParent').classList.contains('hidden')&&!!$('importParentChallenge'),'merge without verification changes nothing and asks the parent question');
+  $('importParentAnswer').value='1'; click(d.querySelector('#backupParent .primary-button'));
+  ok(store().profiles.length===1&&$('importParentMessage').textContent.includes('Not correct'),'a wrong answer does not import');
+  importUnlock();
+  ok(store().profiles.length===2&&store().profiles.some(p=>p.name==='Nina'),'merge adds the new profile after verification');
+  ok(!w.MQParent.isUnlocked()&&$('backupParent').classList.contains('hidden'),'verification is used once: locked again and the question is hidden');
   ok($('backupMessage').textContent.includes('added')&&!$('undoImportButton').classList.contains('hidden'),'import summary shown and Undo offered');
   ok($('profile1').options.length===3,'profile selectors updated after import');
-  click($('undoImportButton')); ok(store().profiles.length===1&&$('backupMessage').textContent.includes('undone'),'undo restores the previous profiles');
+  click($('undoImportButton'));
+  ok(store().profiles.length===2&&!!$('importParentChallenge'),'undo without verification changes nothing and asks the parent question');
+  importUnlock();
+  ok(store().profiles.length===1&&$('backupMessage').textContent.includes('undone')&&!w.MQParent.isUnlocked(),'undo restores the previous profiles after verification');
   click($('importToggleButton')); $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
   click($('importReplaceButton')); ok(store().profiles.length===1,'replace needs a second tap (nothing replaced yet)');
-  click($('importReplaceButton')); ok(store().profiles.length===2,'second tap replaces everything with the backup');
+  click($('importReplaceButton')); ok(store().profiles.length===1&&!!$('importParentChallenge'),'second tap still needs the parent question');
+  importUnlock(); ok(store().profiles.length===2,'replace then replaces everything with the backup');
   click($('profilesClose'));
 
   // ---- failed saves are reported for settings changes and profile deletion
@@ -240,7 +250,7 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
   $('parentAnswer').value='1'; click(unlockBtn());
   ok(!$('redeemMinutes')&&$('parentChallenge').textContent!==firstQ&&$('parentMessage').textContent.includes('Not correct'),'a wrong answer shows an error and a new question');
   ok(w.MQStore.redeem(w.MQStore.getProfile(earnerId),5).denied===true&&bankOf().redeemed===0,'redeeming by a direct call is refused while locked');
-  $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?','')));
+  $('parentAnswer').value=solveParent($('parentChallenge').textContent);
   click(unlockBtn());
   ok(!!$('redeemMinutes')&&!$('bankSettings').classList.contains('hidden')&&!$('parentChallenge'),'the right answer unlocks redeeming and Parent settings');
   $('redeemMinutes').value='99'; click(redeemBtn());
@@ -252,7 +262,7 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
   click($('bankClose')); click($('bankButton'));
   ok(!w.MQParent.isUnlocked()&&!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankBody').textContent.includes('13 min'),'closing and reopening the bank locks it again; the balance is still shown');
   // reset settings: a failed localStorage write must show an error and keep the existing settings
-  const uiUnlock=()=>{ $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?',''))); click(unlockBtn()); };
+  const uiUnlock=()=>{ $('parentAnswer').value=solveParent($('parentChallenge').textContent); click(unlockBtn()); };
   uiUnlock();
   const resetBtn=()=>[...d.querySelectorAll('#bankSettingsBody button')].find(b=>b.textContent.includes('Reset'));
   const realSet=w.Storage.prototype.setItem; w.Storage.prototype.setItem=()=>{throw new Error('quota');};

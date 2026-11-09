@@ -5,6 +5,9 @@ let failures = 0;
 const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
 const T = require(path.join(__dirname, '..', 'public', 'trophies.js'));
 const Q = require(path.join(__dirname, '..', 'public', 'questions.js'));
+const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // import is parent-only, so verify first
+const { solveParent } = require('./parent-solver');
+const unlockParent = () => Parent.submit(solveParent(Parent.current().text));
 
 // --- configuration
 ok(T.LEVELS.join() === Q.DIFFICULTIES.map(d => d.value).join(), 'there is a trophy set for every quiz level, in the same order');
@@ -72,6 +75,7 @@ const text = S.exportText();
 ok(JSON.parse(text).profiles[0].trophies.grade1.completed === 2, 'export includes trophy progress');
 ({ S } = freshStore());
 const imported = S.parseBackup(text);
+unlockParent();
 S.applyBackup(imported, 'replace');
 ok(S.getProfiles()[0].trophies.grade1.correct === 2 && S.getProfiles()[1].trophies.grade1.completed === 1, 'import restores trophy progress');
 const unlockedBackup = JSON.parse(text); unlockedBackup.profiles[0].trophies.grade1.unlocked = ['bronze'];
