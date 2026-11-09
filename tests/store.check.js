@@ -122,6 +122,63 @@ globalThis.__fail = false;
   const oldLoaded = freshStore(old.mem);
   ok(oldLoaded.S.getProfiles()[0].stickers.join() === '🦄,🚀', 'previously earned stickers stay intact; unknown ones are dropped');
 }
+// --- screen-time reward bank
+{
+  const rs = freshStore();
+  const R = rs.S;
+  const kid = R.addProfile('Kid', '🐼').profile;
+  const cfg = R.getRewardConfig();
+  ok(cfg.base === 0.1 && cfg.minAccuracy === 80 && cfg.minBatch === 20 && cfg.accuracy.join() === '1,1.2,1.4,1.5' && cfg.grades.join() === '1,1.1,1.2,1.3,1.4,1.5', 'reward defaults match the specification');
+  const mins = (g, n, c) => R.calcReward(g, n, c).minutes;
+  ok(mins(3, 50, 45) === 6, 'worked example: Grade 3, 45 of 50 correct = 6 minutes (6.48 rounded down)');
+  ok(mins(1, 100, 79) === 0 && mins(1, 100, 80) === 8 && mins(1, 100, 89) === 8, 'under 80% earns nothing; 80-89% x1.0');
+  ok(mins(1, 100, 90) === 10 && mins(1, 100, 94) === 11, '90-94% x1.2');
+  ok(mins(1, 100, 95) === 13 && mins(1, 100, 99) === 13, '95-99% x1.4');
+  ok(mins(1, 100, 100) === 15, '100% x1.5');
+  ok([1, 2, 3, 4, 5, 6].map(g => mins(g, 100, 100)).join() === '15,16,18,19,21,22', 'difficulty multipliers rise from Grade 1 to Grade 6');
+  ok(mins(0, 50, 50) === 0 && mins(7, 50, 50) === 0 && mins('age5', 50, 50) === 0, 'only Grade 1-6 can earn');
+  ok(R.rewardAnswer(kid, 's0', 'age5', true) === false && R.rewardAnswer(kid, 's0', 0, true) === false && !kid.rewards.session, 'age levels never start reward progress');
+
+  const answer = (id, grade, n, right) => { for (let i = 0; i < n; i++) R.rewardAnswer(kid, id, grade, i < right); };
+  answer('s1', 3, 12, 11);
+  let res = R.settleRewards(kid, 's1');
+  ok(res.settled && !res.batch && res.pending.completed === 12 && R.rewardBalance(kid) === 0 && kid.rewards.earnTx.length === 0, 'a short session earns nothing yet; its progress is carried forward');
+  answer('s2', 4, 5, 5); R.settleRewards(kid, 's2');
+  ok(kid.rewards.pending[3].completed === 12 && kid.rewards.pending[4].completed === 5, 'different grades are never combined');
+  answer('s3', 3, 10, 10);
+  res = R.settleRewards(kid, 's3');
+  ok(res.batch && res.batch.completed === 22 && res.batch.correct === 21 && res.batch.minutes === 3 && R.rewardBalance(kid) === 3 && !kid.rewards.pending[3], 'carried progress joins the next session at the same grade and pays as one batch (21 of 22 = 3 min)');
+  const before = JSON.stringify(kid.rewards);
+  ok(R.settleRewards(kid, 's3').settled === false && JSON.stringify(kid.rewards) === before, 'settling the same session twice adds nothing');
+  ok(R.rewardAnswer(kid, 's3', 3, true) === false, 'a settled session cannot receive more answers');
+  answer('s4', 5, 20, 15); res = R.settleRewards(kid, 's4');
+  ok(res.batch && res.batch.minutes === 0 && kid.rewards.earnTx[0].minutes === 0 && !kid.rewards.pending[5] && R.rewardBalance(kid) === 3, 'a batch under 80% earns 0 and is used up');
+
+  answer('s5', 6, 20, 20); // the page is closed before the game ends
+  const R2 = freshStore(rs.mem).S;
+  const k2 = R2.getProfiles()[0];
+  ok(R2.rewardBalance(k2) === 7 && !k2.rewards.session, 'progress is saved after every answer; a session left by a closed page is settled on the next load');
+  ok(R2.redeem(k2, 8).error && R2.redeem(k2, 0).error && R2.redeem(k2, 1.5).error && R2.redeem(k2, -1).error && R2.rewardBalance(k2) === 7, 'redemption cannot overdraw the balance or take bad amounts');
+  const rd = R2.redeem(k2, 5);
+  ok(rd.redeemed === 5 && rd.saved && R2.rewardBalance(k2) === 2 && k2.rewards.earned === 7 && k2.rewards.redeemed === 5 && k2.rewards.redeemTx.length === 1, 'redeeming lowers the balance and is recorded');
+  R2.addProfile('Sib', '🦊');
+  const sib = R2.getProfiles()[1];
+  R2.rewardAnswer(sib, 'x1', 2, true); R2.settleRewards(sib, 'x1');
+  ok(R2.rewardBalance(sib) === 0 && R2.rewardBalance(k2) === 2 && sib.rewards.pending[2].completed === 1, 'each profile has its own balance and progress');
+
+  const backup = R2.parseBackup(R2.exportText());
+  ok(backup.profiles[0].rewards.earned === 7 && backup.profiles[0].rewards.redeemed === 5 && backup.profiles[0].rewards.earnTx.length === 3 && backup.settings.rewards.minBatch === 20, 'export/import keeps balances, history and reward settings');
+  const bad = R2.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, settings: { rewards: { base: -5, minBatch: 'x', grades: 'no' } }, profiles: [
+    { id: 'c1', name: 'Bad', rewards: { earned: 5, redeemed: 99, pending: { 3: { completed: -4 }, 9: { completed: 5 } }, earnTx: 'x', session: { grade: 99 } } },
+    { id: 'c2', name: 'Junk', rewards: 'junk' }] }));
+  const [b1, b2] = bad.profiles;
+  ok(b1.rewards.redeemed === 5 && R2.rewardBalance(b1) === 0 && !Object.keys(b1.rewards.pending).length && !b1.rewards.session && b1.rewards.earnTx.length === 0 && b2.rewards.earned === 0, 'corrupted reward data is repaired safely');
+  ok(bad.settings.rewards.base === 0.1 && bad.settings.rewards.minBatch === 20 && bad.settings.rewards.grades.length === 6, 'corrupted reward settings fall back to defaults');
+
+  const set = R2.setRewardConfig({ base: 0.5, minBatch: 5, grades: [1, 1, 1, 1, 1, 2] });
+  ok(set.saved && freshStore(rs.mem).S.getRewardConfig().base === 0.5 && R2.calcReward(6, 10, 10).minutes === 15, 'parent settings are saved and used in the calculation');
+  ok(R2.setRewardConfig({ base: -1 }).config.base === 0.1 && R2.resetRewardConfig().config.minBatch === 20, 'invalid values fall back to defaults; reset restores them');
+}
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
 process.exit(failures ? 1 : 0);

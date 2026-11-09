@@ -41,6 +41,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 13. `localStorage` access is always wrapped in try/catch; the game must work when storage is unavailable, and save failures must be shown to the user (`saved: false`).
 14. **Saved data stays upgradable**: keep the key `mathQuizBattle.v1`, keep the `schema` field, add a `migrate()` step instead of discarding old profiles. The backup file format (`app`, `schema`, `profiles`) must stay importable.
 15. **Offline cache list**: when a file is added, renamed or removed in `public/`, update `FILES` in `public/sw.js` **and bump `VERSION`** (otherwise the offline copy can miss the file). `npm run test:pwa` checks every script is listed. The service worker is network-first with `cache: 'no-cache'`; do not change it to cache-first (users would get stale code).
+16. **Screen-time bank (Grade 1–6 only)**: age levels and guests never earn. Only a player's *first* answer to a question is reported (`Store.rewardAnswer` from the first-tap block in `handleAnswer`); retries never count. Rewards are paid per batch (`Store.settleRewards`), grades are never mixed in a batch, and all reward numbers live in `REWARD_DEFAULTS` in `store.js`. Rewards never change score, stars, streaks or stickers. See `docs/ARCHITECTURE.md`.
 
 ## Common tasks
 - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.

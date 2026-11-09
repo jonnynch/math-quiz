@@ -28,6 +28,19 @@
   const PALETTES = ['standard', 'cb'];
   const TEXT_SIZES = ['normal', 'large', 'xlarge'];
 
+  // Screen-time reward bank (Grade 1-6 only). Every reward number lives here so it is easy to adjust;
+  // parents can change them in the Screen-time Bank window, and these are the defaults.
+  const REWARD_DEFAULTS = {
+    base: 0.1,                              // minutes per correct first-attempt answer
+    minAccuracy: 80,                        // % of first attempts that must be right for a batch to earn anything
+    minBatch: 20,                           // completed questions needed before a batch is paid out
+    accuracy: [1.0, 1.2, 1.4, 1.5],         // accuracy multiplier from each threshold below
+    grades: [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]  // difficulty multiplier for Grade 1 to Grade 6
+  };
+  const REWARD_TIER_MINS = [80, 90, 95, 100]; // accuracy % where each accuracy multiplier starts
+  const MAX_REWARD_TX = 30;
+  const MAX_SETTLED = 20;
+
   // Trophy rules live in trophies.js (loaded first in the browser; required directly in Node tests).
   const Trophies = root.MQTrophies || (typeof require === 'function' ? require('./trophies.js') : null);
 
@@ -35,7 +48,7 @@
   const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
 
   function defaults() {
-    return { settings: { palette: 'standard', text: 'normal' }, profiles: [] };
+    return { settings: { palette: 'standard', text: 'normal', rewards: cleanRewardConfig(null) }, profiles: [] };
   }
 
   // Saved data and backup files carry a schema number. When the format changes, bump SCHEMA and add a
@@ -58,7 +71,64 @@
     const s = raw && typeof raw === 'object' ? raw : {};
     if (PALETTES.includes(s.palette)) out.palette = s.palette;
     if (TEXT_SIZES.includes(s.text)) out.text = s.text;
+    out.rewards = cleanRewardConfig(s.rewards);
     return out;
+  }
+
+  const isRewardGrade = (g) => Number.isInteger(g) && g >= 1 && g <= 6;
+  const whole = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+
+  // Reward settings: anything missing or out of range falls back to the default for that value.
+  function cleanRewardConfig(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const d = REWARD_DEFAULTS;
+    const pick = (v, min, max, fallback, places) =>
+      (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? Number(v.toFixed(places)) : fallback);
+    const list = (arr, fallback) => fallback.map((f, i) => pick(Array.isArray(arr) ? arr[i] : undefined, 0, 10, f, 2));
+    return {
+      base: pick(r.base, 0, 60, d.base, 2),
+      minAccuracy: pick(r.minAccuracy, 0, 100, d.minAccuracy, 0),
+      minBatch: pick(r.minBatch, 1, 500, d.minBatch, 0),
+      accuracy: list(r.accuracy, d.accuracy),
+      grades: list(r.grades, d.grades)
+    };
+  }
+
+  // One profile's reward bank: totals, unfinished progress per grade, the running session, and history.
+  // Missing or damaged data becomes an empty bank; redeemed can never exceed earned.
+  function cleanRewards(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const earned = whole(r.earned);
+    const pending = {};
+    const rawPending = r.pending && typeof r.pending === 'object' ? r.pending : {};
+    for (let g = 1; g <= 6; g++) {
+      const p = rawPending[g];
+      const completed = p && typeof p === 'object' ? whole(p.completed) : 0;
+      if (completed) pending[g] = { completed, correct: Math.min(whole(p.correct), completed) };
+    }
+    const s = r.session;
+    let session = null;
+    if (s && typeof s === 'object' && isRewardGrade(s.grade) && whole(s.completed)) {
+      session = {
+        id: String(s.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30),
+        grade: s.grade,
+        completed: whole(s.completed),
+        correct: Math.min(whole(s.correct), whole(s.completed))
+      };
+    }
+    const list = (v) => (Array.isArray(v) ? v.slice(0, MAX_REWARD_TX) : []);
+    return {
+      earned,
+      redeemed: Math.min(whole(r.redeemed), earned),
+      pending,
+      session,
+      earnTx: list(r.earnTx).filter(t => t && isRewardGrade(t.grade)).map(t => ({
+        t: whole(t.t), grade: t.grade, completed: whole(t.completed),
+        correct: Math.min(whole(t.correct), whole(t.completed)), minutes: whole(t.minutes)
+      })),
+      redeemTx: list(r.redeemTx).filter(t => t && typeof t === 'object').map(t => ({ t: whole(t.t), minutes: whole(t.minutes) })),
+      settled: (Array.isArray(r.settled) ? r.settled : []).filter(x => typeof x === 'string').map(x => x.slice(0, 30)).slice(0, MAX_SETTLED)
+    };
   }
 
   function cleanProfile(raw) {
@@ -93,7 +163,8 @@
       bests,
       history,
       trophies: Trophies ? Trophies.cleanAll(raw.trophies) : {},
-      lastSetup: last
+      lastSetup: last,
+      rewards: cleanRewards(raw.rewards)
     };
   }
 
@@ -125,6 +196,7 @@
   }
 
   let data = readStorage();
+  closeStaleSessions();
 
   function save() {
     try {
@@ -135,6 +207,60 @@
       available = false;
       return false;
     }
+  }
+
+  // ---------- screen-time rewards (logic) ----------
+  const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
+  const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
+
+  // Minutes for one batch of completed questions. Rounds down once, at the end, never per question.
+  function calcReward(grade, completed, correct, config) {
+    const cfg = config || data.settings.rewards;
+    const result = { accuracy: completed ? (correct / completed) * 100 : 0, accuracyMult: 0, difficulty: 0, minutes: 0 };
+    // Integer comparisons, so exactly 90 of 100 counts as 90%.
+    if (!isRewardGrade(grade) || !completed || correct * 100 < cfg.minAccuracy * completed) return result;
+    result.accuracyMult = cfg.accuracy[0];
+    REWARD_TIER_MINS.forEach((min, i) => { if (correct * 100 >= min * completed) result.accuracyMult = cfg.accuracy[i]; });
+    result.difficulty = cfg.grades[grade - 1];
+    result.minutes = Math.floor(correct * cfg.base * result.accuracyMult * result.difficulty + 1e-9);
+    return result;
+  }
+
+  // Moves a stored session (answers not yet settled) into the pending progress for its grade.
+  function foldSession(profile) {
+    const r = profile.rewards;
+    const s = r.session;
+    r.session = null;
+    if (!s) return null;
+    const p = r.pending[s.grade] || (r.pending[s.grade] = { completed: 0, correct: 0 });
+    p.completed += s.completed;
+    p.correct += s.correct;
+    return s;
+  }
+
+  // Pays out the pending questions of one grade once there are enough of them. The whole batch is used up
+  // either way (zero minutes under the accuracy limit), so a poor batch cannot be rescued by restarting.
+  function payOutBatch(profile, grade) {
+    const r = profile.rewards;
+    const p = r.pending[grade];
+    if (!p || p.completed < data.settings.rewards.minBatch) return null;
+    const calc = calcReward(grade, p.completed, p.correct);
+    delete r.pending[grade];
+    r.earned += calc.minutes;
+    r.earnTx.unshift({ t: Date.now(), grade, completed: p.completed, correct: p.correct, minutes: calc.minutes });
+    r.earnTx.length = Math.min(r.earnTx.length, MAX_REWARD_TX);
+    return { ...calc, grade, completed: p.completed, correct: p.correct };
+  }
+
+  // A session left behind by a closed or refreshed page: keep its progress, and pay out if a batch is complete.
+  function closeStaleSession(profile) {
+    const stale = foldSession(profile);
+    if (stale) payOutBatch(profile, stale.grade);
+    return !!stale;
+  }
+
+  function closeStaleSessions() {
+    if (data.profiles.map(profile => closeStaleSession(profile)).some(Boolean)) save();
   }
 
   const api = {
@@ -163,6 +289,72 @@
       data.profiles = data.profiles.filter(p => p.id !== id);
       const deleted = data.profiles.length !== before;
       return { deleted, saved: deleted ? save() : true };
+    },
+
+    // ---------- screen-time bank ----------
+    REWARD_DEFAULTS, REWARD_TIER_MINS, isRewardGrade, calcReward, rewardBalance, rewardPercent,
+    getRewardConfig: () => data.settings.rewards,
+    setRewardConfig(changes) {
+      data.settings.rewards = cleanRewardConfig({ ...data.settings.rewards, ...changes });
+      return { config: data.settings.rewards, saved: save() };
+    },
+    resetRewardConfig() { return api.setRewardConfig(REWARD_DEFAULTS); },
+
+    // Called once per question with the player's FIRST answer (retries are never reported). Progress is saved
+    // straight away, so it survives a refresh or a closed page.
+    rewardAnswer(profile, sessionId, grade, correct) {
+      if (!profile || !profile.rewards || !sessionId || !isRewardGrade(grade)) return false;
+      const r = profile.rewards;
+      if (r.settled.includes(sessionId)) return false;
+      if (r.session && (r.session.id !== sessionId || r.session.grade !== grade)) closeStaleSession(profile);
+      if (!r.session) r.session = { id: sessionId, grade, completed: 0, correct: 0 };
+      r.session.completed += 1;
+      if (correct) r.session.correct += 1;
+      save();
+      return true;
+    },
+
+    // Ends a session: its answers join the pending questions for that grade and, if there are enough, a batch is
+    // paid out. Settling the same session twice does nothing.
+    settleRewards(profile, sessionId) {
+      const r = profile && profile.rewards;
+      if (!r || r.settled.includes(sessionId) || !r.session || r.session.id !== sessionId) return { settled: false, saved: true };
+      const grade = r.session.grade;
+      r.settled.unshift(sessionId);
+      r.settled.length = Math.min(r.settled.length, MAX_SETTLED);
+      foldSession(profile);
+      const batch = payOutBatch(profile, grade);
+      return { settled: true, grade, batch, pending: r.pending[grade] || null, minBatch: data.settings.rewards.minBatch, saved: save() };
+    },
+
+    // Unfinished progress per grade (including the running session), for the "progress to next reward" display.
+    rewardProgress(profile) {
+      const totals = {};
+      const add = (grade, p) => {
+        const t = totals[grade] || (totals[grade] = { grade: Number(grade), completed: 0, correct: 0 });
+        t.completed += p.completed;
+        t.correct += p.correct;
+      };
+      Object.entries(profile.rewards.pending).forEach(([grade, p]) => add(grade, p));
+      if (profile.rewards.session) add(profile.rewards.session.grade, profile.rewards.session);
+      return Object.values(totals).sort((a, b) => a.grade - b.grade);
+    },
+
+    // Returns an error message, or '' when the amount can be redeemed.
+    checkRedeem(profile, minutes) {
+      if (!profile || !profile.rewards) return 'Choose a profile first.';
+      const balance = rewardBalance(profile);
+      if (!Number.isInteger(minutes) || minutes < 1) return 'Type a whole number of minutes (1 or more).';
+      if (minutes > balance) return `Only ${balance} minute${balance === 1 ? ' is' : 's are'} available.`;
+      return '';
+    },
+    redeem(profile, minutes) {
+      const error = api.checkRedeem(profile, minutes);
+      if (error) return { error };
+      profile.rewards.redeemed += minutes;
+      profile.rewards.redeemTx.unshift({ t: Date.now(), minutes });
+      profile.rewards.redeemTx.length = Math.min(profile.rewards.redeemTx.length, MAX_REWARD_TX);
+      return { redeemed: minutes, saved: save() };
     },
     save,
 

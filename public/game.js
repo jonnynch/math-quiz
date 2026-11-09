@@ -164,6 +164,8 @@
       trophies: [],            // trophies unlocked during this game (for the result card)
       firstTapCorrect: null,   // was the first answer tapped on this question correct?
       stats: { taps: 0, correctTaps: 0, timedQuestions: 0, totalSeconds: 0 },
+      // Screen-time rewards: only saved profiles playing Grade 1-6 can earn (age levels never do).
+      rewardGrade: profile && Q.isGrade(difficulty) ? Q.gradeOf(difficulty) : null,
       color: number === 1 ? 'blue' : 'orange'
     };
   }
@@ -193,6 +195,7 @@
         ? [loadQuestionSet(d1, t1), loadQuestionSet(d2, t2)]
         : [loadQuestionSet(d1, t1)]);
 
+      state.sessionId = `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       state.players = [createPlayer(1, d1, t1, p1)];
       if (versus) state.players.push(createPlayer(2, d2, t2, p2));
       state.round = 0;
@@ -540,6 +543,8 @@
       player.firstTapCorrect = correct;
       player.stats.timedQuestions += 1;
       player.stats.totalSeconds += (performance.now() - state.roundStart) / 1000;
+      // Screen-time bank: only this first answer counts for the question; retries are never reported.
+      if (player.rewardGrade) Store.rewardAnswer(player.profile, state.sessionId, player.rewardGrade, correct);
     }
 
     if (!correct) {
@@ -681,6 +686,31 @@
     return { outcome, saved };
   }
 
+  // "Screen time" block on the result card: the batch that was paid out, or progress towards the next one.
+  function rewardSummary(result) {
+    if (!result || !result.settled) return null;
+    const box = document.createElement('div');
+    box.className = 'reward-summary';
+    const line = (text, className) => {
+      const node = document.createElement('div');
+      if (className) node.className = className;
+      node.textContent = text;
+      box.append(node);
+    };
+    const batch = result.batch;
+    const counts = batch || result.pending;
+    line(`⏱ Screen time · Grade ${result.grade}`, 'reward-title');
+    line(`Completed ${counts.completed} · Correct ${counts.correct} · Accuracy ${Store.rewardPercent(counts.correct, counts.completed)}%`);
+    if (batch) {
+      line(batch.minutes > 0
+        ? `+${batch.minutes} minute${batch.minutes === 1 ? '' : 's'} added to the bank!`
+        : `No minutes this time: ${Store.getRewardConfig().minAccuracy}% correct on the first try is needed.`, 'reward-minutes');
+    } else {
+      line(`${Math.min(counts.completed, result.minBatch)} of ${result.minBatch} questions towards the next reward. Progress is kept for next time.`, 'reward-progress');
+    }
+    return box;
+  }
+
   function endGame(timedOut) {
     if (!state.active) return;
     state.active = false;
@@ -697,7 +727,13 @@
     $('finalScores').innerHTML = '';
 
     const { outcome, saved } = recordProfileResults();
-    if (!saved) $('resultMeta').textContent += ' · ⚠️ Progress could not be saved on this device';
+    // Screen-time rewards: add each eligible player's first-attempt answers to their bank.
+    const rewardResults = new Map();
+    state.players.forEach(player => {
+      if (player.rewardGrade) rewardResults.set(player.id, Store.settleRewards(player.profile, state.sessionId));
+    });
+    const rewardsSaved = [...rewardResults.values()].every(result => result.saved !== false);
+    if (!saved || !rewardsSaved) $('resultMeta').textContent += ' · ⚠️ Progress could not be saved on this device';
     const highest = Math.max(...state.players.map(player => player.score));
     const winners = state.players.filter(player => player.score === highest);
     $('resultTitle').textContent = state.players.length === 1
@@ -743,6 +779,9 @@
         stats.append(row);
       });
       card.append(stats);
+
+      const rewardBox = rewardSummary(rewardResults.get(player.id));
+      if (rewardBox) card.append(rewardBox);
 
       if (player.stickers.length) {
         const earned = document.createElement('div');

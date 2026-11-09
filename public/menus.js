@@ -96,6 +96,7 @@
       if (id === 'profilesModal') { pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
       if (id === 'settingsModal') settingsMessage(true);
       if (id === 'achievementsModal') openAchievements();
+      if (id === 'bankModal') openBank();
       openModal(id);
     });
     $(closeButtonId).addEventListener('click', () => closeModal(id));
@@ -435,12 +436,210 @@
     });
   }
 
+  // ---------- screen-time bank ----------
+  let bankId = null;
+
+  function bankNotice(text, kind) {
+    const node = $('bankNotice');
+    node.textContent = text || '';
+    node.classList.toggle('hidden', !text);
+    node.classList.toggle('error', kind === 'error');
+    node.classList.toggle('good', kind === 'good');
+  }
+
+  const shortDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
+
+  function refreshBankSelect() {
+    const select = $('bankProfile');
+    select.innerHTML = '';
+    Store.getProfiles().forEach(p => {
+      const option = element('option', '', `${p.avatar} ${p.name}`);
+      option.value = p.id;
+      select.append(option);
+    });
+    if (!Store.getProfile(bankId)) {
+      const first = api.selectedProfile(1) || Store.getProfiles()[0];
+      bankId = first ? first.id : null;
+    }
+    if (bankId) select.value = bankId;
+    $('bankPickerRow').classList.toggle('hidden', !Store.getProfiles().length);
+  }
+
+  function rewardExplanation(cfg) {
+    return `How it works: play Grade 1–6 questions as a saved profile. Once at least ${cfg.minBatch} questions in one grade are finished, ` +
+      `the game looks at the answers that were right on the first try. With at least ${cfg.minAccuracy}% right, each one earns ${cfg.base} minutes, ` +
+      'times a bonus for accuracy (90%, 95% and 100% earn more) and a bonus for higher grades, rounded down to whole minutes. ' +
+      'Trying again after a wrong answer does not count. Below the minimum, no minutes are earned and the batch starts again. Age 2–6 levels do not earn minutes.';
+  }
+
+  function historyList(title, rows, emptyText) {
+    const wrap = element('div', 'bank-history');
+    wrap.append(element('p', 'detail-title', title));
+    if (!rows.length) { wrap.append(element('p', 'empty-note', emptyText)); return wrap; }
+    const ul = element('ul', 'detail-list');
+    rows.forEach(text => ul.append(element('li', '', text)));
+    wrap.append(ul);
+    return wrap;
+  }
+
+  // Parent-only area: minutes are redeemed by hand (two taps, like deleting a profile).
+  function parentRedeemBox(profile, balance) {
+    const box = element('div', 'bank-parent');
+    box.append(element('p', 'setting-title', '👪 Parent: redeem minutes'));
+    box.append(element('p', 'setting-help', 'Minutes are only tracked here. This game cannot limit screen time on a device, so redeem minutes when your child uses them.'));
+    const row = element('div', 'backup-actions');
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = 'redeemMinutes';
+    input.min = '1';
+    input.max = String(balance);
+    input.step = '1';
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('aria-label', 'Minutes to redeem');
+    const button = element('button', 'secondary-button small danger', 'Redeem');
+    button.type = 'button';
+    let armed = 0;
+    input.addEventListener('input', () => { armed = 0; button.textContent = 'Redeem'; });
+    button.addEventListener('click', () => {
+      const minutes = input.value.trim() === '' ? NaN : Number(input.value);
+      const problem = Store.checkRedeem(profile, minutes);
+      if (problem) { armed = 0; button.textContent = 'Redeem'; bankNotice(problem, 'error'); return; }
+      if (armed !== minutes) { armed = minutes; button.textContent = `Tap again to redeem ${minutes} min`; bankNotice('', ''); return; }
+      const result = Store.redeem(profile, minutes);
+      renderBank();
+      if (result.saved === false) bankNotice('Redeemed, but this browser would not save the change, so it may come back when the page is reloaded.', 'error');
+      else bankNotice(`${minutes} minute${minutes === 1 ? '' : 's'} redeemed.`, 'good');
+    });
+    row.append(input, button);
+    box.append(row);
+    return box;
+  }
+
+  function renderBank() {
+    const body = $('bankBody');
+    body.innerHTML = '';
+    const profile = Store.getProfile(bankId);
+    if (!profile) {
+      body.append(element('p', 'empty-note', 'Add a profile first (👤 Profiles). Only saved profiles earn screen time, and only in Grade 1–6.'));
+      return;
+    }
+    const r = profile.rewards;
+    const cfg = Store.getRewardConfig();
+    const balance = Store.rewardBalance(profile);
+
+    const stats = element('div', 'bank-stats');
+    [['Available now', `${balance} min`, 'available'], ['Earned in total', `+${r.earned} min`, 'earned'], ['Redeemed', `−${r.redeemed} min`, 'redeemed']].forEach(([label, value, kind]) => {
+      const cell = element('div', `bank-stat ${kind}`);
+      cell.append(element('span', 'bank-stat-label', label), element('strong', 'bank-stat-value', value));
+      stats.append(cell);
+    });
+    body.append(stats);
+
+    body.append(element('p', 'setting-title', 'Progress to the next reward'));
+    const progress = Store.rewardProgress(profile);
+    if (!progress.length) body.append(element('p', 'setting-help', `Finish ${cfg.minBatch} questions in Grade 1–6 to complete a reward batch.`));
+    progress.forEach(p => {
+      const row = element('div', 'bank-progress');
+      const done = Math.min(p.completed, cfg.minBatch);
+      row.append(element('span', '', `Grade ${p.grade}: ${done} of ${cfg.minBatch} questions · ${p.correct} right first time`));
+      const bar = document.createElement('progress');
+      bar.max = cfg.minBatch;
+      bar.value = done;
+      bar.setAttribute('aria-label', `Grade ${p.grade} progress`);
+      row.append(bar);
+      body.append(row);
+    });
+
+    body.append(parentRedeemBox(profile, balance));
+    body.append(historyList('Recent rewards', r.earnTx.slice(0, 5).map(t =>
+      `${shortDate(t.t)} · Grade ${t.grade} · ${t.correct}/${t.completed} right (${Store.rewardPercent(t.correct, t.completed)}%) — +${t.minutes} min`), 'No rewards yet.'));
+    body.append(historyList('Recent redemptions', r.redeemTx.slice(0, 5).map(t =>
+      `${shortDate(t.t)} — ${t.minutes} min used`), 'Nothing redeemed yet.'));
+    body.append(element('p', 'setting-help', rewardExplanation(cfg)));
+  }
+
+  function bankSettingsMessage(text, kind) {
+    const node = $('bankSettingsMessage');
+    node.textContent = text || '';
+    node.classList.toggle('hidden', !text);
+    node.classList.toggle('error', kind === 'error');
+    node.classList.toggle('good', kind === 'good');
+  }
+
+  // Parent settings: every reward number can be changed here (defaults live in store.js).
+  function renderBankSettings() {
+    const cfg = Store.getRewardConfig();
+    const box = $('bankSettingsBody');
+    box.innerHTML = '';
+    const grid = element('div', 'bank-grid');
+    const inputs = [];
+    const add = (label, value, min, max, step) => {
+      const wrap = element('label', 'bank-field', label);
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = String(min);
+      input.max = String(max);
+      input.step = String(step);
+      input.value = String(value);
+      input.setAttribute('inputmode', 'decimal');
+      wrap.append(input);
+      grid.append(wrap);
+      inputs.push(input);
+    };
+    add('Minutes per correct answer', cfg.base, 0, 60, 0.01);
+    add('Minimum correct (%)', cfg.minAccuracy, 0, 100, 1);
+    add('Questions per batch', cfg.minBatch, 1, 500, 1);
+    Store.REWARD_TIER_MINS.forEach((min, i) => add(`Bonus at ${min}%+ right`, cfg.accuracy[i], 0, 10, 0.1));
+    cfg.grades.forEach((g, i) => add(`Grade ${i + 1} bonus`, g, 0, 10, 0.1));
+    box.append(grid);
+    const actions = element('div', 'backup-actions');
+    const save = element('button', 'primary-button compact', 'Save settings');
+    save.type = 'button';
+    const reset = element('button', 'secondary-button small', 'Reset to defaults');
+    reset.type = 'button';
+    save.addEventListener('click', () => {
+      const v = inputs.map(input => (input.value.trim() === '' ? NaN : Number(input.value)));
+      if (v.some(n => !Number.isFinite(n))) { bankSettingsMessage('Please fill in every box with a number.', 'error'); return; }
+      const result = Store.setRewardConfig({ base: v[0], minAccuracy: v[1], minBatch: v[2], accuracy: v.slice(3, 7), grades: v.slice(7, 13) });
+      renderBankSettings();
+      renderBank();
+      if (result.saved === false) bankSettingsMessage('Applied, but this browser would not save the settings, so they will be lost when the page closes.', 'error');
+      else bankSettingsMessage('Settings saved. Values outside the allowed range were put back to their defaults.', 'good');
+    });
+    reset.addEventListener('click', () => {
+      Store.resetRewardConfig();
+      renderBankSettings();
+      renderBank();
+      bankSettingsMessage('Reward settings are back to the defaults.', 'good');
+    });
+    actions.append(save, reset);
+    box.append(actions);
+  }
+
+  function openBank() {
+    bankNotice('', '');
+    bankSettingsMessage('', '');
+    refreshBankSelect();
+    renderBank();
+    renderBankSettings();
+  }
+
+  function initBank() {
+    $('bankProfile').addEventListener('change', () => {
+      bankId = $('bankProfile').value || null;
+      bankNotice('', '');
+      renderBank();
+    });
+  }
+
   function init() {
     applySettings();
     initBackup();
+    initBank();
     wireModal('settingsModal', 'settingsButton', 'settingsClose');
     wireModal('profilesModal', 'profilesButton', 'profilesClose');
     wireModal('achievementsModal', 'achievementsButton', 'achievementsClose');
+    wireModal('bankModal', 'bankButton', 'bankClose');
     $('achievementsProfile').addEventListener('change', renderAchievements);
 
     document.querySelectorAll('.seg-button').forEach(button => {

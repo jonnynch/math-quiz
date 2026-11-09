@@ -239,6 +239,29 @@ body.modal-open { overflow: hidden; }
 .setting-help.good { color: var(--ok-ink); }
 #undoImportButton { margin-top: 8px; }
 
+/* ---------- screen-time bank ---------- */
+body.playing #bankButton { display: none; }
+.bank-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.bank-stat { padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: #f5f8fc; text-align: center; }
+.bank-stat-label { display: block; color: var(--muted); font-size: .72rem; font-weight: 800; }
+.bank-stat-value { display: block; margin-top: 4px; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.bank-stat.available { background: var(--blue-light); border-color: var(--blue-line); }
+.bank-stat.earned { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-ink); }
+.bank-stat.redeemed { background: var(--orange-light); border-color: var(--orange-line); }
+.bank-progress { margin-bottom: 10px; font-size: .88rem; }
+.bank-progress progress { display: block; width: 100%; height: 14px; margin-top: 4px; accent-color: var(--blue); }
+.bank-parent { margin: 14px 0; padding: 12px; border-radius: 14px; border: 2px dashed var(--orange-line); background: var(--orange-light); }
+.bank-parent input, .bank-field input { min-height: 44px; border: 1px solid #cfd8e6; border-radius: 10px; padding: 8px 10px; font: inherit; color: var(--ink); background: white; }
+.bank-parent input { width: 7rem; }
+.bank-settings { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+.bank-settings summary { min-height: 32px; font-weight: 800; cursor: pointer; }
+.bank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0; }
+.bank-field { margin-bottom: 0; font-size: .8rem; }
+.bank-field input { display: block; width: 100%; margin-top: 4px; }
+.reward-summary { display: grid; gap: 3px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #dbe3ef; font-size: .88rem; color: var(--muted); }
+.reward-title { font-weight: 800; color: var(--ink); }
+.reward-minutes { font-weight: 800; color: var(--ok-ink); }
+
 /* Phones held sideways (short, wide screens): keep the question and every answer on screen.
    Header = scores + round info in one row; each board = question/objects on the left, answers on the right. */
 @media (orientation: landscape) and (max-height: 520px) {
