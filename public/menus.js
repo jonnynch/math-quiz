@@ -411,9 +411,8 @@
     if (result.renamed) parts.push(`${result.renamed} renamed to avoid a duplicate name`);
     if (result.skipped) parts.push(`${result.skipped} skipped (limit is ${Store.MAX_PROFILES} profiles)`);
     let text = `Import finished: ${parts.join(', ') || 'nothing changed'}.`;
-    if (!result.saved) text += ' This browser would not save the data, so it will be lost when the page closes.';
-    backupMessage(text, result.saved ? 'good' : 'error');
-    if (result.saved) Store.requestPersistence();
+    backupMessage(text, 'good');
+    Store.requestPersistence();
     refreshBackupButtons();
   }
 
@@ -426,6 +425,14 @@
     }
     const result = Store.applyBackup(pendingImport, mode);
     if (result.denied) { askParentForBackup(() => runImport(mode)); return; }
+    if (!result.imported) {
+      // Nothing was changed. Keep the pasted backup and preview so the parent can try again.
+      replaceArmed = false;
+      $('importReplaceButton').textContent = 'Replace all profiles';
+      backupMessage(result.error || 'The import failed and nothing was changed.', 'error');
+      refreshBackupButtons();
+      return;
+    }
     finishImport(result);
   }
 

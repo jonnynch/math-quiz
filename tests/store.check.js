@@ -10,7 +10,7 @@ function freshStore(existing) {
   const mem = existing || {};
   globalThis.localStorage = {
     getItem: k => (k in mem ? mem[k] : null),
-    setItem(k, v) { if (globalThis.__fail) throw new Error('quota'); mem[k] = String(v); },
+    setItem(k, v) { if (globalThis.__fail || (globalThis.__failKey && k === globalThis.__failKey)) throw new Error('quota'); mem[k] = String(v); },
     removeItem: k => { delete mem[k]; }
   };
   delete require.cache[require.resolve(path.join(__dirname, '..', 'public', 'store.js'))];
@@ -135,7 +135,7 @@ Parent.lock();
   ok(S.applyBackup(parsedIn).denied === true && S.applyBackup(null, 'replace').denied === true, 'direct Store calls with any arguments cannot bypass verification');
 
   // a wrong answer does not unlock
-  const wrongAnswer = Parent.current().text.includes('x²') ? '1' : '9/10';
+  const wrongAnswer = '-1'; // never correct: x is positive and a probability cannot be negative (a fixed guess like '1' can be right)
   Parent.submit(wrongAnswer);
   ok(S.applyBackup(parsedIn, 'merge').denied === true && snapshot() === start, 'a wrong verification answer still cannot import');
   // without the parent module nothing is allowed (fails closed)
@@ -275,6 +275,99 @@ Parent.lock();
   const staleFail = R2.rewardAnswer(k2, 'f2', 4, true); // would close session f1 first
   globalThis.__fail = false;
   ok(staleFail.saved === false && JSON.stringify(k2.rewards.session) === JSON.stringify({ id: 'f1', grade: 3, completed: 2, correct: 2 }) && !k2.rewards.pending[3], 'a failed save also undoes closing the previous session');
+  Parent.lock();
+}
+
+// --- transactional import and reward settlement (save failures roll everything back)
+{
+  const MAIN = 'mathQuizBattle.v1';
+  const BACKUP_KEY = 'mathQuizBattle.backup'; // must match BACKUP_KEY in store.js
+
+  const setup = () => {
+    const f = freshStore();
+    f.S.addProfile('Mia', '🦊');
+    const other = freshStore();
+    other.S.addProfile('Zoe', '🐼');
+    const parsed = f.S.parseBackup(other.S.exportText());
+    unlockParent();
+    return { ...f, parsed, state: () => JSON.stringify([f.S.getProfiles(), f.S.getSettings(), f.mem[MAIN], f.mem[BACKUP_KEY] || null]) };
+  };
+
+  // Import aborted when the Undo copy cannot be created
+  for (const mode of ['merge', 'replace']) {
+    const t = setup();
+    const start = t.state();
+    globalThis.__failKey = BACKUP_KEY;
+    const res = t.S.applyBackup(t.parsed, mode);
+    globalThis.__failKey = null;
+    ok(res.imported === false && res.saved === false && res.backedUp === false && !!res.error && t.state() === start && !t.S.hasBackup(), `${mode}: import is aborted when the Undo copy cannot be made (nothing changed)`);
+  }
+
+  // Import save failure restores the original data and the previous Undo copy
+  for (const mode of ['merge', 'replace']) {
+    const t = setup();
+    t.S.applyBackup(t.S.parseBackup(t.S.exportText()), 'merge'); // leaves an earlier Undo copy
+    const profilesRef = t.S.getProfiles();
+    const first = profilesRef[0];
+    const start = t.state();
+    unlockParent();
+    globalThis.__failKey = MAIN;
+    const res = t.S.applyBackup(t.parsed, mode);
+    globalThis.__failKey = null;
+    ok(res.imported === false && res.saved === false && !!res.error && res.added === 0, `${mode}: a failed save is reported with an error`);
+    ok(t.state() === start && t.S.getProfiles() === profilesRef && t.S.getProfiles()[0] === first, `${mode}: a failed save restores the original data and the earlier Undo copy`);
+  }
+  {
+    const t = setup();
+    globalThis.__failKey = MAIN;
+    t.S.applyBackup(t.parsed, 'merge');
+    globalThis.__failKey = null;
+    ok(!t.S.hasBackup() && t.S.getProfiles().length === 1, 'a failed first import leaves no Undo copy behind');
+    unlockParent();
+    const retry = t.S.applyBackup(t.parsed, 'merge');
+    ok(retry.imported === true && retry.saved === true && retry.added === 1 && t.S.getProfiles().length === 2, 'retrying the import after a failed save works once');
+  }
+
+  // Successful import and Undo still work
+  {
+    const t = setup();
+    const res = t.S.applyBackup(t.parsed, 'replace');
+    ok(res.imported === true && res.saved === true && res.backedUp === true && t.S.hasBackup() && t.S.getProfiles().map(p => p.name).join() === 'Zoe', 'successful Replace import keeps the Undo copy');
+    unlockParent();
+    const undo = t.S.restoreBackup();
+    ok(undo.restored === true && !t.S.hasBackup() && t.S.getProfiles().map(p => p.name).join() === 'Mia', 'Undo after a successful import restores the original profiles');
+  }
+
+  // Reward settlement is transactional
+  const rewardSetup = () => {
+    const f = freshStore();
+    f.S.addProfile('Kid', '🐼');
+    const kid = f.S.getProfiles()[0];
+    for (let i = 0; i < 20; i++) f.S.rewardAnswer(kid, 'tx1', 3, true);
+    return { ...f, kid };
+  };
+  {
+    const t = rewardSetup();
+    const before = JSON.stringify(t.kid.rewards);
+    globalThis.__failKey = MAIN;
+    const res = t.S.settleRewards(t.kid, 'tx1');
+    globalThis.__failKey = null;
+    ok(res.settled === false && res.saved === false && !!res.error && !res.batch, 'failed reward save returns a failure result with no payout');
+    ok(JSON.stringify(t.kid.rewards) === before && t.kid.rewards.earned === 0 && !t.kid.rewards.settled.includes('tx1') && t.kid.rewards.session.completed === 20 && !t.kid.rewards.pending[3], 'failed reward save restores earned minutes, pending progress, session and settled list');
+    const retry = t.S.settleRewards(t.kid, 'tx1');
+    ok(retry.settled === true && retry.saved === true && retry.batch && retry.batch.minutes === 3 && t.kid.rewards.earned === 3 && t.kid.rewards.earnTx.length === 1, 'successful reward settlement pays once (retry after failure)');
+    ok(t.S.settleRewards(t.kid, 'tx1').settled === false && t.kid.rewards.earned === 3 && t.kid.rewards.earnTx.length === 1, 'settling again does not duplicate the reward or count the session twice');
+    ok(freshStore(t.mem).S.getProfiles()[0].rewards.earned === 3, 'the paid reward is what is stored');
+  }
+  {
+    const t = rewardSetup();
+    globalThis.__failKey = MAIN;
+    t.S.settleRewards(t.kid, 'tx1');
+    t.S.settleRewards(t.kid, 'tx1'); // repeated failed attempts change nothing either
+    globalThis.__failKey = null;
+    const reloaded = freshStore(t.mem).S.getProfiles()[0];
+    ok(reloaded.rewards.earned === 3 && reloaded.rewards.earnTx.length === 1 && !reloaded.rewards.session, 'after failed attempts a reload settles the saved session exactly once');
+  }
   Parent.lock();
 }
 
