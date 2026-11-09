@@ -152,6 +152,18 @@ Parent.lock();
   ok(S.restoreBackup().denied === true && S.getProfiles()[0].rewards.earned === 999, 'a direct Undo call cannot restore older balances without verification');
   unlockParent();
   ok(S.restoreBackup().restored === true && S.getProfiles()[0].rewards.earned === 30 && !S.hasBackup(), 'after verification Undo import works and restores the earlier balance');
+  // Undo recovery: the Undo copy is deleted only after the restored data is saved.
+  unlockParent();
+  ok(S.applyBackup(parsedIn, 'merge').saved === true && S.hasBackup() && S.getProfiles()[0].rewards.earned === 999, 'undo setup: Merge import made an Undo copy');
+  const afterImport = snapshot();
+  globalThis.__fail = true;
+  const failedUndo = S.restoreBackup();
+  globalThis.__fail = false;
+  ok(failedUndo.restored === false && failedUndo.saved === false && !!failedUndo.error && S.hasBackup(), 'failed save: Undo reports failure and keeps the Undo copy');
+  ok(snapshot() === afterImport, 'failed save: the data in use is unchanged');
+  const retryUndo = S.restoreBackup();
+  ok(retryUndo.restored === true && retryUndo.saved === true && !S.hasBackup() && S.getProfiles()[0].rewards.earned === 30, 'retry after a failed save restores the earlier data and removes the Undo copy');
+  ok(freshStore(mem).S.getProfiles()[0].rewards.earned === 30, 'the restored data is what is stored');
   Parent.lock();
   ok(S.applyBackup(parsedIn, 'merge').denied === true, 'locking again blocks import again');
   unlockParent();
@@ -247,6 +259,22 @@ Parent.lock();
   globalThis.__fail = false;
   ok(failedReset.saved === false && R2.getRewardConfig().base === 0.5 && R2.getRewardConfig().minBatch === 5, 'reset reports a failed save and keeps the existing settings');
   ok(R2.resetRewardConfig().saved === true && R2.getRewardConfig().minBatch === 20, 'reset works again once saving succeeds');
+
+  // Reward progress save failures are reported and never double-count.
+  const okAns = R2.rewardAnswer(k2, 'f1', 3, true);
+  ok(okAns.counted === true && okAns.saved === true && k2.rewards.session.completed === 1, 'successful reward save is reported as counted and saved');
+  const rBefore = JSON.stringify(k2.rewards);
+  globalThis.__fail = true;
+  const badAns = R2.rewardAnswer(k2, 'f1', 3, true);
+  const badAns2 = R2.rewardAnswer(k2, 'f1', 3, true); // a retry of the same answer
+  globalThis.__fail = false;
+  ok(badAns.saved === false && badAns.counted === false && badAns2.saved === false, 'failed reward save is reported to the caller');
+  ok(JSON.stringify(k2.rewards) === rBefore, 'failed reward saves leave progress unchanged (no double counting on retry)');
+  ok(R2.rewardAnswer(k2, 'f1', 3, true).saved === true && k2.rewards.session.completed === 2, 'after saving works again the answer counts once');
+  globalThis.__fail = true;
+  const staleFail = R2.rewardAnswer(k2, 'f2', 4, true); // would close session f1 first
+  globalThis.__fail = false;
+  ok(staleFail.saved === false && JSON.stringify(k2.rewards.session) === JSON.stringify({ id: 'f1', grade: 3, completed: 2, correct: 2 }) && !k2.rewards.pending[3], 'a failed save also undoes closing the previous session');
   Parent.lock();
 }
 

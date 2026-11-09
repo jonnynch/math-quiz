@@ -196,6 +196,7 @@
         : [loadQuestionSet(d1, t1)]);
 
       state.sessionId = `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      state.rewardSaveFailed = false;
       state.players = [createPlayer(1, d1, t1, p1)];
       if (versus) state.players.push(createPlayer(2, d2, t2, p2));
       state.round = 0;
@@ -544,7 +545,10 @@
       player.stats.timedQuestions += 1;
       player.stats.totalSeconds += (performance.now() - state.roundStart) / 1000;
       // Screen-time bank: only this first answer counts for the question; retries are never reported.
-      if (player.rewardGrade) Store.rewardAnswer(player.profile, state.sessionId, player.rewardGrade, correct);
+      if (player.rewardGrade) {
+        const rewarded = Store.rewardAnswer(player.profile, state.sessionId, player.rewardGrade, correct);
+        if (rewarded && rewarded.saved === false) state.rewardSaveFailed = true;
+      }
     }
 
     if (!correct) {
@@ -733,7 +737,7 @@
       if (player.rewardGrade) rewardResults.set(player.id, Store.settleRewards(player.profile, state.sessionId));
     });
     const rewardsSaved = [...rewardResults.values()].every(result => result.saved !== false);
-    if (!saved || !rewardsSaved) $('resultMeta').textContent += ' · ⚠️ Progress could not be saved on this device';
+    if (!saved || !rewardsSaved || state.rewardSaveFailed) $('resultMeta').textContent += ' · ⚠️ Progress could not be saved on this device';
     const highest = Math.max(...state.players.map(player => player.score));
     const winners = state.players.filter(player => player.score === highest);
     $('resultTitle').textContent = state.players.length === 1
