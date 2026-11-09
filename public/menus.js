@@ -6,6 +6,7 @@
   const Q = root.MQQuestions;
   const Trophies = root.MQTrophies;
   const Parent = root.MQParent;
+  const Report = root.MQReport;
   const $ = (id) => document.getElementById(id);
   let lastFocus = null;
   let expandedId = null;
@@ -88,6 +89,7 @@
 
   function closeModal(id) {
     if (id === 'bankModal') closeBank();
+    if (id === 'reportModal') closeReport();
     $(id).classList.add('hidden');
     if (!document.querySelector('.modal-backdrop:not(.hidden)')) document.body.classList.remove('modal-open');
     if (lastFocus && lastFocus.focus) lastFocus.focus();
@@ -99,6 +101,7 @@
       if (id === 'settingsModal') settingsMessage(true);
       if (id === 'achievementsModal') openAchievements();
       if (id === 'bankModal') openBank();
+      if (id === 'reportModal') openReport();
       openModal(id);
     });
     $(closeButtonId).addEventListener('click', () => closeModal(id));
@@ -681,7 +684,7 @@
     const cfg = Store.getRewardConfig();
     const balance = Store.rewardBalance(profile);
 
-    const stats = element('div', 'bank-stats');
+    const stats = element('div', 'bank-stats report-stats');
     [['Available now', `${balance} min`, 'available'], ['Earned in total', `+${r.earned} min`, 'earned'], ['Redeemed', `−${r.redeemed} min`, 'redeemed']].forEach(([label, value, kind]) => {
       const cell = element('div', `bank-stat ${kind}`);
       cell.append(element('span', 'bank-stat-label', label), element('strong', 'bank-stat-value', value));
@@ -791,6 +794,161 @@
     });
   }
 
+  // ---------- parent progress report (see report.js) ----------
+  // Opens locked every time. The report and the CSV export need a parent verification; closing locks again.
+  let reportId = null;
+  let stopReportTimer = () => {};
+
+  function closeReport() {
+    stopReportTimer();
+    stopReportTimer = () => {};
+    Parent.lock();
+  }
+
+  function reportMessage(text, kind) {
+    const node = $('reportMessage');
+    node.textContent = text || '';
+    node.classList.toggle('hidden', !text);
+    node.classList.toggle('error', kind === 'error');
+    node.classList.toggle('good', kind === 'good');
+  }
+
+  const accuracyText = (a) => (a === null ? 'no answers yet' : `${a}%`);
+  const durationText = (seconds) => {
+    if (seconds === null) return 'Not recorded';
+    if (seconds < 60) return `${seconds} sec`;
+    const minutes = Math.round(seconds / 60);
+    return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+  };
+  const statBox = (label, value) => {
+    const box = element('div', 'bank-stat');
+    box.append(element('span', 'bank-stat-label', label), element('span', 'bank-stat-value', value));
+    return box;
+  };
+
+  // A titled list; rows are { text, accuracy } and show a bar when there is an accuracy.
+  function reportList(title, rows, emptyText) {
+    const wrap = element('div', 'report-section');
+    wrap.append(element('p', 'detail-title', title));
+    if (!rows.length) { wrap.append(element('p', 'empty-note', emptyText)); return wrap; }
+    const ul = element('ul', 'report-list');
+    rows.forEach(row => {
+      const li = element('li', '', row.text);
+      if (row.accuracy !== null && row.accuracy !== undefined) {
+        const bar = document.createElement('progress');
+        bar.max = 100;
+        bar.value = row.accuracy;
+        bar.setAttribute('aria-label', `${row.accuracy}% correct`);
+        li.append(bar);
+      }
+      ul.append(li);
+    });
+    wrap.append(ul);
+    return wrap;
+  }
+
+  const countText = (r) => `${r.games} ${r.games === 1 ? 'game' : 'games'} · ${r.correct} of ${r.answers} correct (${accuracyText(r.accuracy)})`;
+  const reportDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date not saved');
+
+  function renderReportBody(report) {
+    const body = $('reportBody');
+    body.innerHTML = '';
+    report.notes.forEach(note => body.append(element('p', 'setting-help', note)));
+    const stats = element('div', 'bank-stats report-stats');
+    stats.append(
+      statBox('Games played', String(report.totals.games)),
+      statBox('Correct answers', report.totals.answers ? `${report.totals.correct} of ${report.totals.answers}` : report.state === 'none' ? '0' : 'Not available'),
+      statBox('Accuracy', report.totals.accuracy === null ? '–' : `${report.totals.accuracy}%`),
+      statBox('Play time', report.state === 'none' ? '0 min' : durationText(report.time.seconds))
+    );
+    body.append(stats);
+    body.append(element('p', 'setting-help', 'Answers count every tap, including second tries in Solo games. Accuracy = correct ÷ answers given.'));
+    if (report.state !== 'detailed') return;
+    if (report.trend) {
+      const t = report.trend;
+      const word = t.direction === 'up' ? 'Improving' : t.direction === 'down' ? 'Lower recently' : 'Steady';
+      body.append(element('p', 'setting-title', `${word}: ${t.recent}% in the latest ${t.recentGames} games, ${t.earlier}% before that`));
+    }
+    body.append(reportList('By level', report.byLevel.map(r => ({ text: `${r.label}: ${countText(r)}`, accuracy: r.accuracy })), 'No games yet.'));
+    body.append(reportList('By topic (Grade 1–6)', report.byTopic.map(r => ({ text: `${r.label}: ${countText(r)}`, accuracy: r.accuracy })), 'No Grade 1–6 games saved yet.'));
+    body.append(reportList('Progress over time (by day, oldest first)', report.byDay.map(r => ({ text: `${reportDate(new Date(`${r.day}T12:00:00`).getTime())}: ${countText(r)}`, accuracy: r.accuracy })), 'No saved dates for these games.'));
+    body.append(reportList('Recent games', report.recent.map(g => ({
+      text: `${reportDate(g.t)} · ${g.levelLabel}${g.topic ? ` · ${g.topic}` : ''} · ${g.mode} — ${g.correct} of ${g.answers} correct (${accuracyText(g.accuracy)})${g.played === null ? '' : ` · ${durationText(g.played)}`}`,
+      accuracy: g.accuracy
+    })), 'No games yet.'));
+  }
+
+  function renderReport() {
+    const lock = $('reportLock');
+    const content = $('reportContent');
+    stopReportTimer();
+    stopReportTimer = () => {};
+    if (!Parent.isUnlocked()) {
+      content.classList.add('hidden');
+      $('reportBody').innerHTML = '';
+      lock.classList.remove('hidden');
+      lock.className = 'bank-parent bank-lock';
+      stopReportTimer = renderParentChallenge(lock, {
+        prefix: 'report',
+        help: 'Progress reports are for parents. Answer this quick question to view them.',
+        onUnlocked: renderReport
+      });
+      return;
+    }
+    lock.innerHTML = '';
+    lock.className = 'hidden';
+    content.classList.remove('hidden');
+    const profiles = Store.getProfiles();
+    const select = $('reportProfile');
+    select.innerHTML = '';
+    profiles.forEach(p => { const o = element('option', '', `${p.avatar} ${p.name}`); o.value = p.id; select.append(o); });
+    if (!Store.getProfile(reportId)) reportId = profiles.length ? profiles[0].id : null;
+    select.value = reportId || '';
+    $('reportProfile').parentNode.classList.toggle('hidden', !profiles.length);
+    $('reportExportButton').disabled = !reportId;
+    const profile = Store.getProfile(reportId);
+    if (!profile) {
+      $('reportBody').innerHTML = '';
+      $('reportBody').append(element('p', 'empty-note', 'No saved profiles yet. Add one in Profiles. Guest games are not saved, so they have no report.'));
+      return;
+    }
+    const report = Report.build(profile);
+    if (report.denied) { renderReport(); return; }
+    renderReportBody(report);
+  }
+
+  function openReport() {
+    closeReport(); // always start locked, with a fresh question
+    reportMessage('', '');
+    renderReport();
+  }
+
+  function exportReportCsv() {
+    const profile = Store.getProfile(reportId);
+    if (!profile) return;
+    const csv = Report.toCsv(profile);
+    if (csv.denied) { Parent.lock(); renderReport(); return; }
+    // The byte-order mark makes Excel read accents and emoji correctly.
+    const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = Report.filename(profile);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    reportMessage('CSV file created. It stays on this device; nothing was sent anywhere.', 'good');
+  }
+
+  function initReport() {
+    $('reportProfile').addEventListener('change', () => {
+      reportId = $('reportProfile').value || null;
+      reportMessage('', '');
+      renderReport();
+    });
+    $('reportExportButton').addEventListener('click', exportReportCsv);
+  }
+
   function init() {
     applySettings();
     initBackup();
@@ -799,6 +957,8 @@
     wireModal('profilesModal', 'profilesButton', 'profilesClose');
     wireModal('achievementsModal', 'achievementsButton', 'achievementsClose');
     wireModal('bankModal', 'bankButton', 'bankClose');
+    wireModal('reportModal', 'reportButton', 'reportClose');
+    initReport();
     $('achievementsProfile').addEventListener('change', renderAchievements);
 
     document.querySelectorAll('.seg-button').forEach(button => {

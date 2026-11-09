@@ -28,6 +28,7 @@
       <div class="top-actions">
         <button id="achievementsButton" class="secondary-button small" type="button">🏆 Achievements</button>
         <button id="profilesButton" class="secondary-button small" type="button">👤 Profiles</button>
+        <button id="reportButton" class="secondary-button small" type="button">📊 Progress</button>
         <button id="bankButton" class="secondary-button small" type="button">⏱ Screen time</button>
         <button id="settingsButton" class="secondary-button small" type="button">⚙️ Settings</button>
         <span id="gameStatus" class="status-pill">Ready to play</span>
@@ -238,6 +239,28 @@
     </div>
   </div>
 
+  <div id="reportModal" class="modal-backdrop hidden">
+    <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+      <div class="modal-head">
+        <h2 id="reportTitle">📊 Progress report</h2>
+        <button id="reportClose" class="primary-button compact" type="button" data-autofocus>Done</button>
+      </div>
+      <div id="reportLock"></div>
+      <div id="reportContent" class="hidden">
+        <div class="field">
+          <label for="reportProfile">Whose progress?</label>
+          <select id="reportProfile"></select>
+        </div>
+        <div class="backup-actions">
+          <button id="reportExportButton" class="secondary-button small" type="button">Export CSV</button>
+        </div>
+        <p id="reportMessage" class="setting-help hidden" role="status"></p>
+        <div id="reportBody"></div>
+      </div>
+      <p class="setting-help">Reports use the saved profiles on this device only (Guest games are not saved). Nothing is sent anywhere.</p>
+    </div>
+  </div>
+
   <div id="achievementsModal" class="modal-backdrop hidden">
     <div class="modal wide" role="dialog" aria-modal="true" aria-labelledby="achievementsTitle">
       <div class="modal-head">
@@ -257,6 +280,7 @@
   <script src="questions.js"></script>
   <script src="trophies.js"></script>
   <script src="parent.js"></script>
+  <script src="report.js"></script>
   <script src="store.js"></script>
   <script src="menus.js"></script>
   <script src="game.js"></script>

@@ -10,10 +10,11 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 ## File map
 | Path | Role |
 |---|---|
-| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `store.js`, `menus.js`, `game.js`, `pwa.js`. |
+| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `report.js`, `store.js`, `menus.js`, `game.js`, `pwa.js`. |
 | `public/questions.js` | **Pure logic, no DOM.** Level/topic definitions and every question generator. `window.MQQuestions` (also `module.exports` for Node tests). |
 | `public/trophies.js` | **Pure logic, no DOM.** Trophy targets (`TARGETS`, the one place to tune them) and the rules that record progress. `window.MQTrophies`. Trophies never change scores, stars, streaks or stickers. |
 | `public/parent.js` | **Pure logic, no DOM.** Parent verification for the Screen-time Bank: one short random quadratic or probability question (typed answer, fractions/decimals accepted), 3 tries then 30 s cooldown, in-memory unlock. `window.MQParent`. A child-resistant barrier, not security. |
+| `public/report.js` | **Pure logic, no DOM.** Parent progress report and CSV export for one saved profile, calculated from `profile.totals` / `profile.history`. Refuses to run unless `MQParent.isUnlocked()`. `window.MQReport`. |
 | `public/store.js` | **No DOM.** Profiles + settings in `localStorage` (key `mathQuizBattle.v1`). `window.MQStore`. |
 | `public/menus.js` | Settings window, Profiles window, the "Who is playing?" selects. `window.MQMenus`. |
 | `public/game.js` | Game flow: setup, rounds, answers, timers, rewards, results, SVG figures. Wires everything together. |
