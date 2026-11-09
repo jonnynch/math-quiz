@@ -58,6 +58,12 @@
     const settings = Store.getSettings();
     document.documentElement.dataset.palette = settings.palette;
     document.documentElement.dataset.text = settings.text;
+    // The 🔊 Listen buttons are drawn on every board but only shown while read-aloud is on (see style.css).
+    document.documentElement.dataset.readAloud = settings.readAloud;
+    const speech = !!(root.MQAudio && root.MQAudio.speechSupported());
+    document.querySelectorAll('[data-setting=readAloud]').forEach(button => { button.disabled = !speech; });
+    $('readAloudHelp').classList.toggle('hidden', !speech);
+    $('readAloudUnavailable').classList.toggle('hidden', speech);
     document.querySelectorAll('.seg-button').forEach(button => {
       const on = settings[button.dataset.setting] === button.dataset.value;
       button.classList.toggle('selected', on);

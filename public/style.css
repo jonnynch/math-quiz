@@ -96,6 +96,8 @@ select { width: 100%; min-height: 48px; border: 1px solid #cfd8e6; border-radius
 .question-board.blue { border-top: 5px solid var(--blue); }
 .question-board.orange { border-top: 5px solid var(--orange); }
 .question-board.solo { border-top: 5px solid var(--blue); }
+.speak-button { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border: 2px solid var(--blue); border-radius: 999px; background: white; color: var(--navy); font-weight: 800; font-size: .9rem; }
+html:not([data-read-aloud="on"]) .speak-button { display: none; }
 .question-topline { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
 .player-label { font-size: .78rem; font-weight: 900; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
 .difficulty-label { color: var(--muted); font-size: .75rem; }
@@ -319,6 +321,7 @@ body.playing #bankButton { display: none; }
   .board-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
   .board-info { display: block; min-width: 0; }
   .question-topline { margin-bottom: 4px; }
+  .speak-button { min-height: 30px; padding: 2px 10px; font-size: .8rem; }
   .difficulty-label { display: none; }
   .question-text, .question-board.toddler .question-text { min-height: auto; margin: 0 0 6px; font-size: clamp(1rem, 5vh, 1.55rem); }
   .answer-grid { display: grid; grid-auto-rows: minmax(calc(32px * var(--ts)), 1fr); gap: 5px; min-width: 0; }
