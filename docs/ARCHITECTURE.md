@@ -9,6 +9,7 @@ trophies.js   -> window.MQTrophies    (trophy targets + progress rules; pure; al
 parent.js     -> window.MQParent     (parent verification for the Screen-time Bank; pure; also module.exports)
 report.js     -> window.MQReport     (parent progress report + CSV; pure; also module.exports)
 store.js      -> window.MQStore       (localStorage; also module.exports)
+audio.js      -> window.MQAudio      (read-aloud via speechSynthesis + Web Audio sound effects; both optional, off by default)
 menus.js      -> window.MQMenus       (Settings/Profiles windows + profile <select>s)
 game.js       -> uses all three; owns game state, rounds, rewards, results
 ```
@@ -69,7 +70,7 @@ One JSON object under `localStorage['mathQuizBattle.v1']` (the key name is fixed
 ```json
 {
   "schema": 2,
-  "settings": { "palette": "standard|cb", "text": "normal|large|xlarge" },
+  "settings": { "palette": "standard|cb", "text": "normal|large|xlarge", "readAloud": "off|on", "sound": "off|on" },
   "profiles": [{
     "id": "p…", "name": "≤14 chars", "avatar": "🦊", "created": 0,
     "stickers": ["🦄"],
@@ -121,6 +122,6 @@ Grade 1–6 only; age levels and guests never earn. Everything is stored per pro
 - **UI**: `#bankModal` ("⏱ Screen time" button), parent redeem (two taps) and Parent settings; the result card shows completed / correct / accuracy / minutes (`rewardSummary`). The game only tracks minutes; it cannot enforce screen time.
 
 ## Menus (`menus.js`)
-- Settings: `.seg-button[data-setting][data-value]` → `MQStore.setSetting` → `html[data-palette]`, `html[data-text]`.
+- Settings: `.seg-button[data-setting][data-value]` → `MQStore.setSetting` → `html[data-palette]`, `html[data-text]`, `html[data-read-aloud]`. `readAloud` and `sound` are additive settings (no schema bump; missing/invalid values become `off`). A 🔊 Listen button is built on every board when `speechSynthesis` exists and shown only while read-aloud is on; with read-aloud on, Solo Age 2–6 also reads each new question once. Speech never describes the pictures (it would give away the answer) and never delays the next question.
 - Profiles window: list, expandable details (sticker book, best timed scores, last 5 games), two-step delete ("Tap again to delete"), add form with avatar picker. Rebuilds with `textContent` only.
 - Escape or a backdrop tap closes a window; `body.modal-open` stops background scrolling.

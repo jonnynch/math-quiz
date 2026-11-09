@@ -26,6 +26,7 @@
   const MAX_HISTORY = 30;
   const NAME_LENGTH = 14;
   const PALETTES = ['standard', 'cb'];
+  const ON_OFF = ['off', 'on'];                   // read-aloud and sound effects: both off unless chosen
   const TEXT_SIZES = ['normal', 'large', 'xlarge'];
 
   // Screen-time reward bank (Grade 1-6 only). Every reward number lives here so it is easy to adjust;
@@ -48,7 +49,7 @@
   const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
 
   function defaults() {
-    return { settings: { palette: 'standard', text: 'normal', rewards: cleanRewardConfig(null) }, profiles: [] };
+    return { settings: { palette: 'standard', text: 'normal', readAloud: 'off', sound: 'off', rewards: cleanRewardConfig(null) }, profiles: [] };
   }
 
   // Saved data and backup files carry a schema number. When the format changes, bump SCHEMA and add a
@@ -71,6 +72,8 @@
     const s = raw && typeof raw === 'object' ? raw : {};
     if (PALETTES.includes(s.palette)) out.palette = s.palette;
     if (TEXT_SIZES.includes(s.text)) out.text = s.text;
+    if (ON_OFF.includes(s.readAloud)) out.readAloud = s.readAloud;
+    if (ON_OFF.includes(s.sound)) out.sound = s.sound;
     out.rewards = cleanRewardConfig(s.rewards);
     return out;
   }
@@ -278,6 +281,7 @@
     setSetting(name, value) {
       if (name === 'palette' && PALETTES.includes(value)) data.settings.palette = value;
       else if (name === 'text' && TEXT_SIZES.includes(value)) data.settings.text = value;
+      else if ((name === 'readAloud' || name === 'sound') && ON_OFF.includes(value)) data.settings[name] = value;
       else return { error: 'Unknown setting.' };
       return { saved: save() };
     },

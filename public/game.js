@@ -7,7 +7,10 @@
   const Store = window.MQStore;
   const Menus = window.MQMenus;
   const Trophies = window.MQTrophies;
+  // Optional read-aloud and sound effects (audio.js). Every call is safe if the module or the browser feature is missing.
+  const Sound = window.MQAudio || { speechSupported: () => false, speakQuestion: () => false, stopSpeech() {}, playSound: () => false, readAloudOn: () => false };
   const { choose, intBetween } = Q;
+  const AGE_LEVELS = ['toddler', 'age4', 'age5', 'age6'];
 
   const state = {
     mode: 'solo',
@@ -256,6 +259,7 @@
   function showNextRound() {
     if (!state.active) return;
     clearTimers();
+    Sound.stopSpeech();
     state.round += 1;
     state.locked = false;
     state.roundStart = performance.now();
@@ -276,6 +280,9 @@
     feedback.textContent = state.mode === 'solo'
       ? 'Tap the correct answer to score a point.'
       : 'First correct answer wins the point. One wrong answer and you are out for this question.';
+    // Read-aloud (if on): Solo at Age 2–6 reads the new question once. Nothing waits for it; the 🔊 button replays it.
+    const only = state.players[0];
+    if (state.mode === 'solo' && only && AGE_LEVELS.includes(only.difficulty) && Sound.readAloudOn()) Sound.speakQuestion(only.currentQuestion);
   }
 
   // ---------- figures: analogue clock and polygons (SVG) ----------
@@ -344,6 +351,21 @@
     level.className = 'difficulty-label';
     level.textContent = levelLabel(player);
     topline.append(label, level);
+    if (Sound.speechSupported()) {
+      const speak = document.createElement('button');
+      speak.type = 'button';
+      speak.className = 'speak-button';
+      speak.setAttribute('aria-label', `Read ${player.name}'s question and answers aloud`);
+      speak.textContent = '🔊 Listen';
+      // Same pattern as the answer buttons: pointerdown for touch (two players at once), click only for the keyboard.
+      speak.addEventListener('pointerdown', (event) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        event.preventDefault();
+        Sound.speakQuestion(question);
+      });
+      speak.addEventListener('click', (event) => { if (event.detail === 0) Sound.speakQuestion(question); });
+      topline.append(speak);
+    }
 
     const text = document.createElement('h3');
     text.className = 'question-text';
@@ -545,6 +567,9 @@
       }
     }
 
+    Sound.playSound(correct ? 'correct' : 'wrong');
+    if (correct) Sound.stopSpeech();   // the question is over; a wrong tap does not cut off the other player
+
     if (!correct) {
       button.classList.add('wrong');
       button.disabled = true;
@@ -728,6 +753,7 @@
     state.active = false;
     clearTimers();
     stopClock();
+    Sound.stopSpeech();
     document.body.classList.remove('playing');
     gamePanel.classList.add('hidden');
     resultPanel.classList.remove('hidden');
@@ -825,6 +851,7 @@
   function changeSetup() {
     clearTimers();
     stopClock();
+    Sound.stopSpeech();
     document.body.classList.remove('playing');
     state.active = false;
     gamePanel.classList.add('hidden');

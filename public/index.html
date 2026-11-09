@@ -158,6 +158,23 @@
         <p class="setting-help setting-sample">Sample: What is 7 + 5?</p>
       </div>
       <div class="setting-block">
+        <p class="setting-title">Read questions aloud</p>
+        <div class="seg" role="group" aria-label="Read questions aloud">
+          <button class="seg-button" data-setting="readAloud" data-value="off" type="button">Off</button>
+          <button class="seg-button" data-setting="readAloud" data-value="on" type="button">On</button>
+        </div>
+        <p id="readAloudHelp" class="setting-help">Adds a 🔊 Listen button to each question. For Age 2–6 in Solo, the question is also read when it appears.</p>
+        <p id="readAloudUnavailable" class="setting-help hidden">This browser cannot read aloud, so this setting is switched off.</p>
+      </div>
+      <div class="setting-block">
+        <p class="setting-title">Sound effects</p>
+        <div class="seg" role="group" aria-label="Sound effects">
+          <button class="seg-button" data-setting="sound" data-value="off" type="button">Off</button>
+          <button class="seg-button" data-setting="sound" data-value="on" type="button">On</button>
+        </div>
+        <p class="setting-help">A short happy sound for a right answer and a soft sound for a wrong one.</p>
+      </div>
+      <div class="setting-block">
         <p class="setting-title">Install on this device</p>
         <p id="installInfo" class="setting-help"></p>
         <p id="installIos" class="setting-help hidden"></p>
@@ -282,6 +299,7 @@
   <script src="parent.js"></script>
   <script src="report.js"></script>
   <script src="store.js"></script>
+  <script src="audio.js"></script>
   <script src="menus.js"></script>
   <script src="game.js"></script>
   <script src="pwa.js"></script>
