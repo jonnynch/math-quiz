@@ -603,9 +603,57 @@
     return q;
   }
 
+  // ---------- no repeats within a game ----------
+  // Identity of a question: its wording, its figure (clock time / polygon, where the wording alone
+  // does not say which one) and the correct answer's text. Answer ORDER and wrong options are ignored,
+  // and so are decorative emoji (Age 5/6 stages), so "What is 6 × 7?" generated twice with different
+  // wrong answers is the same question.
+  function questionKey(q) {
+    return JSON.stringify([q.question, q.figure || null, q.answers[q.correct]]);
+  }
+
+  // Generates up to `size` distinct questions. Attempts are capped so a small pool (e.g. Age 5, which
+  // has only a handful of distinct questions) ends the loop instead of spinning forever.
+  function buildQuestionBank(difficulty, topic, size = 500, maxAttempts = size * 3) {
+    const seen = new Set();
+    const bank = [];
+    for (let i = 0; i < maxAttempts && bank.length < size; i++) {
+      const q = generateQuestion(difficulty, topic);
+      const key = questionKey(q);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      bank.push(q);
+    }
+    return shuffledCopy(bank);
+  }
+
+  // A deck deals every question in the bank once, in random order. When all have been used it is
+  // reshuffled (so the game never stops), and the first card of the new round is never the last one
+  // just shown. Create a new deck for each game: that is what resets the tracking.
+  function createQuestionDeck(bank) {
+    let order = shuffledCopy(bank);
+    let index = 0;
+    let last = null;
+    return {
+      next() {
+        if (index >= order.length) {
+          order = shuffledCopy(bank);
+          if (order.length > 1 && order[0] === last) {
+            const j = intBetween(1, order.length - 1);
+            [order[0], order[j]] = [order[j], order[0]];
+          }
+          index = 0;
+        }
+        last = order[index++];
+        return last;
+      }
+    };
+  }
+
   const api = {
     DIFFICULTIES, TOPICS, isGrade, gradeOf, difficultyLabel, topicLabel, topicsFor, normaliseTopic,
-    generateQuestion, shuffledCopy, intBetween, choose
+    generateQuestion, shuffledCopy, intBetween, choose,
+    questionKey, buildQuestionBank, createQuestionDeck
   };
   root.MQQuestions = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
