@@ -6,6 +6,7 @@ Static single-page app. No framework, no build. Scripts share these globals:
 ```
 questions.js  -> window.MQQuestions   (pure generators; also module.exports for Node tests)
 trophies.js   -> window.MQTrophies    (trophy targets + progress rules; pure; also module.exports)
+parent.js     -> window.MQParent     (parent verification for the Screen-time Bank; pure; also module.exports)
 store.js      -> window.MQStore       (localStorage; also module.exports)
 menus.js      -> window.MQMenus       (Settings/Profiles windows + profile <select>s)
 game.js       -> uses all three; owns game state, rounds, rewards, results
@@ -107,6 +108,7 @@ Grade 1–6 only; age levels and guests never earn. Everything is stored per pro
 - **Earning**: `minutes = floor(correct × base × accuracy multiplier × grade multiplier)`, rounded once per batch (`calcReward`). A question counts once, from the player's first tap (`player.answeredThisRound` block in `handleAnswer`), so retries cannot raise the correct count. In 1 vs 1 only questions a player actually answered count for that player; each profile is tracked separately.
 - **Progress is saved on every first answer** as `rewards.session`. `settleRewards(profile, sessionId)` (called from `endGame`) folds the session into `rewards.pending[grade]` and pays out when `pending.completed >= minBatch`; a batch under the minimum accuracy pays 0 and is used up. Smaller batches carry forward per grade (grades are never combined). A session left by a closed page is folded (and paid if complete) the next time the store loads. `rewards.settled` holds recent session ids so a session is never counted twice.
 - **Bank**: `balance = earned − redeemed` (never negative; `redeem` and `cleanRewards` enforce it); `earnTx` / `redeemTx` keep the last 30 entries.
+- **Parent verification** (`parent.js`): the bank opens locked. Balance, earned/redeemed minutes, progress and history stay visible; redeeming and Parent settings need a typed answer to a random arithmetic question (new question after every attempt, never shown with options or hints). Three wrong answers start a 30-second cooldown; the counter and cooldown end time are kept in `sessionStorage` so a refresh cannot skip them. The unlocked state is memory only and is cleared whenever the bank window closes or opens. `Store.setRewardConfig`, `resetRewardConfig` and `redeem` check `MQParent.isUnlocked()` themselves and return `{ denied: true }` otherwise. `resetRewardConfig` keeps the previous settings and returns `saved: false` when localStorage cannot save. Not strong security: anyone who can edit the code or storage can bypass it.
 - **UI**: `#bankModal` ("⏱ Screen time" button), parent redeem (two taps) and Parent settings; the result card shows completed / correct / accuracy / minutes (`rewardSummary`). The game only tracks minutes; it cannot enforce screen time.
 
 ## Menus (`menus.js`)

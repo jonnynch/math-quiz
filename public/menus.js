@@ -5,6 +5,7 @@
   const Store = root.MQStore;
   const Q = root.MQQuestions;
   const Trophies = root.MQTrophies;
+  const Parent = root.MQParent;
   const $ = (id) => document.getElementById(id);
   let lastFocus = null;
   let expandedId = null;
@@ -86,6 +87,7 @@
   }
 
   function closeModal(id) {
+    if (id === 'bankModal') closeBank();
     $(id).classList.add('hidden');
     if (!document.querySelector('.modal-backdrop:not(.hidden)')) document.body.classList.remove('modal-open');
     if (lastFocus && lastFocus.focus) lastFocus.focus();
@@ -482,6 +484,102 @@
     return wrap;
   }
 
+  // ---------- parent verification (child-resistant, see parent.js) ----------
+  let parentMessage = '';
+  let cooldownTimer = null;
+
+  function stopCooldownTimer() {
+    if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+  }
+
+  // Parent controls (Parent settings) are only visible while unlocked.
+  function syncParentControls() {
+    $('bankSettings').classList.toggle('hidden', !Parent.isUnlocked());
+  }
+
+  function closeBank() {
+    stopCooldownTimer();
+    parentMessage = '';
+    Parent.lock();
+  }
+
+  // Called when a parent-only action is refused because the bank is locked.
+  function parentDenied() {
+    Parent.lock();
+    renderBank();
+    syncParentControls();
+    bankNotice('Parent verification is needed first.', 'error');
+  }
+
+  function parentLockBox() {
+    stopCooldownTimer();
+    const box = element('div', 'bank-parent bank-lock');
+    box.append(element('p', 'setting-title', '🔒 Parent area'));
+    box.append(element('p', 'setting-help', 'Redeeming minutes and changing reward settings are for parents. Solve this to unlock. Everything above and below can still be viewed.'));
+    box.append(element('p', 'parent-challenge', `${Parent.current().text} = ?`));
+    box.lastChild.id = 'parentChallenge';
+    const row = element('div', 'backup-actions');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'parentAnswer';
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('pattern', '[0-9]*');
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('enterkeyhint', 'done');
+    input.setAttribute('aria-label', 'Your answer');
+    const button = element('button', 'primary-button compact', 'Unlock');
+    button.type = 'button';
+    row.append(input, button);
+    box.append(row);
+    const message = element('p', 'setting-help error hidden');
+    message.id = 'parentMessage';
+    message.setAttribute('role', 'alert');
+    box.append(message);
+    const show = (text) => { message.textContent = text; message.classList.toggle('hidden', !text); };
+
+    const showCooldown = () => {
+      const left = Parent.cooldownRemaining();
+      input.disabled = button.disabled = left > 0;
+      if (left > 0) show(`Too many wrong answers. Please wait ${left} second${left === 1 ? '' : 's'}.`);
+      return left;
+    };
+    const submit = () => {
+      const result = Parent.submit(input.value);
+      if (result.ok) {
+        stopCooldownTimer();
+        renderBank();
+        renderBankSettings();
+        syncParentControls();
+        bankNotice('Parent controls unlocked.', 'good');
+        return;
+      }
+      if (result.reason === 'invalid') { show('Please type your answer as a number.'); return; }
+      bankNotice('', '');
+      parentMessage = result.reason === 'cooldown'
+        ? ''
+        : `Not correct. Here is a new question. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? 'try' : 'tries'} left.`;
+      renderBank();
+      const again = $('parentAnswer');
+      if (again && !again.disabled) again.focus();
+    };
+    button.addEventListener('click', submit);
+    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+
+    if (showCooldown() > 0) {
+      cooldownTimer = setInterval(() => {
+        if (showCooldown() > 0) return;
+        stopCooldownTimer();
+        parentMessage = '';
+        renderBank();
+      }, 250);
+    } else if (parentMessage) {
+      show(parentMessage);
+    }
+    parentMessage = '';
+    return box;
+  }
+
   // Parent-only area: minutes are redeemed by hand (two taps, like deleting a profile).
   function parentRedeemBox(profile, balance) {
     const box = element('div', 'bank-parent');
@@ -506,6 +604,7 @@
       if (problem) { armed = 0; button.textContent = 'Redeem'; bankNotice(problem, 'error'); return; }
       if (armed !== minutes) { armed = minutes; button.textContent = `Tap again to redeem ${minutes} min`; bankNotice('', ''); return; }
       const result = Store.redeem(profile, minutes);
+      if (result.denied) { parentDenied(); return; }
       renderBank();
       if (result.saved === false) bankNotice('Redeemed, but this browser would not save the change, so it may come back when the page is reloaded.', 'error');
       else bankNotice(`${minutes} minute${minutes === 1 ? '' : 's'} redeemed.`, 'good');
@@ -550,7 +649,7 @@
       body.append(row);
     });
 
-    body.append(parentRedeemBox(profile, balance));
+    body.append(Parent.isUnlocked() ? parentRedeemBox(profile, balance) : parentLockBox());
     body.append(historyList('Recent rewards', r.earnTx.slice(0, 5).map(t =>
       `${shortDate(t.t)} · Grade ${t.grade} · ${t.correct}/${t.completed} right (${Store.rewardPercent(t.correct, t.completed)}%) — +${t.minutes} min`), 'No rewards yet.'));
     body.append(historyList('Recent redemptions', r.redeemTx.slice(0, 5).map(t =>
@@ -601,27 +700,32 @@
       const v = inputs.map(input => (input.value.trim() === '' ? NaN : Number(input.value)));
       if (v.some(n => !Number.isFinite(n))) { bankSettingsMessage('Please fill in every box with a number.', 'error'); return; }
       const result = Store.setRewardConfig({ base: v[0], minAccuracy: v[1], minBatch: v[2], accuracy: v.slice(3, 7), grades: v.slice(7, 13) });
+      if (result.denied) { parentDenied(); return; }
       renderBankSettings();
       renderBank();
       if (result.saved === false) bankSettingsMessage('Applied, but this browser would not save the settings, so they will be lost when the page closes.', 'error');
       else bankSettingsMessage('Settings saved. Values outside the allowed range were put back to their defaults.', 'good');
     });
     reset.addEventListener('click', () => {
-      Store.resetRewardConfig();
+      const result = Store.resetRewardConfig();
+      if (result.denied) { parentDenied(); return; }
       renderBankSettings();
       renderBank();
-      bankSettingsMessage('Reward settings are back to the defaults.', 'good');
+      if (result.saved === false) bankSettingsMessage('Could not reset: this browser would not save the change, so your settings were kept as they were.', 'error');
+      else bankSettingsMessage('Reward settings are back to the defaults.', 'good');
     });
     actions.append(save, reset);
     box.append(actions);
   }
 
   function openBank() {
+    closeBank(); // always start locked, with a fresh question
     bankNotice('', '');
     bankSettingsMessage('', '');
     refreshBankSelect();
     renderBank();
     renderBankSettings();
+    syncParentControls();
   }
 
   function initBank() {

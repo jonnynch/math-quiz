@@ -4,7 +4,7 @@ const dir=require('path').join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
 const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;
-['questions.js','trophies.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
+['questions.js','trophies.js','parent.js','store.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -24,6 +24,9 @@ const solve=(i=0)=>{ // answers tables / compare questions
 const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.textContent.replace(/^[A-E]\. /,'');return txt===a||txt.startsWith(a+' ');});};
 const wrongBtn=(i=0)=>btns(i).find(b=>b!==answerBtn(i));
 const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
+// Parent verification: solve the shown question through the public API (the answer is never exposed).
+const solveParent=t=>Function('return '+t.replace(/×/g,'*').replace(/−/g,'-'))();
+const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current().text)));
 
 (async()=>{
   // ---- topics only for grades
@@ -212,7 +215,8 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('stopButton'));
   // ---- screen-time bank: saved profiles in Grade 1-6 only; first attempts count; a finished batch pays out
   click($('changeSetupButton')); click(d.querySelector('[data-mode=solo]'));
-  w.MQStore.setRewardConfig({minBatch:2,base:5});
+  ok(w.MQStore.setRewardConfig({minBatch:2,base:5}).denied===true,'reward settings cannot be changed while parent verification is locked');
+  unlockParent(); w.MQStore.setRewardConfig({minBatch:2,base:5}); w.MQParent.lock();
   click($('profilesButton')); $('profileName').value='Earner'; click($('addProfileButton')); click($('profilesClose'));
   const earnerId=store().profiles.find(p=>p.name==='Earner').id;
   const bankOf=()=>w.MQStore.getProfile(earnerId).rewards;
@@ -229,12 +233,40 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('changeSetupButton')); click($('bankButton'));
   ok(!$('bankModal').classList.contains('hidden')&&$('bankBody').textContent.includes('18 min'),'Screen-time Bank window shows the balance');
   const redeemBtn=()=>d.querySelector('#bankBody .bank-parent .secondary-button');
+  const unlockBtn=()=>d.querySelector('#bankBody .bank-lock .primary-button');
+  ok(!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankSettings').classList.contains('hidden')&&$('bankBody').textContent.includes('Earned in total'),'locked bank: balance and history stay visible; redeem box and Parent settings are hidden');
+  ok(!$('bankBody').querySelector('.bank-lock button.answer-button')&&$('bankBody').querySelectorAll('.bank-lock input').length===1,'the challenge has a typed answer box and no multiple-choice options');
+  const firstQ=$('parentChallenge').textContent;
+  $('parentAnswer').value='1'; click(unlockBtn());
+  ok(!$('redeemMinutes')&&$('parentChallenge').textContent!==firstQ&&$('parentMessage').textContent.includes('Not correct'),'a wrong answer shows an error and a new question');
+  ok(w.MQStore.redeem(w.MQStore.getProfile(earnerId),5).denied===true&&bankOf().redeemed===0,'redeeming by a direct call is refused while locked');
+  $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?','')));
+  click(unlockBtn());
+  ok(!!$('redeemMinutes')&&!$('bankSettings').classList.contains('hidden')&&!$('parentChallenge'),'the right answer unlocks redeeming and Parent settings');
   $('redeemMinutes').value='99'; click(redeemBtn());
   ok(bankOf().redeemed===0&&!$('bankNotice').classList.contains('hidden'),'cannot redeem more than the balance');
   $('redeemMinutes').value='5'; click(redeemBtn());
   ok(bankOf().redeemed===0&&redeemBtn().textContent.includes('again'),'redeeming needs a second tap');
   click(redeemBtn());
   ok(bankOf().redeemed===5&&w.MQStore.rewardBalance(w.MQStore.getProfile(earnerId))===13,'a parent can redeem minutes from the balance');
+  click($('bankClose')); click($('bankButton'));
+  ok(!w.MQParent.isUnlocked()&&!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankBody').textContent.includes('13 min'),'closing and reopening the bank locks it again; the balance is still shown');
+  // reset settings: a failed localStorage write must show an error and keep the existing settings
+  const uiUnlock=()=>{ $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?',''))); click(unlockBtn()); };
+  uiUnlock();
+  const resetBtn=()=>[...d.querySelectorAll('#bankSettingsBody button')].find(b=>b.textContent.includes('Reset'));
+  const realSet=w.Storage.prototype.setItem; w.Storage.prototype.setItem=()=>{throw new Error('quota');};
+  click(resetBtn());
+  w.Storage.prototype.setItem=realSet;
+  ok($('bankSettingsMessage').textContent.includes('Could not reset')&&w.MQStore.getRewardConfig().minBatch===2&&w.MQStore.getRewardConfig().base===5,'reset settings shows an error and keeps the settings when the browser cannot save');
+  click(resetBtn());
+  ok($('bankSettingsMessage').textContent.includes('back to the defaults')&&w.MQStore.getRewardConfig().minBatch===20,'reset settings succeeds when saving works');
+  // three wrong answers: cooldown message, disabled box, and a reopened bank is still locked out
+  click($('bankClose')); click($('bankButton'));
+  for(let i=0;i<3;i++){ $('parentAnswer').value='1'; click(unlockBtn()); }
+  ok($('parentAnswer').disabled&&unlockBtn().disabled&&$('parentMessage').textContent.includes('wait'),'three wrong answers disable the answer box and show a cooldown message');
+  click($('bankClose')); click($('bankButton'));
+  ok($('parentAnswer').disabled&&!$('redeemMinutes'),'reopening the bank during the cooldown is still locked out');
   click($('bankClose'));
   click($('changeSetupButton')); change($('profile1'),''); click($('startButton')); await sleep(80);
   tap(answerBtn()); click($('stopButton'));
