@@ -115,6 +115,8 @@ Parent.lock();
   S.addProfile('Mia', '🦊'); S.addProfile('Leo', '🦁');
   const mia = S.getProfiles()[0];
   mia.rewards.earned = 30; mia.rewards.redeemed = 10; S.save();
+  // exportedAt is a timestamp, so compare exports without it (otherwise the check fails whenever a millisecond ticks over)
+  const sameExport = (a, b) => JSON.stringify({ ...JSON.parse(a), exportedAt: 0 }) === JSON.stringify({ ...JSON.parse(b), exportedAt: 0 });
   const goodText = S.exportText();                    // export needs no verification
   const incoming = JSON.parse(goodText);
   incoming.profiles[0].rewards.earned = 999;          // a backup that would inflate the balance
@@ -124,7 +126,7 @@ Parent.lock();
 
   Parent.lock();
   const start = snapshot();
-  ok(!Parent.isUnlocked() && S.exportText() === goodText && !S.parseBackup(incomingText).error, 'locked: export and backup preview still work without verification');
+  ok(!Parent.isUnlocked() && sameExport(S.exportText(), goodText) && !S.parseBackup(incomingText).error, 'locked: export and backup preview still work without verification');
   const parsedIn = S.parseBackup(incomingText);
   const dm = S.applyBackup(parsedIn, 'merge');
   ok(dm.denied === true && dm.saved === false && /Parent verification/.test(dm.error) && snapshot() === start, 'Merge import is denied without verification and changes nothing');
