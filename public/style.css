@@ -321,10 +321,15 @@ body.playing #bankButton { display: none; }
   .board-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
   .board-info { display: block; min-width: 0; }
   .question-topline { margin-bottom: 4px; }
+  /* A long player name must not wrap onto several lines and push the figure and answers off screen. */
+  .question-topline { min-width: 0; }
+  .player-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .speak-button { min-height: 30px; padding: 2px 10px; font-size: .8rem; }
   .difficulty-label { display: none; }
   .question-text, .question-board.toddler .question-text { min-height: auto; margin: 0 0 6px; font-size: clamp(1rem, 5vh, 1.55rem); }
   .answer-grid { display: grid; grid-auto-rows: minmax(calc(32px * var(--ts)), 1fr); gap: 5px; min-width: 0; }
+  /* Clock / shape questions in 1 vs 1: the question column is narrow, so its wording is a little smaller. */
+  .question-boards.versus .question-board.has-figure .question-text { margin-bottom: 2px; font-size: clamp(.85rem, 4vh, 1.2rem); line-height: 1.15; }
   .answer-button, .question-board.toddler .answer-button {
     min-height: calc(32px * var(--ts)); max-height: calc(72px * var(--ts)); align-self: center; width: 100%;
     padding: 3px 10px; border-radius: 9px;
@@ -370,6 +375,7 @@ body.playing #bankButton { display: none; }
 /* Larger text still has to fit: on very short landscape screens the biggest text sizes are capped a little. */
 @media (orientation: landscape) and (max-height: 330px) {
   html[data-text="xlarge"] { font-size: 118%; --ts: 1.18; }
+  .answer-grid { gap: 4px; } /* five clock answers at large text: buttons keep their size, the gaps give the room */
 }
 @media (orientation: landscape) and (max-height: 300px) {
   html[data-text="large"] { font-size: 106%; --ts: 1.06; }

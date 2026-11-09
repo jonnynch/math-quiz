@@ -339,7 +339,7 @@
 
   function createQuestionBoard(player, question) {
     const board = document.createElement('article');
-    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}`;
+    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}${question.figure ? ' has-figure' : ''}`;
     board.dataset.playerId = String(player.id);
 
     const topline = document.createElement('div');
