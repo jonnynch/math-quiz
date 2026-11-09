@@ -7,8 +7,7 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
 // localStorage must never be touched: the unlocked state and the answer are not stored permanently.
 Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('localStorage used'); } });
 
-// Independent evaluation of the question text (digits and + − × ( ) only).
-const evalText = (t) => { if (!/^[\d\s+−×()]+$/.test(t)) throw new Error('bad text ' + t); return Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-'))(); };
+const { solveParent } = require('./parent-solver');
 
 function lcg(seed) { let s = seed; return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296; }
 function memStorage() { const m = {}; return { m, getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; }
@@ -18,25 +17,40 @@ function session(extra) {
   const s = P.create({ rng: lcg(7), now: () => clock.t, storage, ...extra });
   return { s, clock, storage };
 }
-const answerOf = (s) => String(evalText(s.current().text));
-const wrongOf = (s) => String(evalText(s.current().text) + 1);
+const answerOf = (s) => solveParent(s.current().text);
+// An answer that is certainly wrong for the current question (answers are never 0).
+const wrongOf = (s) => '0';
 
-// --- challenge generation
+// --- challenge generation: one short quadratic or probability question
 {
   const texts = new Set();
+  const kinds = new Set();
   let good = true;
   const rng = lcg(42);
-  for (let i = 0; i < 5000; i++) {
+  for (let i = 0; i < 3000; i++) {
     const c = P.generateChallenge(rng);
-    const v = evalText(c.text);
-    const ops = (c.text.match(/[+−×]/g) || []).length;
-    if (v !== c.answer || !Number.isInteger(v) || v <= 0 || ops < 2 || v < 100) good = false;
+    const quad = /^What is the positive value of x if x² = (\d+)\?$/.exec(c.text);
+    const prob = /^A bag contains (\d+) (\w+) balls? and (\d+) (\w+) balls?\. What is the probability of picking (\w+)\?$/.exec(c.text);
+    if (quad) {
+      const root = Math.sqrt(Number(quad[1]));
+      if (!Number.isInteger(root) || root < 3 || root > 12 || c.answer.num !== root || c.answer.den !== 1) good = false;
+    } else if (prob) {
+      const [n1, n2] = [Number(prob[1]), Number(prob[3])];
+      const favourable = prob[5] === prob[2] ? n1 : n2;
+      if (prob[2] === prob[4] || n1 < 1 || n2 < 1 || ![2, 4, 5, 8, 10].includes(n1 + n2) || (prob[5] !== prob[2] && prob[5] !== prob[4])) good = false;
+      if (c.answer.num !== favourable || c.answer.den !== n1 + n2) good = false;
+      if (/1 \w+ balls|[02-9]\d* \w+ ball\b/.test(c.text)) good = false; // singular/plural wording
+    } else good = false;
+    if (c.text.length > 100) good = false;
+    kinds.add(quad ? 'quadratic' : 'probability');
     texts.add(c.text);
   }
-  ok(good, '5000 generated challenges: whole positive answers equal to the recomputed text, at least two operations, multi-digit sizes');
-  ok(texts.size > 4000, 'challenges are randomly generated, not a fixed list (' + texts.size + ' distinct of 5000)');
-  const kinds = new Set([...texts].map(t => t.replace(/\d+/g, 'n')));
-  ok(kinds.size >= 4, 'several different question shapes are used (' + kinds.size + ')');
+  ok(good, '3000 generated questions all use the short quadratic or probability formats, with correct stored answers');
+  ok(kinds.size === 2, 'both quadratic and probability questions are generated');
+  ok(texts.size >= 60, 'values and colours are randomised, not one fixed question (' + texts.size + ' distinct)');
+  ok(P.generateChallenge(() => 0).text.includes('x² = 9?'), 'quadratic questions look like "What is the positive value of x if x² = 9?"');
+  const bag = P.generateChallenge(() => 0.99).text;
+  ok(/^A bag contains/.test(bag) && bag.includes('probability of picking'), 'probability questions look like "A bag contains … What is the probability of picking …?"');
 }
 
 // --- no multiple choice, no leaked answer
@@ -53,9 +67,31 @@ const wrongOf = (s) => String(evalText(s.current().text) + 1);
   const r1 = s.submit(wrongOf(s));
   ok(r1.ok === false && r1.reason === 'wrong' && !s.isUnlocked() && r1.attemptsLeft === 2, 'a wrong answer is rejected and does not unlock');
   const q = s.current().text;
-  ok(s.submit('abc').reason === 'invalid' && s.submit('').reason === 'invalid' && s.submit('12.5').reason === 'invalid' && s.current().text === q && s.attemptsLeft() === 2, 'blank or non-numeric input is not counted as an attempt and keeps the question');
-  const r2 = s.submit(' ' + String(evalText(q)).replace(/(\d)(?=(\d{3})+$)/g, '$1,') + ' ');
-  ok(r2.ok === true && s.isUnlocked(), 'the right answer unlocks (spaces and thousands commas tolerated)');
+  ok(s.submit('abc').reason === 'invalid' && s.submit('').reason === 'invalid' && s.submit('1/0').reason === 'invalid' && s.submit('-3').reason === 'invalid' && s.current().text === q && s.attemptsLeft() === 2, 'blank or non-numeric input is not counted as an attempt and keeps the question');
+  const r2 = s.submit(' ' + answerOf(s) + ' ');
+  ok(r2.ok === true && s.isUnlocked(), 'the right answer unlocks (surrounding spaces tolerated)');
+}
+
+// --- equivalent answer formats
+{
+  // Finds a seed whose first question matches, and returns a function that makes a fresh session showing it.
+  const withQuestion = (test) => {
+    for (let i = 0; i < 5000; i++) {
+      const seed = i * 104729 + 12345;
+      const make = () => P.create({ rng: lcg(seed), now: () => 0, storage: memStorage() });
+      if (test(make().current().text)) return make;
+    }
+    throw new Error('no matching question found');
+  };
+  const probability = (num, den) => withQuestion(t => /probability/.test(t) && solveParent(t) === num + '/' + den);
+  const accepts = (make, typed) => { const s = make(); return s.submit(typed).ok === true; };
+  const threeQuarters = probability(3, 4), half = probability(1, 2);
+  ok(['3/4', '0.75', '.75', '75%', ' 3 / 4 ', '6/8', '0.750'].every(a => accepts(threeQuarters, a)), '3/4 is accepted as 3/4, 0.75, .75, 75%, 6/8 and with spaces');
+  ok(['1/2', '0.5', '.5', '50%', '2/4', '5/10'].every(a => accepts(half, a)), '1/2 is accepted as 1/2, 0.5, 50%, 2/4 and 5/10');
+  ok(['3/5', '0.74', '4/3', '1', '0', '75', '7/4'].every(a => !accepts(threeQuarters, a)), 'close or reversed values for 3/4 are rejected');
+  const quad = withQuestion(t => t.includes('x² = 49?'));
+  ok(['7', '7.0', '07'].every(a => accepts(quad, a)) && ['-7', '49', '6', '7/2'].every(a => !accepts(quad, a)), 'x² = 49 accepts 7 (also 7.0) and rejects -7, 49, 6, 7/2');
+  ok(P.sameValue(P.parseAnswer('0.75'), P.parseAnswer('3/4')) && P.sameValue(P.parseAnswer('75%'), P.parseAnswer('3/4')) && !P.sameValue(P.parseAnswer('0.7'), P.parseAnswer('2/3')), 'parseAnswer compares decimals, percentages and fractions exactly')
 }
 
 // --- a new challenge after every attempt
@@ -80,7 +116,7 @@ const wrongOf = (s) => String(evalText(s.current().text) + 1);
   ok(s.cooldownRemaining() === 18, 'the remaining time counts down');
   // "refresh": a new instance with the same session storage is still in cooldown
   const reloaded = P.create({ rng: lcg(99), now: () => clock.t, storage });
-  ok(reloaded.cooldownRemaining() === 18 && reloaded.submit(String(evalText(reloaded.current().text))).reason === 'cooldown' && !reloaded.isUnlocked(), 'refreshing the page does not skip the cooldown');
+  ok(reloaded.cooldownRemaining() === 18 && reloaded.submit(solveParent(reloaded.current().text)).reason === 'cooldown' && !reloaded.isUnlocked(), 'refreshing the page does not skip the cooldown');
   // closing and reopening the bank (lock) does not skip it either
   s.lock();
   ok(s.cooldownRemaining() === 18, 'locking and reopening does not clear the cooldown');

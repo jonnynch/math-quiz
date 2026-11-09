@@ -95,7 +95,7 @@
 
   function wireModal(id, openButtonId, closeButtonId) {
     $(openButtonId).addEventListener('click', () => {
-      if (id === 'profilesModal') { pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
+      if (id === 'profilesModal') { hideBackupParent(); pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
       if (id === 'settingsModal') settingsMessage(true);
       if (id === 'achievementsModal') openAchievements();
       if (id === 'bankModal') openBank();
@@ -356,6 +356,32 @@
     replaceArmed = false;
     $('importPreview').classList.add('hidden');
     $('importReplaceButton').textContent = 'Replace all profiles';
+    hideBackupParent();
+  }
+
+  // Importing and Undo are parent-only (the Store refuses without verification). The question appears right here.
+  let stopBackupParentTimer = () => {};
+  function hideBackupParent() {
+    stopBackupParentTimer();
+    stopBackupParentTimer = () => {};
+    const host = $('backupParent');
+    host.innerHTML = '';
+    host.classList.add('hidden');
+  }
+
+  // Asks the parent question, then runs `action` once and locks again (one verification per import or undo).
+  function askParentForBackup(action) {
+    hideBackupParent();
+    const host = $('backupParent');
+    host.classList.remove('hidden');
+    stopBackupParentTimer = renderParentChallenge(host, {
+      prefix: 'importParent',
+      help: 'Parent verification is needed to import or undo a backup. Answer this quick question to continue.',
+      onUnlocked: () => {
+        hideBackupParent();
+        try { action(); } finally { Parent.lock(); }
+      }
+    });
   }
 
   function checkImport() {
@@ -398,7 +424,9 @@
       $('importReplaceButton').textContent = 'Tap again to replace everything';
       return;
     }
-    finishImport(Store.applyBackup(pendingImport, mode));
+    const result = Store.applyBackup(pendingImport, mode);
+    if (result.denied) { askParentForBackup(() => runImport(mode)); return; }
+    finishImport(result);
   }
 
   function initBackup() {
@@ -425,17 +453,20 @@
     $('checkImportButton').addEventListener('click', checkImport);
     $('importMergeButton').addEventListener('click', () => runImport('merge'));
     $('importReplaceButton').addEventListener('click', () => runImport('replace'));
-    $('undoImportButton').addEventListener('click', () => {
-      if (Store.restoreBackup()) {
+    const undoImport = () => {
+      const result = Store.restoreBackup();
+      if (result.denied) { askParentForBackup(undoImport); return; }
+      if (result.restored) {
         api.refreshProfileSelects();
         expandedId = null;
         renderProfiles();
-        backupMessage('The last import was undone.', 'good');
+        backupMessage(result.saved ? 'The last import was undone.' : 'The last import was undone, but this browser would not save the change.', result.saved ? 'good' : 'error');
       } else {
         backupMessage('Could not undo the import.', 'error');
       }
       refreshBackupButtons();
-    });
+    };
+    $('undoImportButton').addEventListener('click', undoImport);
   }
 
   // ---------- screen-time bank ----------
@@ -485,11 +516,11 @@
   }
 
   // ---------- parent verification (child-resistant, see parent.js) ----------
-  let parentMessage = '';
-  let cooldownTimer = null;
+  let stopParentTimer = () => {};
 
   function stopCooldownTimer() {
-    if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+    stopParentTimer();
+    stopParentTimer = () => {};
   }
 
   // Parent controls (Parent settings) are only visible while unlocked.
@@ -499,7 +530,6 @@
 
   function closeBank() {
     stopCooldownTimer();
-    parentMessage = '';
     Parent.lock();
   }
 
@@ -511,72 +541,90 @@
     bankNotice('Parent verification is needed first.', 'error');
   }
 
+  // Fills `host` with one typed parent question. `prefix` keeps the element ids of two boxes apart. It redraws itself
+  // (new question) after a wrong answer and when a cooldown ends, and calls opts.onUnlocked() on success.
+  // Returns a function that stops its cooldown timer.
+  function renderParentChallenge(host, opts) {
+    let timer = null;
+    let notice = '';
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const draw = (focusAnswer) => {
+      stop();
+      host.innerHTML = '';
+      host.append(element('p', 'setting-title', '🔒 Parent area'));
+      host.append(element('p', 'setting-help', opts.help));
+      const question = element('p', 'parent-challenge', Parent.current().text);
+      question.id = `${opts.prefix}Challenge`;
+      host.append(question);
+      const row = element('div', 'backup-actions');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = `${opts.prefix}Answer`;
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('autocorrect', 'off');
+      input.setAttribute('autocapitalize', 'off');
+      input.setAttribute('enterkeyhint', 'done');
+      input.setAttribute('aria-label', 'Your answer');
+      const button = element('button', 'primary-button compact', 'Unlock');
+      button.type = 'button';
+      row.append(input, button);
+      host.append(row);
+      const message = element('p', 'setting-help error hidden');
+      message.id = `${opts.prefix}Message`;
+      message.setAttribute('role', 'alert');
+      host.append(message);
+      const show = (text) => { message.textContent = text; message.classList.toggle('hidden', !text); };
+
+      const showCooldown = () => {
+        const left = Parent.cooldownRemaining();
+        input.disabled = button.disabled = left > 0;
+        if (left > 0) show(`Too many wrong answers. Please wait ${left} second${left === 1 ? '' : 's'}.`);
+        return left;
+      };
+      const submit = () => {
+        const result = Parent.submit(input.value);
+        if (result.ok) { stop(); opts.onUnlocked(); return; }
+        if (result.reason === 'invalid') { show('Please type a number or a fraction such as 1/2.'); return; }
+        if (opts.onWrong) opts.onWrong();
+        notice = result.reason === 'cooldown'
+          ? ''
+          : `Not correct. Here is a new question. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? 'try' : 'tries'} left.`;
+        draw(true);
+      };
+      button.addEventListener('click', submit);
+      input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+
+      if (showCooldown() > 0) {
+        timer = setInterval(() => {
+          if (showCooldown() > 0) return;
+          stop();
+          notice = '';
+          draw(false);
+        }, 250);
+      } else if (notice) {
+        show(notice);
+      }
+      notice = '';
+      if (focusAnswer && !input.disabled) input.focus();
+    };
+    draw(false);
+    return stop;
+  }
+
   function parentLockBox() {
     stopCooldownTimer();
     const box = element('div', 'bank-parent bank-lock');
-    box.append(element('p', 'setting-title', '🔒 Parent area'));
-    box.append(element('p', 'setting-help', 'Redeeming minutes and changing reward settings are for parents. Solve this to unlock. Everything above and below can still be viewed.'));
-    box.append(element('p', 'parent-challenge', `${Parent.current().text} = ?`));
-    box.lastChild.id = 'parentChallenge';
-    const row = element('div', 'backup-actions');
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.id = 'parentAnswer';
-    input.setAttribute('inputmode', 'numeric');
-    input.setAttribute('pattern', '[0-9]*');
-    input.setAttribute('autocomplete', 'off');
-    input.setAttribute('autocorrect', 'off');
-    input.setAttribute('enterkeyhint', 'done');
-    input.setAttribute('aria-label', 'Your answer');
-    const button = element('button', 'primary-button compact', 'Unlock');
-    button.type = 'button';
-    row.append(input, button);
-    box.append(row);
-    const message = element('p', 'setting-help error hidden');
-    message.id = 'parentMessage';
-    message.setAttribute('role', 'alert');
-    box.append(message);
-    const show = (text) => { message.textContent = text; message.classList.toggle('hidden', !text); };
-
-    const showCooldown = () => {
-      const left = Parent.cooldownRemaining();
-      input.disabled = button.disabled = left > 0;
-      if (left > 0) show(`Too many wrong answers. Please wait ${left} second${left === 1 ? '' : 's'}.`);
-      return left;
-    };
-    const submit = () => {
-      const result = Parent.submit(input.value);
-      if (result.ok) {
-        stopCooldownTimer();
+    stopParentTimer = renderParentChallenge(box, {
+      prefix: 'parent',
+      help: 'Redeeming minutes and changing reward settings are for parents. Answer this quick question to unlock. Everything above and below can still be viewed.',
+      onWrong: () => bankNotice('', ''),
+      onUnlocked: () => {
         renderBank();
         renderBankSettings();
         syncParentControls();
         bankNotice('Parent controls unlocked.', 'good');
-        return;
       }
-      if (result.reason === 'invalid') { show('Please type your answer as a number.'); return; }
-      bankNotice('', '');
-      parentMessage = result.reason === 'cooldown'
-        ? ''
-        : `Not correct. Here is a new question. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? 'try' : 'tries'} left.`;
-      renderBank();
-      const again = $('parentAnswer');
-      if (again && !again.disabled) again.focus();
-    };
-    button.addEventListener('click', submit);
-    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
-
-    if (showCooldown() > 0) {
-      cooldownTimer = setInterval(() => {
-        if (showCooldown() > 0) return;
-        stopCooldownTimer();
-        parentMessage = '';
-        renderBank();
-      }, 250);
-    } else if (parentMessage) {
-      show(parentMessage);
-    }
-    parentMessage = '';
+    });
     return box;
   }
 
