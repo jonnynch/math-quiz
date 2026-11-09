@@ -1,0 +1,780 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 76b053d..4bb5757 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -13,7 +13,7 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
+ | `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `store.js`, `menus.js`, `game.js`, `pwa.js`. |
+ | `public/questions.js` | **Pure logic, no DOM.** Level/topic definitions and every question generator. `window.MQQuestions` (also `module.exports` for Node tests). |
+ | `public/trophies.js` | **Pure logic, no DOM.** Trophy targets (`TARGETS`, the one place to tune them) and the rules that record progress. `window.MQTrophies`. Trophies never change scores, stars, streaks or stickers. |
+-| `public/parent.js` | **Pure logic, no DOM.** Parent verification for the Screen-time Bank: random adult arithmetic challenge (typed answer), 3 tries then 30 s cooldown, in-memory unlock. `window.MQParent`. A child-resistant barrier, not security. |
++| `public/parent.js` | **Pure logic, no DOM.** Parent verification for the Screen-time Bank: one short random quadratic or probability question (typed answer, fractions/decimals accepted), 3 tries then 30 s cooldown, in-memory unlock. `window.MQParent`. A child-resistant barrier, not security. |
+ | `public/store.js` | **No DOM.** Profiles + settings in `localStorage` (key `mathQuizBattle.v1`). `window.MQStore`. |
+ | `public/menus.js` | Settings window, Profiles window, the "Who is playing?" selects. `window.MQMenus`. |
+ | `public/game.js` | Game flow: setup, rounds, answers, timers, rewards, results, SVG figures. Wires everything together. |
+@@ -42,7 +42,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
+ 13. `localStorage` access is always wrapped in try/catch; the game must work when storage is unavailable, and save failures must be shown to the user (`saved: false`).
+ 14. **Saved data stays upgradable**: keep the key `mathQuizBattle.v1`, keep the `schema` field, add a `migrate()` step instead of discarding old profiles. The backup file format (`app`, `schema`, `profiles`) must stay importable.
+ 15. **Offline cache list**: when a file is added, renamed or removed in `public/`, update `FILES` in `public/sw.js` **and bump `VERSION`** (otherwise the offline copy can miss the file). `npm run test:pwa` checks every script is listed. The service worker is network-first with `cache: 'no-cache'`; do not change it to cache-first (users would get stale code).
+-16. **Screen-time bank (Grade 1–6 only)**: age levels and guests never earn. Only a player's *first* answer to a question is reported (`Store.rewardAnswer` from the first-tap block in `handleAnswer`); retries never count. Rewards are paid per batch (`Store.settleRewards`), grades are never mixed in a batch, and all reward numbers live in `REWARD_DEFAULTS` in `store.js`. Rewards never change score, stars, streaks or stickers. Parent-only actions (`setRewardConfig`, `resetRewardConfig`, `redeem`) refuse to run unless `MQParent.isUnlocked()`; the check lives in `store.js`, not only in the UI. See `docs/ARCHITECTURE.md`.
++16. **Screen-time bank (Grade 1–6 only)**: age levels and guests never earn. Only a player's *first* answer to a question is reported (`Store.rewardAnswer` from the first-tap block in `handleAnswer`); retries never count. Rewards are paid per batch (`Store.settleRewards`), grades are never mixed in a batch, and all reward numbers live in `REWARD_DEFAULTS` in `store.js`. Rewards never change score, stars, streaks or stickers. Parent-only actions (`setRewardConfig`, `resetRewardConfig`, `redeem`, backup `applyBackup` and Undo `restoreBackup`) refuse to run unless `MQParent.isUnlocked()`; the check lives in `store.js`, not only in the UI. See `docs/ARCHITECTURE.md`.
+ 
+ ## Common tasks
+ - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.
+diff --git a/docs/ARCHITECTURE.md b/docs/ARCHITECTURE.md
+index d958eb5..6db199e 100644
+--- a/docs/ARCHITECTURE.md
++++ b/docs/ARCHITECTURE.md
+@@ -108,7 +108,7 @@ Grade 1–6 only; age levels and guests never earn. Everything is stored per pro
+ - **Earning**: `minutes = floor(correct × base × accuracy multiplier × grade multiplier)`, rounded once per batch (`calcReward`). A question counts once, from the player's first tap (`player.answeredThisRound` block in `handleAnswer`), so retries cannot raise the correct count. In 1 vs 1 only questions a player actually answered count for that player; each profile is tracked separately.
+ - **Progress is saved on every first answer** as `rewards.session`. `settleRewards(profile, sessionId)` (called from `endGame`) folds the session into `rewards.pending[grade]` and pays out when `pending.completed >= minBatch`; a batch under the minimum accuracy pays 0 and is used up. Smaller batches carry forward per grade (grades are never combined). A session left by a closed page is folded (and paid if complete) the next time the store loads. `rewards.settled` holds recent session ids so a session is never counted twice.
+ - **Bank**: `balance = earned − redeemed` (never negative; `redeem` and `cleanRewards` enforce it); `earnTx` / `redeemTx` keep the last 30 entries.
+-- **Parent verification** (`parent.js`): the bank opens locked. Balance, earned/redeemed minutes, progress and history stay visible; redeeming and Parent settings need a typed answer to a random arithmetic question (new question after every attempt, never shown with options or hints). Three wrong answers start a 30-second cooldown; the counter and cooldown end time are kept in `sessionStorage` so a refresh cannot skip them. The unlocked state is memory only and is cleared whenever the bank window closes or opens. `Store.setRewardConfig`, `resetRewardConfig` and `redeem` check `MQParent.isUnlocked()` themselves and return `{ denied: true }` otherwise. `resetRewardConfig` keeps the previous settings and returns `saved: false` when localStorage cannot save. Not strong security: anyone who can edit the code or storage can bypass it.
++- **Parent verification** (`parent.js`): the bank opens locked. Balance, earned/redeemed minutes, progress and history stay visible; redeeming and Parent settings need a typed answer to one short random quadratic or probability question (new question after every attempt, never shown with options or hints). Three wrong answers start a 30-second cooldown; the counter and cooldown end time are kept in `sessionStorage` so a refresh cannot skip them. The unlocked state is memory only and is cleared whenever the bank window closes or opens. `Store.setRewardConfig`, `resetRewardConfig`, `redeem`, `applyBackup` (Merge/Replace import) and `restoreBackup` (Undo import) check `MQParent.isUnlocked()` themselves and return `{ denied: true }` otherwise (`restoreBackup` returns `{ restored: false, denied: true }`). Export and backup preview need no verification. In the Profiles window the question appears inline under the import panel; one verification covers one import or undo, then it locks again. `resetRewardConfig` keeps the previous settings and returns `saved: false` when localStorage cannot save. Not strong security: anyone who can edit the code or storage can bypass it.
+ - **UI**: `#bankModal` ("⏱ Screen time" button), parent redeem (two taps) and Parent settings; the result card shows completed / correct / accuracy / minutes (`rewardSummary`). The game only tracks minutes; it cannot enforce screen time.
+ 
+ ## Menus (`menus.js`)
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index d2bf150..a3d6502 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -4,7 +4,7 @@ No framework. Plain Node scripts in `tests/`. Install once: `npm install` (only
+ 
+ | Command | Speed | What it proves |
+ |---|---|---|
+-| `npm run test:parent` | instant | Unit checks of `parent.js` with a fake clock and storage: random challenges recomputed from their text, typed answer only (no options), wrong/right answers, new question per attempt, 3 failures → 30 s cooldown (also after refresh and after lock/reopen), success resets the counter, unlock never stored. |
++| `npm run test:parent` | instant | Unit checks of `parent.js` with a fake clock and storage: short quadratic/probability questions recomputed from their text, typed answer only (no options), wrong/right answers, new question per attempt, 3 failures → 30 s cooldown (also after refresh and after lock/reopen), success resets the counter, unlock never stored. |
+ | `npm run test:trophies` | instant | Unit checks of `trophies.js` (targets table, 3 trophies per level, thresholds, streak reset, no duplicates, validation) and of trophy progress through `store.js` (per-profile separation, persistence, backup export/import, schema 1 data). |
+ | `npm run test:store` | instant | Unit checks of `store.js` (no browser): saving/reloading, data without a schema number, failed-save reporting, backup round trip, rejection of bad/newer/oversized/foreign files, sanitising of hostile data, merge rules (same id, duplicate names, 8-profile limit), replace + Undo. |
+ | `npm run test:sw` | instant | Unit checks of `public/sw.js` with mocks (no browser): the cache write finishes before the response is returned, the network timeout is cleared before caching, a failing cache write still returns the network response, 404s are not cached, offline fallbacks (file, page navigation, uncached file), only same-origin GETs are intercepted, install precaches and activate removes only old `mathquiz-*` caches. |
+diff --git a/public/index.html b/public/index.html
+index f1ff7e8..16c832e 100644
+--- a/public/index.html
++++ b/public/index.html
+@@ -230,6 +230,7 @@
+             </div>
+           </div>
+         </div>
++        <div id="backupParent" class="bank-parent bank-lock hidden"></div>
+         <p id="backupMessage" class="setting-help" role="status"></p>
+         <button id="undoImportButton" class="secondary-button small hidden" type="button">Undo last import</button>
+       </div>
+diff --git a/public/menus.js b/public/menus.js
+index 5350b0b..363f912 100644
+--- a/public/menus.js
++++ b/public/menus.js
+@@ -95,7 +95,7 @@
+ 
+   function wireModal(id, openButtonId, closeButtonId) {
+     $(openButtonId).addEventListener('click', () => {
+-      if (id === 'profilesModal') { pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
++      if (id === 'profilesModal') { hideBackupParent(); pendingDeleteId = null; profileListMessage(''); renderProfiles(); }
+       if (id === 'settingsModal') settingsMessage(true);
+       if (id === 'achievementsModal') openAchievements();
+       if (id === 'bankModal') openBank();
+@@ -356,6 +356,32 @@
+     replaceArmed = false;
+     $('importPreview').classList.add('hidden');
+     $('importReplaceButton').textContent = 'Replace all profiles';
++    hideBackupParent();
++  }
++
++  // Importing and Undo are parent-only (the Store refuses without verification). The question appears right here.
++  let stopBackupParentTimer = () => {};
++  function hideBackupParent() {
++    stopBackupParentTimer();
++    stopBackupParentTimer = () => {};
++    const host = $('backupParent');
++    host.innerHTML = '';
++    host.classList.add('hidden');
++  }
++
++  // Asks the parent question, then runs `action` once and locks again (one verification per import or undo).
++  function askParentForBackup(action) {
++    hideBackupParent();
++    const host = $('backupParent');
++    host.classList.remove('hidden');
++    stopBackupParentTimer = renderParentChallenge(host, {
++      prefix: 'importParent',
++      help: 'Parent verification is needed to import or undo a backup. Answer this quick question to continue.',
++      onUnlocked: () => {
++        hideBackupParent();
++        try { action(); } finally { Parent.lock(); }
++      }
++    });
+   }
+ 
+   function checkImport() {
+@@ -398,7 +424,9 @@
+       $('importReplaceButton').textContent = 'Tap again to replace everything';
+       return;
+     }
+-    finishImport(Store.applyBackup(pendingImport, mode));
++    const result = Store.applyBackup(pendingImport, mode);
++    if (result.denied) { askParentForBackup(() => runImport(mode)); return; }
++    finishImport(result);
+   }
+ 
+   function initBackup() {
+@@ -425,17 +453,20 @@
+     $('checkImportButton').addEventListener('click', checkImport);
+     $('importMergeButton').addEventListener('click', () => runImport('merge'));
+     $('importReplaceButton').addEventListener('click', () => runImport('replace'));
+-    $('undoImportButton').addEventListener('click', () => {
+-      if (Store.restoreBackup()) {
++    const undoImport = () => {
++      const result = Store.restoreBackup();
++      if (result.denied) { askParentForBackup(undoImport); return; }
++      if (result.restored) {
+         api.refreshProfileSelects();
+         expandedId = null;
+         renderProfiles();
+-        backupMessage('The last import was undone.', 'good');
++        backupMessage(result.saved ? 'The last import was undone.' : 'The last import was undone, but this browser would not save the change.', result.saved ? 'good' : 'error');
+       } else {
+         backupMessage('Could not undo the import.', 'error');
+       }
+       refreshBackupButtons();
+-    });
++    };
++    $('undoImportButton').addEventListener('click', undoImport);
+   }
+ 
+   // ---------- screen-time bank ----------
+@@ -485,11 +516,11 @@
+   }
+ 
+   // ---------- parent verification (child-resistant, see parent.js) ----------
+-  let parentMessage = '';
+-  let cooldownTimer = null;
++  let stopParentTimer = () => {};
+ 
+   function stopCooldownTimer() {
+-    if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
++    stopParentTimer();
++    stopParentTimer = () => {};
+   }
+ 
+   // Parent controls (Parent settings) are only visible while unlocked.
+@@ -499,7 +530,6 @@
+ 
+   function closeBank() {
+     stopCooldownTimer();
+-    parentMessage = '';
+     Parent.lock();
+   }
+ 
+@@ -511,72 +541,90 @@
+     bankNotice('Parent verification is needed first.', 'error');
+   }
+ 
++  // Fills `host` with one typed parent question. `prefix` keeps the element ids of two boxes apart. It redraws itself
++  // (new question) after a wrong answer and when a cooldown ends, and calls opts.onUnlocked() on success.
++  // Returns a function that stops its cooldown timer.
++  function renderParentChallenge(host, opts) {
++    let timer = null;
++    let notice = '';
++    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
++    const draw = (focusAnswer) => {
++      stop();
++      host.innerHTML = '';
++      host.append(element('p', 'setting-title', '🔒 Parent area'));
++      host.append(element('p', 'setting-help', opts.help));
++      const question = element('p', 'parent-challenge', Parent.current().text);
++      question.id = `${opts.prefix}Challenge`;
++      host.append(question);
++      const row = element('div', 'backup-actions');
++      const input = document.createElement('input');
++      input.type = 'text';
++      input.id = `${opts.prefix}Answer`;
++      input.setAttribute('autocomplete', 'off');
++      input.setAttribute('autocorrect', 'off');
++      input.setAttribute('autocapitalize', 'off');
++      input.setAttribute('enterkeyhint', 'done');
++      input.setAttribute('aria-label', 'Your answer');
++      const button = element('button', 'primary-button compact', 'Unlock');
++      button.type = 'button';
++      row.append(input, button);
++      host.append(row);
++      const message = element('p', 'setting-help error hidden');
++      message.id = `${opts.prefix}Message`;
++      message.setAttribute('role', 'alert');
++      host.append(message);
++      const show = (text) => { message.textContent = text; message.classList.toggle('hidden', !text); };
++
++      const showCooldown = () => {
++        const left = Parent.cooldownRemaining();
++        input.disabled = button.disabled = left > 0;
++        if (left > 0) show(`Too many wrong answers. Please wait ${left} second${left === 1 ? '' : 's'}.`);
++        return left;
++      };
++      const submit = () => {
++        const result = Parent.submit(input.value);
++        if (result.ok) { stop(); opts.onUnlocked(); return; }
++        if (result.reason === 'invalid') { show('Please type a number or a fraction such as 1/2.'); return; }
++        if (opts.onWrong) opts.onWrong();
++        notice = result.reason === 'cooldown'
++          ? ''
++          : `Not correct. Here is a new question. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? 'try' : 'tries'} left.`;
++        draw(true);
++      };
++      button.addEventListener('click', submit);
++      input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
++
++      if (showCooldown() > 0) {
++        timer = setInterval(() => {
++          if (showCooldown() > 0) return;
++          stop();
++          notice = '';
++          draw(false);
++        }, 250);
++      } else if (notice) {
++        show(notice);
++      }
++      notice = '';
++      if (focusAnswer && !input.disabled) input.focus();
++    };
++    draw(false);
++    return stop;
++  }
++
+   function parentLockBox() {
+     stopCooldownTimer();
+     const box = element('div', 'bank-parent bank-lock');
+-    box.append(element('p', 'setting-title', '🔒 Parent area'));
+-    box.append(element('p', 'setting-help', 'Redeeming minutes and changing reward settings are for parents. Solve this to unlock. Everything above and below can still be viewed.'));
+-    box.append(element('p', 'parent-challenge', `${Parent.current().text} = ?`));
+-    box.lastChild.id = 'parentChallenge';
+-    const row = element('div', 'backup-actions');
+-    const input = document.createElement('input');
+-    input.type = 'text';
+-    input.id = 'parentAnswer';
+-    input.setAttribute('inputmode', 'numeric');
+-    input.setAttribute('pattern', '[0-9]*');
+-    input.setAttribute('autocomplete', 'off');
+-    input.setAttribute('autocorrect', 'off');
+-    input.setAttribute('enterkeyhint', 'done');
+-    input.setAttribute('aria-label', 'Your answer');
+-    const button = element('button', 'primary-button compact', 'Unlock');
+-    button.type = 'button';
+-    row.append(input, button);
+-    box.append(row);
+-    const message = element('p', 'setting-help error hidden');
+-    message.id = 'parentMessage';
+-    message.setAttribute('role', 'alert');
+-    box.append(message);
+-    const show = (text) => { message.textContent = text; message.classList.toggle('hidden', !text); };
+-
+-    const showCooldown = () => {
+-      const left = Parent.cooldownRemaining();
+-      input.disabled = button.disabled = left > 0;
+-      if (left > 0) show(`Too many wrong answers. Please wait ${left} second${left === 1 ? '' : 's'}.`);
+-      return left;
+-    };
+-    const submit = () => {
+-      const result = Parent.submit(input.value);
+-      if (result.ok) {
+-        stopCooldownTimer();
++    stopParentTimer = renderParentChallenge(box, {
++      prefix: 'parent',
++      help: 'Redeeming minutes and changing reward settings are for parents. Answer this quick question to unlock. Everything above and below can still be viewed.',
++      onWrong: () => bankNotice('', ''),
++      onUnlocked: () => {
+         renderBank();
+         renderBankSettings();
+         syncParentControls();
+         bankNotice('Parent controls unlocked.', 'good');
+-        return;
+       }
+-      if (result.reason === 'invalid') { show('Please type your answer as a number.'); return; }
+-      bankNotice('', '');
+-      parentMessage = result.reason === 'cooldown'
+-        ? ''
+-        : `Not correct. Here is a new question. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? 'try' : 'tries'} left.`;
+-      renderBank();
+-      const again = $('parentAnswer');
+-      if (again && !again.disabled) again.focus();
+-    };
+-    button.addEventListener('click', submit);
+-    input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); submit(); } });
+-
+-    if (showCooldown() > 0) {
+-      cooldownTimer = setInterval(() => {
+-        if (showCooldown() > 0) return;
+-        stopCooldownTimer();
+-        parentMessage = '';
+-        renderBank();
+-      }, 250);
+-    } else if (parentMessage) {
+-      show(parentMessage);
+-    }
+-    parentMessage = '';
++    });
+     return box;
+   }
+ 
+diff --git a/public/parent.js b/public/parent.js
+index 5206ff0..d4c4589 100644
+--- a/public/parent.js
++++ b/public/parent.js
+@@ -1,4 +1,4 @@
+-// Parent verification for the Screen-time Bank. No DOM code here. window.MQParent (also module.exports for Node tests).
++// Parent verification for the Screen-time Bank and backup import. No DOM code here. window.MQParent (also module.exports for Node tests).
+ // A child-resistant barrier, NOT strong security: everything runs in the browser, so anyone who can edit the
+ // code or the browser's storage can get round it. The unlocked state and the answer live in memory only.
+ // Only the failure counter and cooldown end time go to sessionStorage, so a page refresh cannot skip the wait.
+@@ -11,31 +11,43 @@
+ 
+   const randInt = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+ 
+-  // A fresh adult-level arithmetic question with several operations. Answers are always whole and positive.
++  const COLOUR_PAIRS = [['red', 'blue'], ['green', 'yellow'], ['black', 'white'], ['pink', 'orange']];
++  const BAG_TOTALS = [2, 4, 5, 8, 10]; // totals with tidy fractions and decimals, so the answer comes quickly
++
++  // One short question a young child has not met yet: a square root (quadratic) or a simple probability.
++  // answer is { num, den } (a fraction), compared exactly with the typed answer.
+   function generateChallenge(rng) {
+     rng = rng || Math.random;
+-    const kind = randInt(rng, 0, 4);
+-    let text, answer;
+-    if (kind === 0) {
+-      const a = randInt(rng, 120, 999), b = randInt(rng, 12, 89), c = randInt(rng, 100, 999);
+-      text = `${a} × ${b} + ${c}`; answer = a * b + c;
+-    } else if (kind === 1) {
+-      const a = randInt(rng, 120, 999), b = randInt(rng, 12, 89);
+-      const c = randInt(rng, 100, Math.min(1999, a * b - 1));
+-      text = `${a} × ${b} − ${c}`; answer = a * b - c;
+-    } else if (kind === 2) {
+-      const a = randInt(rng, 21, 99), b = randInt(rng, 21, 99), c = randInt(rng, 12, 39);
+-      text = `(${a} + ${b}) × ${c}`; answer = (a + b) * c;
+-    } else if (kind === 3) {
+-      const a = randInt(rng, 12, 99), b = randInt(rng, 12, 49), c = randInt(rng, 11, 99), d = randInt(rng, 3, 9);
+-      text = `${a} × ${b} + ${c} × ${d}`; answer = a * b + c * d;
+-    } else {
+-      const a = randInt(rng, 41, 99), b = randInt(rng, 12, 49), c = randInt(rng, 11, 40), d = randInt(rng, 3, 9);
+-      text = `${a} × ${b} − ${c} × ${d}`; answer = a * b - c * d;
++    if (randInt(rng, 0, 1) === 0) {
++      const x = randInt(rng, 3, 12);
++      return { kind: 'quadratic', text: `What is the positive value of x if x² = ${x * x}?`, answer: { num: x, den: 1 } };
+     }
+-    return { text, answer };
++    const pair = COLOUR_PAIRS[randInt(rng, 0, COLOUR_PAIRS.length - 1)];
++    const total = BAG_TOTALS[randInt(rng, 0, BAG_TOTALS.length - 1)];
++    const first = randInt(rng, 1, total - 1);
++    const counts = [first, total - first];
++    const asked = randInt(rng, 0, 1);
++    const ball = (n, colour) => `${n} ${colour} ball${n === 1 ? '' : 's'}`;
++    return {
++      kind: 'probability',
++      text: `A bag contains ${ball(counts[0], pair[0])} and ${ball(counts[1], pair[1])}. What is the probability of picking ${pair[asked]}?`,
++      answer: { num: counts[asked], den: total }
++    };
+   }
+ 
++  // Reads a typed answer as a fraction: "3/4", "0.75", ".75", "75%" or a whole number. null when it is none of these.
++  function parseAnswer(input) {
++    const t = String(input === undefined || input === null ? '' : input).replace(/\s/g, '');
++    let m = t.match(/^(\d{1,6})\/(\d{1,6})$/);
++    if (m) return Number(m[2]) > 0 ? { num: Number(m[1]), den: Number(m[2]) } : null;
++    m = t.match(/^(\d{0,6})(?:\.(\d{1,4}))?(%)?$/);
++    if (!m || !/\d/.test(t)) return null;
++    const frac = m[2] || '';
++    return { num: Number(m[1] + frac), den: Math.pow(10, frac.length) * (m[3] ? 100 : 1) };
++  }
++
++  const sameValue = (a, b) => a.num * b.den === b.num * a.den;
++
+   function defaultStorage() {
+     try { return root.sessionStorage || null; } catch (error) { return null; }
+   }
+@@ -95,10 +107,10 @@
+         if (unlocked) return { ok: true };
+         const remaining = cooldownRemaining();
+         if (remaining > 0) return { ok: false, reason: 'cooldown', remaining, attemptsLeft: 0 };
+-        const text = String(input === undefined || input === null ? '' : input).replace(/[\s,]/g, '');
+-        if (!/^\d{1,12}$/.test(text)) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
++        const typed = parseAnswer(input);
++        if (!typed) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
+         if (!challenge) nextChallenge();
+-        if (Number(text) === challenge.answer) {
++        if (sameValue(typed, challenge.answer)) {
+           unlocked = true; fails = 0; until = 0; challenge = null;
+           persist();
+           return { ok: true };
+@@ -118,6 +130,8 @@
+   const api = create();
+   api.create = create;
+   api.generateChallenge = generateChallenge;
++  api.parseAnswer = parseAnswer;
++  api.sameValue = sameValue;
+   root.MQParent = api;
+   if (typeof module !== 'undefined' && module.exports) module.exports = api;
+ })(typeof window !== 'undefined' ? window : globalThis);
+diff --git a/public/store.js b/public/store.js
+index ae9edba..1fd2f0d 100644
+--- a/public/store.js
++++ b/public/store.js
+@@ -211,9 +211,11 @@
+ 
+   // ---------- screen-time rewards (logic) ----------
+   // Parent-only actions call this first. Fails closed: with no parent module loaded nothing is allowed.
+-  const parentDenied = () => (root.MQParent && root.MQParent.isUnlocked()
++  const parentDenied = (error) => (root.MQParent && root.MQParent.isUnlocked()
+     ? null
+-    : { denied: true, error: 'Parent verification is needed first.', saved: false });
++    : { denied: true, error: error || 'Parent verification is needed first.', saved: false });
++  // Backup import and Undo can overwrite profiles, balances and reward settings, so they are parent-only too.
++  const IMPORT_DENIED = 'Parent verification is needed before importing or undoing a backup.';
+   const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
+   const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
+ 
+@@ -412,7 +414,10 @@
+ 
+     // mode 'merge': add to the current profiles (same id = replaced by the backup, same name = renamed).
+     // mode 'replace': the backup becomes everything (settings too). The current data is copied first so Undo works.
++    // Parent-only (checked before anything is written, including the Undo copy).
+     applyBackup(parsed, mode) {
++      const denied = parentDenied(IMPORT_DENIED);
++      if (denied) return denied;
+       let backedUp = true;
+       try {
+         root.localStorage.setItem(BACKUP_KEY, JSON.stringify({ t: Date.now(), data: { settings: data.settings, profiles: data.profiles } }));
+@@ -458,16 +463,19 @@
+       try { return !!root.localStorage.getItem(BACKUP_KEY); } catch (error) { return false; }
+     },
+ 
+-    // Undo the last import: put back the data taken just before it.
++    // Undo the last import: put back the data taken just before it. Parent-only, because the copy can hold older
++    // balances and reward settings. Returns { restored, denied?, error?, saved? }.
+     restoreBackup() {
++      const denied = parentDenied(IMPORT_DENIED);
++      if (denied) return { ...denied, restored: false };
+       try {
+         const saved = JSON.parse(root.localStorage.getItem(BACKUP_KEY));
+-        if (!saved || !saved.data) return false;
++        if (!saved || !saved.data) return { restored: false };
+         data = clean({ schema: SCHEMA, settings: saved.data.settings, profiles: saved.data.profiles });
+         root.localStorage.removeItem(BACKUP_KEY);
+-        return save();
++        return { restored: true, saved: save() };
+       } catch (error) {
+-        return false;
++        return { restored: false };
+       }
+     },
+ 
+diff --git a/public/style.css b/public/style.css
+index 93875fb..07a8de3 100644
+--- a/public/style.css
++++ b/public/style.css
+@@ -255,7 +255,7 @@ body.playing #bankButton { display: none; }
+ .bank-parent input { width: 7rem; }
+ .bank-lock { border-style: solid; }
+ .bank-lock input { width: 9rem; font-size: 1.2rem; }
+-.parent-challenge { margin: 10px 0 6px; font-size: 1.5rem; font-weight: 800; overflow-wrap: anywhere; }
++.parent-challenge { margin: 10px 0 6px; font-size: 1.2rem; font-weight: 800; overflow-wrap: anywhere; }
+ .bank-settings { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
+ .bank-settings summary { min-height: 32px; font-weight: 800; cursor: pointer; }
+ .bank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0; }
+diff --git a/tests/flow.check.js b/tests/flow.check.js
+index 15ff6e9..e04c721 100644
+--- a/tests/flow.check.js
++++ b/tests/flow.check.js
+@@ -25,8 +25,8 @@ const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.tex
+ const wrongBtn=(i=0)=>btns(i).find(b=>b!==answerBtn(i));
+ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
+ // Parent verification: solve the shown question through the public API (the answer is never exposed).
+-const solveParent=t=>Function('return '+t.replace(/×/g,'*').replace(/−/g,'-'))();
+-const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current().text)));
++const {solveParent}=require('./parent-solver');
++const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text));
+ 
+ (async()=>{
+   // ---- topics only for grades
+@@ -153,14 +153,24 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
+   $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
+   ok(!$('importPreview').classList.contains('hidden')&&$('importSummary').textContent.includes('Found 2 profiles'),'valid backup shows a preview before anything changes');
+   ok(store().profiles.length===1,'nothing is changed by only checking the backup');
++  const importUnlock=()=>{ $('importParentAnswer').value=solveParent($('importParentChallenge').textContent); click(d.querySelector('#backupParent .primary-button')); };
+   click($('importMergeButton'));
+-  ok(store().profiles.length===2&&store().profiles.some(p=>p.name==='Nina'),'merge adds the new profile');
++  ok(store().profiles.length===1&&!$('backupParent').classList.contains('hidden')&&!!$('importParentChallenge'),'merge without verification changes nothing and asks the parent question');
++  $('importParentAnswer').value='1'; click(d.querySelector('#backupParent .primary-button'));
++  ok(store().profiles.length===1&&$('importParentMessage').textContent.includes('Not correct'),'a wrong answer does not import');
++  importUnlock();
++  ok(store().profiles.length===2&&store().profiles.some(p=>p.name==='Nina'),'merge adds the new profile after verification');
++  ok(!w.MQParent.isUnlocked()&&$('backupParent').classList.contains('hidden'),'verification is used once: locked again and the question is hidden');
+   ok($('backupMessage').textContent.includes('added')&&!$('undoImportButton').classList.contains('hidden'),'import summary shown and Undo offered');
+   ok($('profile1').options.length===3,'profile selectors updated after import');
+-  click($('undoImportButton')); ok(store().profiles.length===1&&$('backupMessage').textContent.includes('undone'),'undo restores the previous profiles');
++  click($('undoImportButton'));
++  ok(store().profiles.length===2&&!!$('importParentChallenge'),'undo without verification changes nothing and asks the parent question');
++  importUnlock();
++  ok(store().profiles.length===1&&$('backupMessage').textContent.includes('undone')&&!w.MQParent.isUnlocked(),'undo restores the previous profiles after verification');
+   click($('importToggleButton')); $('importText').value=JSON.stringify(backup); click($('checkImportButton'));
+   click($('importReplaceButton')); ok(store().profiles.length===1,'replace needs a second tap (nothing replaced yet)');
+-  click($('importReplaceButton')); ok(store().profiles.length===2,'second tap replaces everything with the backup');
++  click($('importReplaceButton')); ok(store().profiles.length===1&&!!$('importParentChallenge'),'second tap still needs the parent question');
++  importUnlock(); ok(store().profiles.length===2,'replace then replaces everything with the backup');
+   click($('profilesClose'));
+ 
+   // ---- failed saves are reported for settings changes and profile deletion
+@@ -240,7 +250,7 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
+   $('parentAnswer').value='1'; click(unlockBtn());
+   ok(!$('redeemMinutes')&&$('parentChallenge').textContent!==firstQ&&$('parentMessage').textContent.includes('Not correct'),'a wrong answer shows an error and a new question');
+   ok(w.MQStore.redeem(w.MQStore.getProfile(earnerId),5).denied===true&&bankOf().redeemed===0,'redeeming by a direct call is refused while locked');
+-  $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?','')));
++  $('parentAnswer').value=solveParent($('parentChallenge').textContent);
+   click(unlockBtn());
+   ok(!!$('redeemMinutes')&&!$('bankSettings').classList.contains('hidden')&&!$('parentChallenge'),'the right answer unlocks redeeming and Parent settings');
+   $('redeemMinutes').value='99'; click(redeemBtn());
+@@ -252,7 +262,7 @@ const unlockParent=()=>w.MQParent.submit(String(solveParent(w.MQParent.current()
+   click($('bankClose')); click($('bankButton'));
+   ok(!w.MQParent.isUnlocked()&&!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankBody').textContent.includes('13 min'),'closing and reopening the bank locks it again; the balance is still shown');
+   // reset settings: a failed localStorage write must show an error and keep the existing settings
+-  const uiUnlock=()=>{ $('parentAnswer').value=String(solveParent($('parentChallenge').textContent.replace(' = ?',''))); click(unlockBtn()); };
++  const uiUnlock=()=>{ $('parentAnswer').value=solveParent($('parentChallenge').textContent); click(unlockBtn()); };
+   uiUnlock();
+   const resetBtn=()=>[...d.querySelectorAll('#bankSettingsBody button')].find(b=>b.textContent.includes('Reset'));
+   const realSet=w.Storage.prototype.setItem; w.Storage.prototype.setItem=()=>{throw new Error('quota');};
+diff --git a/tests/parent-solver.js b/tests/parent-solver.js
+new file mode 100644
+index 0000000..cb31578
+--- /dev/null
++++ b/tests/parent-solver.js
+@@ -0,0 +1,14 @@
++// Test helper: answers a parent verification question from its text, so tests can unlock through the public API
++// (MQParent never exposes the answer). Throws on an unknown question shape.
++function solveParent(text) {
++  let m = text.match(/^What is the positive value of x if x² = (\d+)\?$/);
++  if (m) return String(Math.sqrt(Number(m[1])));
++  m = text.match(/^A bag contains (\d+) (\w+) balls? and (\d+) (\w+) balls?\. What is the probability of picking (\w+)\?$/);
++  if (m) {
++    const [a, colourA, b, colourB, asked] = [Number(m[1]), m[2], Number(m[3]), m[4], m[5]];
++    if (asked !== colourA && asked !== colourB) throw new Error('unknown colour in ' + text);
++    return `${asked === colourA ? a : b}/${a + b}`;
++  }
++  throw new Error('cannot solve parent question: ' + text);
++}
++module.exports = { solveParent };
+diff --git a/tests/parent.check.js b/tests/parent.check.js
+index c5c09c9..34b29da 100644
+--- a/tests/parent.check.js
++++ b/tests/parent.check.js
+@@ -7,8 +7,7 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
+ // localStorage must never be touched: the unlocked state and the answer are not stored permanently.
+ Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('localStorage used'); } });
+ 
+-// Independent evaluation of the question text (digits and + − × ( ) only).
+-const evalText = (t) => { if (!/^[\d\s+−×()]+$/.test(t)) throw new Error('bad text ' + t); return Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-'))(); };
++const { solveParent } = require('./parent-solver');
+ 
+ function lcg(seed) { let s = seed; return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296; }
+ function memStorage() { const m = {}; return { m, getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; }
+@@ -18,25 +17,40 @@ function session(extra) {
+   const s = P.create({ rng: lcg(7), now: () => clock.t, storage, ...extra });
+   return { s, clock, storage };
+ }
+-const answerOf = (s) => String(evalText(s.current().text));
+-const wrongOf = (s) => String(evalText(s.current().text) + 1);
++const answerOf = (s) => solveParent(s.current().text);
++// An answer that is certainly wrong for the current question (answers are never 0).
++const wrongOf = (s) => '0';
+ 
+-// --- challenge generation
++// --- challenge generation: one short quadratic or probability question
+ {
+   const texts = new Set();
++  const kinds = new Set();
+   let good = true;
+   const rng = lcg(42);
+-  for (let i = 0; i < 5000; i++) {
++  for (let i = 0; i < 3000; i++) {
+     const c = P.generateChallenge(rng);
+-    const v = evalText(c.text);
+-    const ops = (c.text.match(/[+−×]/g) || []).length;
+-    if (v !== c.answer || !Number.isInteger(v) || v <= 0 || ops < 2 || v < 100) good = false;
++    const quad = /^What is the positive value of x if x² = (\d+)\?$/.exec(c.text);
++    const prob = /^A bag contains (\d+) (\w+) balls? and (\d+) (\w+) balls?\. What is the probability of picking (\w+)\?$/.exec(c.text);
++    if (quad) {
++      const root = Math.sqrt(Number(quad[1]));
++      if (!Number.isInteger(root) || root < 3 || root > 12 || c.answer.num !== root || c.answer.den !== 1) good = false;
++    } else if (prob) {
++      const [n1, n2] = [Number(prob[1]), Number(prob[3])];
++      const favourable = prob[5] === prob[2] ? n1 : n2;
++      if (prob[2] === prob[4] || n1 < 1 || n2 < 1 || ![2, 4, 5, 8, 10].includes(n1 + n2) || (prob[5] !== prob[2] && prob[5] !== prob[4])) good = false;
++      if (c.answer.num !== favourable || c.answer.den !== n1 + n2) good = false;
++      if (/1 \w+ balls|[02-9]\d* \w+ ball\b/.test(c.text)) good = false; // singular/plural wording
++    } else good = false;
++    if (c.text.length > 100) good = false;
++    kinds.add(quad ? 'quadratic' : 'probability');
+     texts.add(c.text);
+   }
+-  ok(good, '5000 generated challenges: whole positive answers equal to the recomputed text, at least two operations, multi-digit sizes');
+-  ok(texts.size > 4000, 'challenges are randomly generated, not a fixed list (' + texts.size + ' distinct of 5000)');
+-  const kinds = new Set([...texts].map(t => t.replace(/\d+/g, 'n')));
+-  ok(kinds.size >= 4, 'several different question shapes are used (' + kinds.size + ')');
++  ok(good, '3000 generated questions all use the short quadratic or probability formats, with correct stored answers');
++  ok(kinds.size === 2, 'both quadratic and probability questions are generated');
++  ok(texts.size >= 60, 'values and colours are randomised, not one fixed question (' + texts.size + ' distinct)');
++  ok(P.generateChallenge(() => 0).text.includes('x² = 9?'), 'quadratic questions look like "What is the positive value of x if x² = 9?"');
++  const bag = P.generateChallenge(() => 0.99).text;
++  ok(/^A bag contains/.test(bag) && bag.includes('probability of picking'), 'probability questions look like "A bag contains … What is the probability of picking …?"');
+ }
+ 
+ // --- no multiple choice, no leaked answer
+@@ -53,9 +67,31 @@ const wrongOf = (s) => String(evalText(s.current().text) + 1);
+   const r1 = s.submit(wrongOf(s));
+   ok(r1.ok === false && r1.reason === 'wrong' && !s.isUnlocked() && r1.attemptsLeft === 2, 'a wrong answer is rejected and does not unlock');
+   const q = s.current().text;
+-  ok(s.submit('abc').reason === 'invalid' && s.submit('').reason === 'invalid' && s.submit('12.5').reason === 'invalid' && s.current().text === q && s.attemptsLeft() === 2, 'blank or non-numeric input is not counted as an attempt and keeps the question');
+-  const r2 = s.submit(' ' + String(evalText(q)).replace(/(\d)(?=(\d{3})+$)/g, '$1,') + ' ');
+-  ok(r2.ok === true && s.isUnlocked(), 'the right answer unlocks (spaces and thousands commas tolerated)');
++  ok(s.submit('abc').reason === 'invalid' && s.submit('').reason === 'invalid' && s.submit('1/0').reason === 'invalid' && s.submit('-3').reason === 'invalid' && s.current().text === q && s.attemptsLeft() === 2, 'blank or non-numeric input is not counted as an attempt and keeps the question');
++  const r2 = s.submit(' ' + answerOf(s) + ' ');
++  ok(r2.ok === true && s.isUnlocked(), 'the right answer unlocks (surrounding spaces tolerated)');
++}
++
++// --- equivalent answer formats
++{
++  // Finds a seed whose first question matches, and returns a function that makes a fresh session showing it.
++  const withQuestion = (test) => {
++    for (let i = 0; i < 5000; i++) {
++      const seed = i * 104729 + 12345;
++      const make = () => P.create({ rng: lcg(seed), now: () => 0, storage: memStorage() });
++      if (test(make().current().text)) return make;
++    }
++    throw new Error('no matching question found');
++  };
++  const probability = (num, den) => withQuestion(t => /probability/.test(t) && solveParent(t) === num + '/' + den);
++  const accepts = (make, typed) => { const s = make(); return s.submit(typed).ok === true; };
++  const threeQuarters = probability(3, 4), half = probability(1, 2);
++  ok(['3/4', '0.75', '.75', '75%', ' 3 / 4 ', '6/8', '0.750'].every(a => accepts(threeQuarters, a)), '3/4 is accepted as 3/4, 0.75, .75, 75%, 6/8 and with spaces');
++  ok(['1/2', '0.5', '.5', '50%', '2/4', '5/10'].every(a => accepts(half, a)), '1/2 is accepted as 1/2, 0.5, 50%, 2/4 and 5/10');
++  ok(['3/5', '0.74', '4/3', '1', '0', '75', '7/4'].every(a => !accepts(threeQuarters, a)), 'close or reversed values for 3/4 are rejected');
++  const quad = withQuestion(t => t.includes('x² = 49?'));
++  ok(['7', '7.0', '07'].every(a => accepts(quad, a)) && ['-7', '49', '6', '7/2'].every(a => !accepts(quad, a)), 'x² = 49 accepts 7 (also 7.0) and rejects -7, 49, 6, 7/2');
++  ok(P.sameValue(P.parseAnswer('0.75'), P.parseAnswer('3/4')) && P.sameValue(P.parseAnswer('75%'), P.parseAnswer('3/4')) && !P.sameValue(P.parseAnswer('0.7'), P.parseAnswer('2/3')), 'parseAnswer compares decimals, percentages and fractions exactly')
+ }
+ 
+ // --- a new challenge after every attempt
+@@ -80,7 +116,7 @@ const wrongOf = (s) => String(evalText(s.current().text) + 1);
+   ok(s.cooldownRemaining() === 18, 'the remaining time counts down');
+   // "refresh": a new instance with the same session storage is still in cooldown
+   const reloaded = P.create({ rng: lcg(99), now: () => clock.t, storage });
+-  ok(reloaded.cooldownRemaining() === 18 && reloaded.submit(String(evalText(reloaded.current().text))).reason === 'cooldown' && !reloaded.isUnlocked(), 'refreshing the page does not skip the cooldown');
++  ok(reloaded.cooldownRemaining() === 18 && reloaded.submit(solveParent(reloaded.current().text)).reason === 'cooldown' && !reloaded.isUnlocked(), 'refreshing the page does not skip the cooldown');
+   // closing and reopening the bank (lock) does not skip it either
+   s.lock();
+   ok(s.cooldownRemaining() === 18, 'locking and reopening does not clear the cooldown');
+diff --git a/tests/store.check.js b/tests/store.check.js
+index 99b585c..b41567c 100644
+--- a/tests/store.check.js
++++ b/tests/store.check.js
+@@ -1,8 +1,8 @@
+ // Unit checks for store.js: saving, schema, backup export/import/undo, validation, save failures. No browser needed.
+ const path = require('path');
+ const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // sets globalThis.MQParent, which store.js checks
+-const solveParent = t => Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-'))();
+-const unlockParent = () => Parent.submit(String(solveParent(Parent.current().text)));
++const { solveParent } = require('./parent-solver');
++const unlockParent = () => Parent.submit(solveParent(Parent.current().text));
+ let failures = 0;
+ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
+ 
+@@ -78,7 +78,8 @@ const hp = hostile.profiles[0];
+ ok(hostile.profiles.length === 1 && hostile.skipped === 1, 'duplicate ids inside a backup are dropped');
+ ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'ids, names, stickers, numbers and avatars are sanitised');
+ 
+-// --- merge
++// --- merge (parent-only, so verify first; protection itself is checked further down)
++unlockParent();
+ const before = S.getProfiles().map(p => p.id);
+ const incoming = JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [
+   { id: before[0], name: 'Mia', totals: { games: 9 }, stickers: ['🐶'] },       // same id → replaced
+@@ -99,13 +100,63 @@ ok(S.getProfiles().length === S.MAX_PROFILES && r2.skipped > 0, `merge: stops at
+ const idsBefore = S.getProfiles().map(p => p.id).join();
+ const r3 = S.applyBackup(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, settings: { palette: 'cb', text: 'xlarge' }, profiles: [{ id: 'only1', name: 'Only' }] })), 'replace');
+ ok(S.getProfiles().length === 1 && S.getSettings().text === 'xlarge' && r3.backedUp, 'replace: backup becomes everything (settings too) and a safety copy is kept');
+-ok(S.hasBackup() && S.restoreBackup() && S.getProfiles().map(p => p.id).join() === idsBefore && !S.hasBackup(), 'undo: previous profiles are restored');
++ok(S.hasBackup() && S.restoreBackup().restored === true && S.getProfiles().map(p => p.id).join() === idsBefore && !S.hasBackup(), 'undo: previous profiles are restored');
+ 
+ // --- failure while importing is reported
+ globalThis.__fail = true;
+ const r4 = S.applyBackup(S.parseBackup(text), 'merge');
+ ok(r4.saved === false && r4.backedUp === false, 'import reports when the browser would not save');
+ globalThis.__fail = false;
++Parent.lock();
++
++// --- backup import and Undo need parent verification, inside the Store itself
++{
++  ({ S, mem } = freshStore());
++  S.addProfile('Mia', '🦊'); S.addProfile('Leo', '🦁');
++  const mia = S.getProfiles()[0];
++  mia.rewards.earned = 30; mia.rewards.redeemed = 10; S.save();
++  const goodText = S.exportText();                    // export needs no verification
++  const incoming = JSON.parse(goodText);
++  incoming.profiles[0].rewards.earned = 999;          // a backup that would inflate the balance
++  incoming.settings.rewards = { ...S.getRewardConfig(), base: 5 };
++  const incomingText = JSON.stringify(incoming);
++  const snapshot = () => JSON.stringify([S.getProfiles(), S.getSettings(), mem['mathQuizBattle.v1'], S.hasBackup()]);
++
++  Parent.lock();
++  const start = snapshot();
++  ok(!Parent.isUnlocked() && S.exportText() === goodText && !S.parseBackup(incomingText).error, 'locked: export and backup preview still work without verification');
++  const parsedIn = S.parseBackup(incomingText);
++  const dm = S.applyBackup(parsedIn, 'merge');
++  ok(dm.denied === true && dm.saved === false && /Parent verification/.test(dm.error) && snapshot() === start, 'Merge import is denied without verification and changes nothing');
++  const dr = S.applyBackup(parsedIn, 'replace');
++  ok(dr.denied === true && snapshot() === start, 'Replace import is denied without verification and changes nothing (no Undo copy written either)');
++  ok(S.applyBackup(parsedIn).denied === true && S.applyBackup(null, 'replace').denied === true, 'direct Store calls with any arguments cannot bypass verification');
++
++  // a wrong answer does not unlock
++  const wrongAnswer = Parent.current().text.includes('x²') ? '1' : '9/10';
++  Parent.submit(wrongAnswer);
++  ok(S.applyBackup(parsedIn, 'merge').denied === true && snapshot() === start, 'a wrong verification answer still cannot import');
++  // without the parent module nothing is allowed (fails closed)
++  const saved = globalThis.MQParent; delete globalThis.MQParent;
++  ok(S.applyBackup(parsedIn, 'merge').denied === true && S.restoreBackup().denied === true && snapshot() === start, 'with no parent module loaded, import and Undo are refused');
++  globalThis.MQParent = saved;
++  // tampering with a leftover Undo copy is also blocked: build one while verified, then lock
++  unlockParent();
++  ok(S.applyBackup(parsedIn, 'merge').saved === true && S.getProfiles()[0].rewards.earned === 999 && S.hasBackup(), 'after verification Merge import works');
++  Parent.lock();
++  const afterMerge = snapshot();
++  const du = S.restoreBackup();
++  ok(du.denied === true && du.restored === false && snapshot() === afterMerge && S.hasBackup(), 'Undo import is denied without verification, keeps the Undo copy and changes nothing');
++  ok(S.restoreBackup().denied === true && S.getProfiles()[0].rewards.earned === 999, 'a direct Undo call cannot restore older balances without verification');
++  unlockParent();
++  ok(S.restoreBackup().restored === true && S.getProfiles()[0].rewards.earned === 30 && !S.hasBackup(), 'after verification Undo import works and restores the earlier balance');
++  Parent.lock();
++  ok(S.applyBackup(parsedIn, 'merge').denied === true, 'locking again blocks import again');
++  unlockParent();
++  const rep = S.applyBackup(S.parseBackup(incomingText), 'replace');
++  ok(rep.saved === true && rep.added === 2 && S.getRewardConfig().base === 5, 'after verification Replace import works (profiles and reward settings)');
++  Parent.lock();
++}
+ 
+ // --- stickers
+ {
+diff --git a/tests/trophies.check.js b/tests/trophies.check.js
+index 801f578..2975ef1 100644
+--- a/tests/trophies.check.js
++++ b/tests/trophies.check.js
+@@ -5,6 +5,9 @@ let failures = 0;
+ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
+ const T = require(path.join(__dirname, '..', 'public', 'trophies.js'));
+ const Q = require(path.join(__dirname, '..', 'public', 'questions.js'));
++const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // import is parent-only, so verify first
++const { solveParent } = require('./parent-solver');
++const unlockParent = () => Parent.submit(solveParent(Parent.current().text));
+ 
+ // --- configuration
+ ok(T.LEVELS.join() === Q.DIFFICULTIES.map(d => d.value).join(), 'there is a trophy set for every quiz level, in the same order');
+@@ -72,6 +75,7 @@ const text = S.exportText();
+ ok(JSON.parse(text).profiles[0].trophies.grade1.completed === 2, 'export includes trophy progress');
+ ({ S } = freshStore());
+ const imported = S.parseBackup(text);
++unlockParent();
+ S.applyBackup(imported, 'replace');
+ ok(S.getProfiles()[0].trophies.grade1.correct === 2 && S.getProfiles()[1].trophies.grade1.completed === 1, 'import restores trophy progress');
+ const unlockedBackup = JSON.parse(text); unlockedBackup.profiles[0].trophies.grade1.unlocked = ['bronze'];

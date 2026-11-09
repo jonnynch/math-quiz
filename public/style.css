@@ -255,7 +255,7 @@ body.playing #bankButton { display: none; }
 .bank-parent input { width: 7rem; }
 .bank-lock { border-style: solid; }
 .bank-lock input { width: 9rem; font-size: 1.2rem; }
-.parent-challenge { margin: 10px 0 6px; font-size: 1.5rem; font-weight: 800; overflow-wrap: anywhere; }
+.parent-challenge { margin: 10px 0 6px; font-size: 1.2rem; font-weight: 800; overflow-wrap: anywhere; }
 .bank-settings { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; }
 .bank-settings summary { min-height: 32px; font-weight: 800; cursor: pointer; }
 .bank-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; margin: 10px 0; }

@@ -1,4 +1,4 @@
-// Parent verification for the Screen-time Bank. No DOM code here. window.MQParent (also module.exports for Node tests).
+// Parent verification for the Screen-time Bank and backup import. No DOM code here. window.MQParent (also module.exports for Node tests).
 // A child-resistant barrier, NOT strong security: everything runs in the browser, so anyone who can edit the
 // code or the browser's storage can get round it. The unlocked state and the answer live in memory only.
 // Only the failure counter and cooldown end time go to sessionStorage, so a page refresh cannot skip the wait.
@@ -11,30 +11,42 @@
 
   const randInt = (rng, lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
 
-  // A fresh adult-level arithmetic question with several operations. Answers are always whole and positive.
+  const COLOUR_PAIRS = [['red', 'blue'], ['green', 'yellow'], ['black', 'white'], ['pink', 'orange']];
+  const BAG_TOTALS = [2, 4, 5, 8, 10]; // totals with tidy fractions and decimals, so the answer comes quickly
+
+  // One short question a young child has not met yet: a square root (quadratic) or a simple probability.
+  // answer is { num, den } (a fraction), compared exactly with the typed answer.
   function generateChallenge(rng) {
     rng = rng || Math.random;
-    const kind = randInt(rng, 0, 4);
-    let text, answer;
-    if (kind === 0) {
-      const a = randInt(rng, 120, 999), b = randInt(rng, 12, 89), c = randInt(rng, 100, 999);
-      text = `${a} × ${b} + ${c}`; answer = a * b + c;
-    } else if (kind === 1) {
-      const a = randInt(rng, 120, 999), b = randInt(rng, 12, 89);
-      const c = randInt(rng, 100, Math.min(1999, a * b - 1));
-      text = `${a} × ${b} − ${c}`; answer = a * b - c;
-    } else if (kind === 2) {
-      const a = randInt(rng, 21, 99), b = randInt(rng, 21, 99), c = randInt(rng, 12, 39);
-      text = `(${a} + ${b}) × ${c}`; answer = (a + b) * c;
-    } else if (kind === 3) {
-      const a = randInt(rng, 12, 99), b = randInt(rng, 12, 49), c = randInt(rng, 11, 99), d = randInt(rng, 3, 9);
-      text = `${a} × ${b} + ${c} × ${d}`; answer = a * b + c * d;
-    } else {
-      const a = randInt(rng, 41, 99), b = randInt(rng, 12, 49), c = randInt(rng, 11, 40), d = randInt(rng, 3, 9);
-      text = `${a} × ${b} − ${c} × ${d}`; answer = a * b - c * d;
+    if (randInt(rng, 0, 1) === 0) {
+      const x = randInt(rng, 3, 12);
+      return { kind: 'quadratic', text: `What is the positive value of x if x² = ${x * x}?`, answer: { num: x, den: 1 } };
     }
-    return { text, answer };
+    const pair = COLOUR_PAIRS[randInt(rng, 0, COLOUR_PAIRS.length - 1)];
+    const total = BAG_TOTALS[randInt(rng, 0, BAG_TOTALS.length - 1)];
+    const first = randInt(rng, 1, total - 1);
+    const counts = [first, total - first];
+    const asked = randInt(rng, 0, 1);
+    const ball = (n, colour) => `${n} ${colour} ball${n === 1 ? '' : 's'}`;
+    return {
+      kind: 'probability',
+      text: `A bag contains ${ball(counts[0], pair[0])} and ${ball(counts[1], pair[1])}. What is the probability of picking ${pair[asked]}?`,
+      answer: { num: counts[asked], den: total }
+    };
   }
+
+  // Reads a typed answer as a fraction: "3/4", "0.75", ".75", "75%" or a whole number. null when it is none of these.
+  function parseAnswer(input) {
+    const t = String(input === undefined || input === null ? '' : input).replace(/\s/g, '');
+    let m = t.match(/^(\d{1,6})\/(\d{1,6})$/);
+    if (m) return Number(m[2]) > 0 ? { num: Number(m[1]), den: Number(m[2]) } : null;
+    m = t.match(/^(\d{0,6})(?:\.(\d{1,4}))?(%)?$/);
+    if (!m || !/\d/.test(t)) return null;
+    const frac = m[2] || '';
+    return { num: Number(m[1] + frac), den: Math.pow(10, frac.length) * (m[3] ? 100 : 1) };
+  }
+
+  const sameValue = (a, b) => a.num * b.den === b.num * a.den;
 
   function defaultStorage() {
     try { return root.sessionStorage || null; } catch (error) { return null; }
@@ -95,10 +107,10 @@
         if (unlocked) return { ok: true };
         const remaining = cooldownRemaining();
         if (remaining > 0) return { ok: false, reason: 'cooldown', remaining, attemptsLeft: 0 };
-        const text = String(input === undefined || input === null ? '' : input).replace(/[\s,]/g, '');
-        if (!/^\d{1,12}$/.test(text)) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
+        const typed = parseAnswer(input);
+        if (!typed) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
         if (!challenge) nextChallenge();
-        if (Number(text) === challenge.answer) {
+        if (sameValue(typed, challenge.answer)) {
           unlocked = true; fails = 0; until = 0; challenge = null;
           persist();
           return { ok: true };
@@ -118,6 +130,8 @@
   const api = create();
   api.create = create;
   api.generateChallenge = generateChallenge;
+  api.parseAnswer = parseAnswer;
+  api.sameValue = sameValue;
   root.MQParent = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

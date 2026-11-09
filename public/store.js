@@ -211,9 +211,11 @@
 
   // ---------- screen-time rewards (logic) ----------
   // Parent-only actions call this first. Fails closed: with no parent module loaded nothing is allowed.
-  const parentDenied = () => (root.MQParent && root.MQParent.isUnlocked()
+  const parentDenied = (error) => (root.MQParent && root.MQParent.isUnlocked()
     ? null
-    : { denied: true, error: 'Parent verification is needed first.', saved: false });
+    : { denied: true, error: error || 'Parent verification is needed first.', saved: false });
+  // Backup import and Undo can overwrite profiles, balances and reward settings, so they are parent-only too.
+  const IMPORT_DENIED = 'Parent verification is needed before importing or undoing a backup.';
   const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
   const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
 
@@ -412,7 +414,10 @@
 
     // mode 'merge': add to the current profiles (same id = replaced by the backup, same name = renamed).
     // mode 'replace': the backup becomes everything (settings too). The current data is copied first so Undo works.
+    // Parent-only (checked before anything is written, including the Undo copy).
     applyBackup(parsed, mode) {
+      const denied = parentDenied(IMPORT_DENIED);
+      if (denied) return denied;
       let backedUp = true;
       try {
         root.localStorage.setItem(BACKUP_KEY, JSON.stringify({ t: Date.now(), data: { settings: data.settings, profiles: data.profiles } }));
@@ -458,16 +463,19 @@
       try { return !!root.localStorage.getItem(BACKUP_KEY); } catch (error) { return false; }
     },
 
-    // Undo the last import: put back the data taken just before it.
+    // Undo the last import: put back the data taken just before it. Parent-only, because the copy can hold older
+    // balances and reward settings. Returns { restored, denied?, error?, saved? }.
     restoreBackup() {
+      const denied = parentDenied(IMPORT_DENIED);
+      if (denied) return { ...denied, restored: false };
       try {
         const saved = JSON.parse(root.localStorage.getItem(BACKUP_KEY));
-        if (!saved || !saved.data) return false;
+        if (!saved || !saved.data) return { restored: false };
         data = clean({ schema: SCHEMA, settings: saved.data.settings, profiles: saved.data.profiles });
         root.localStorage.removeItem(BACKUP_KEY);
-        return save();
+        return { restored: true, saved: save() };
       } catch (error) {
-        return false;
+        return { restored: false };
       }
     },
 

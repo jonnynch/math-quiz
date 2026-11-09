@@ -1,8 +1,8 @@
 // Unit checks for store.js: saving, schema, backup export/import/undo, validation, save failures. No browser needed.
 const path = require('path');
 const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // sets globalThis.MQParent, which store.js checks
-const solveParent = t => Function('return ' + t.replace(/×/g, '*').replace(/−/g, '-'))();
-const unlockParent = () => Parent.submit(String(solveParent(Parent.current().text)));
+const { solveParent } = require('./parent-solver');
+const unlockParent = () => Parent.submit(solveParent(Parent.current().text));
 let failures = 0;
 const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
 
@@ -78,7 +78,8 @@ const hp = hostile.profiles[0];
 ok(hostile.profiles.length === 1 && hostile.skipped === 1, 'duplicate ids inside a backup are dropped');
 ok(/^[A-Za-z0-9_-]+$/.test(hp.id) && hp.name.length <= 14 && hp.stickers.length === 1 && hp.totals.games === 0 && S.AVATARS.includes(hp.avatar) && hp.history[0].score === 0 && !('k' in hp.bests), 'ids, names, stickers, numbers and avatars are sanitised');
 
-// --- merge
+// --- merge (parent-only, so verify first; protection itself is checked further down)
+unlockParent();
 const before = S.getProfiles().map(p => p.id);
 const incoming = JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [
   { id: before[0], name: 'Mia', totals: { games: 9 }, stickers: ['🐶'] },       // same id → replaced
@@ -99,13 +100,63 @@ ok(S.getProfiles().length === S.MAX_PROFILES && r2.skipped > 0, `merge: stops at
 const idsBefore = S.getProfiles().map(p => p.id).join();
 const r3 = S.applyBackup(S.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, settings: { palette: 'cb', text: 'xlarge' }, profiles: [{ id: 'only1', name: 'Only' }] })), 'replace');
 ok(S.getProfiles().length === 1 && S.getSettings().text === 'xlarge' && r3.backedUp, 'replace: backup becomes everything (settings too) and a safety copy is kept');
-ok(S.hasBackup() && S.restoreBackup() && S.getProfiles().map(p => p.id).join() === idsBefore && !S.hasBackup(), 'undo: previous profiles are restored');
+ok(S.hasBackup() && S.restoreBackup().restored === true && S.getProfiles().map(p => p.id).join() === idsBefore && !S.hasBackup(), 'undo: previous profiles are restored');
 
 // --- failure while importing is reported
 globalThis.__fail = true;
 const r4 = S.applyBackup(S.parseBackup(text), 'merge');
 ok(r4.saved === false && r4.backedUp === false, 'import reports when the browser would not save');
 globalThis.__fail = false;
+Parent.lock();
+
+// --- backup import and Undo need parent verification, inside the Store itself
+{
+  ({ S, mem } = freshStore());
+  S.addProfile('Mia', '🦊'); S.addProfile('Leo', '🦁');
+  const mia = S.getProfiles()[0];
+  mia.rewards.earned = 30; mia.rewards.redeemed = 10; S.save();
+  const goodText = S.exportText();                    // export needs no verification
+  const incoming = JSON.parse(goodText);
+  incoming.profiles[0].rewards.earned = 999;          // a backup that would inflate the balance
+  incoming.settings.rewards = { ...S.getRewardConfig(), base: 5 };
+  const incomingText = JSON.stringify(incoming);
+  const snapshot = () => JSON.stringify([S.getProfiles(), S.getSettings(), mem['mathQuizBattle.v1'], S.hasBackup()]);
+
+  Parent.lock();
+  const start = snapshot();
+  ok(!Parent.isUnlocked() && S.exportText() === goodText && !S.parseBackup(incomingText).error, 'locked: export and backup preview still work without verification');
+  const parsedIn = S.parseBackup(incomingText);
+  const dm = S.applyBackup(parsedIn, 'merge');
+  ok(dm.denied === true && dm.saved === false && /Parent verification/.test(dm.error) && snapshot() === start, 'Merge import is denied without verification and changes nothing');
+  const dr = S.applyBackup(parsedIn, 'replace');
+  ok(dr.denied === true && snapshot() === start, 'Replace import is denied without verification and changes nothing (no Undo copy written either)');
+  ok(S.applyBackup(parsedIn).denied === true && S.applyBackup(null, 'replace').denied === true, 'direct Store calls with any arguments cannot bypass verification');
+
+  // a wrong answer does not unlock
+  const wrongAnswer = Parent.current().text.includes('x²') ? '1' : '9/10';
+  Parent.submit(wrongAnswer);
+  ok(S.applyBackup(parsedIn, 'merge').denied === true && snapshot() === start, 'a wrong verification answer still cannot import');
+  // without the parent module nothing is allowed (fails closed)
+  const saved = globalThis.MQParent; delete globalThis.MQParent;
+  ok(S.applyBackup(parsedIn, 'merge').denied === true && S.restoreBackup().denied === true && snapshot() === start, 'with no parent module loaded, import and Undo are refused');
+  globalThis.MQParent = saved;
+  // tampering with a leftover Undo copy is also blocked: build one while verified, then lock
+  unlockParent();
+  ok(S.applyBackup(parsedIn, 'merge').saved === true && S.getProfiles()[0].rewards.earned === 999 && S.hasBackup(), 'after verification Merge import works');
+  Parent.lock();
+  const afterMerge = snapshot();
+  const du = S.restoreBackup();
+  ok(du.denied === true && du.restored === false && snapshot() === afterMerge && S.hasBackup(), 'Undo import is denied without verification, keeps the Undo copy and changes nothing');
+  ok(S.restoreBackup().denied === true && S.getProfiles()[0].rewards.earned === 999, 'a direct Undo call cannot restore older balances without verification');
+  unlockParent();
+  ok(S.restoreBackup().restored === true && S.getProfiles()[0].rewards.earned === 30 && !S.hasBackup(), 'after verification Undo import works and restores the earlier balance');
+  Parent.lock();
+  ok(S.applyBackup(parsedIn, 'merge').denied === true, 'locking again blocks import again');
+  unlockParent();
+  const rep = S.applyBackup(S.parseBackup(incomingText), 'replace');
+  ok(rep.saved === true && rep.added === 2 && S.getRewardConfig().base === 5, 'after verification Replace import works (profiles and reward settings)');
+  Parent.lock();
+}
 
 // --- stickers
 {
