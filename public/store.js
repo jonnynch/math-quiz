@@ -156,7 +156,7 @@
       ...(h && Number.isFinite(h.played) && h.played >= 0 ? { played: Math.min(Math.floor(h.played), 86400) } : {})
     }));
     const last = raw.lastSetup && typeof raw.lastSetup === 'object'
-      ? { difficulty: String(raw.lastSetup.difficulty || '').slice(0, 20), topic: String(raw.lastSetup.topic || 'mixed').slice(0, 20) }
+      ? { difficulty: String(raw.lastSetup.difficulty || '').slice(0, 20), topic: String(raw.lastSetup.topic || 'all').slice(0, 20) }
       : null;
     return {
       id: String(raw.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30) || newId(),

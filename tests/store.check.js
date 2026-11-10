@@ -371,5 +371,22 @@ Parent.lock();
   Parent.lock();
 }
 
+// --- default question type: saved choices are kept, missing ones fall back to Mixed All Questions
+{
+  const { S: S2 } = freshStore();
+  const raw = (lastSetup, history) => ({ app: 'mathQuizBattle', schema: 1, profiles: [{ id: 'p1', name: 'Kit', lastSetup, history }] });
+  const parse = (lastSetup, history) => S2.parseBackup(JSON.stringify(raw(lastSetup, history))).profiles[0];
+  ok(parse({ difficulty: 'grade3', topic: 'mixed' }).lastSetup.topic === 'mixed', 'saved Mixed arithmetic preference is preserved');
+  ok(parse({ difficulty: 'grade3', topic: 'tables' }).lastSetup.topic === 'tables', 'saved Times tables preference is preserved');
+  ok(parse({ difficulty: 'grade3' }).lastSetup.topic === 'all', 'saved setup without a topic defaults to Mixed All Questions');
+  ok(parse(undefined).lastSetup === null, 'older profile without a saved setup stays without one (UI default applies)');
+  ok(parse(undefined, [{ level: 'grade3', score: 4 }]).history[0].topic === 'mixed', 'older history entries without a topic keep their original meaning (Mixed arithmetic)');
+  S2.addProfile('Zoe', '🦊');
+  S2.getProfiles()[0].lastSetup = { difficulty: 'grade2', topic: 'mixed' }; S2.save();
+  const back = S2.parseBackup(S2.exportText()).profiles[0];
+  ok(back.lastSetup.topic === 'mixed' && back.lastSetup.difficulty === 'grade2', 'export then import keeps the saved question type');
+  ok(S2.addProfile('Neo', '🐸').profile.lastSetup === null, 'a new profile has no saved setup, so the Mixed All Questions default applies');
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
 process.exit(failures ? 1 : 0);
