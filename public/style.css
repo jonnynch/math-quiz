@@ -382,6 +382,85 @@ body.playing #bankButton { display: none; }
   html[data-text="xlarge"] { font-size: 112%; --ts: 1.12; }
 }
 
+/* ---------- tablets (iPad): gameplay fits the visible screen without scrolling ----------
+   Touch screens wider than a phone and taller than a phone held sideways; desktop mice and the phone rules above are untouched.
+   Answer buttons keep a 48px x text-scale touch target; the figure (clock / shape) is the part that gives way. */
+@media (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing footer, body.playing .topbar, body.playing #roundHeading { display: none; }
+  body.playing .app {
+    min-height: var(--app-h); display: flex; flex-direction: column;
+    padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  body.playing #gamePanel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  body.playing .scoreboard { margin-bottom: 8px; }
+  body.playing .score-card { padding: 8px 14px; }
+  body.playing .score-detail { margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.playing .score-value { font-size: 2rem; }
+  body.playing .round-banner { margin-bottom: 8px; }
+  body.playing .round-banner .eyebrow { margin: 0; }
+  body.playing .secondary-button { min-height: 44px; padding: 8px 14px; }
+  body.playing .question-boards { flex: 1 1 auto; min-height: 0; }
+  body.playing .question-board { display: flex; flex-direction: column; min-height: 0; padding: 12px 16px; }
+  body.playing .question-topline { margin-bottom: 6px; min-width: 0; }
+  body.playing .player-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.playing .question-text, body.playing .question-board.toddler .question-text { min-height: auto; margin: 0 0 8px; }
+  body.playing .answer-grid { gap: 8px; min-width: 0; }
+  body.playing .answer-button { min-height: calc(48px * var(--ts)); padding-top: 6px; padding-bottom: 6px; }
+  body.playing .question-board.toddler .answer-button { min-height: calc(64px * var(--ts)); }
+  body.playing .counting-visual, body.playing .counting-visual.rows-of-five, body.playing .object-stage { min-height: 0; margin: 0 0 8px; padding: 8px; gap: 4px; }
+  body.playing .round-feedback { min-height: 22px; margin: 8px 0 0; }
+}
+
+/* Tablet portrait: question + figure on the left, answers on the right, like the phone layout.
+   Solo always; in 1 vs 1 the two boards stack (each side by side) when the screen is tall enough, otherwise they
+   sit next to each other with the figure above the answers (the fallback blocks below). */
+@media (orientation: portrait) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing .question-boards { flex: 0 0 auto; }
+  body.playing .question-boards.versus { grid-template-columns: minmax(0, 1fr); }
+  body.playing .board-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+  body.playing .board-info { display: block; min-width: 0; align-self: center; }
+  body.playing .answer-grid { grid-auto-rows: minmax(calc(48px * var(--ts)), 1fr); }
+  body.playing .answer-button { align-self: center; width: 100%; }
+  body.playing .figure { width: min(100%, 300px); margin: 0 auto 8px; }
+  body.playing .question-boards.versus .figure { width: min(100%, 190px); }
+  body.playing .counting-visual, body.playing .counting-visual.rows-of-five, body.playing .object-stage { font-size: clamp(1.4rem, min(calc((100vw - 120px) / 14), 11vh), 3rem); }
+}
+/* 1 vs 1 portrait, not tall enough for two side-by-side boards: boards next to each other, figure above the answers.
+   The figure takes whatever height is left after the answers (between 96px and 180px). */
+@media (orientation: portrait) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) and (max-height: 939px) {
+  body.playing .question-boards.versus { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  body.playing .question-boards.versus .board-body, body.playing .question-boards.versus .board-info { display: contents; }
+  body.playing .question-boards.versus .figure { width: clamp(96px, calc(var(--app-h) - 430px - 240px * var(--ts)), 180px); margin-bottom: 6px; }
+}
+@media (orientation: portrait) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) and (max-height: 1009px) {
+  html[data-text="xlarge"] body.playing .question-boards.versus { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-text="xlarge"] body.playing .question-boards.versus .board-body, html[data-text="xlarge"] body.playing .question-boards.versus .board-info { display: contents; }
+  html[data-text="xlarge"] body.playing .question-boards.versus .figure { width: clamp(96px, calc(var(--app-h) - 430px - 240px * var(--ts)), 180px); margin-bottom: 6px; }
+}
+
+/* Tablet landscape: like a phone held sideways (question and figure on the left, answers on the right), with touch-sized answers. */
+@media (orientation: landscape) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing #gamePanel { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 12px; align-items: center; }
+  body.playing #gamePanel > .scoreboard { grid-column: 1; grid-row: 1; }
+  body.playing #gamePanel > .round-banner { grid-column: 2; grid-row: 1; align-items: center; gap: 10px; }
+  body.playing #gamePanel > .question-boards { grid-column: 1 / -1; grid-row: 2; align-self: stretch; grid-template-rows: minmax(0, 1fr); }
+  body.playing #gamePanel > .round-feedback { grid-column: 1 / -1; grid-row: 3; }
+  body.playing .question-boards.solo { grid-template-columns: minmax(0, 1fr); max-width: none; }
+  body.playing .board-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; flex: 1 1 auto; min-height: 0; }
+  body.playing .board-info { display: block; min-width: 0; align-self: center; }
+  body.playing .question-text, body.playing .question-board.toddler .question-text { font-size: clamp(1.2rem, 3.4vh, 1.8rem); }
+  body.playing .answer-grid { grid-auto-rows: minmax(calc(48px * var(--ts)), 1fr); }
+  body.playing .answer-button, body.playing .question-board.toddler .answer-button {
+    max-height: calc(88px * var(--ts)); align-self: center; width: 100%; font-size: clamp(1.05rem, 3.2vh, 1.45rem);
+  }
+  body.playing .figure { width: min(100%, calc(var(--app-h) * .34)); margin: 0 auto 8px; }
+  body.playing .question-boards.versus .figure { width: min(100%, calc(var(--app-h) * .26)); }
+  body.playing .counting-visual, body.playing .counting-visual.rows-of-five, body.playing .object-stage { font-size: clamp(1.4rem, min(calc((100vw - 120px) / 14), 11vh), 3rem); }
+  body.playing .question-boards.versus .counting-visual, body.playing .question-boards.versus .counting-visual.rows-of-five, body.playing .question-boards.versus .object-stage {
+    font-size: clamp(1.2rem, min(calc((100vw - 200px) / 26), 9vh), 2.4rem);
+  }
+}
+
 /* ---------- achievements (trophies) ---------- */
 .modal.wide { width: min(760px, 100%); }
 .achievements-list { display: grid; gap: 12px; margin-bottom: 12px; }

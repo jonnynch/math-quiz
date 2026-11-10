@@ -47,3 +47,6 @@ Goal: in Solo and 1 vs 1 the question/objects and **all** answers are visible wi
 
 ## When you change CSS
 Run `npm run test:layout` (see `docs/TESTING.md`) and look at screenshots at least for: 667×300 and 844×390 landscape (Solo + 1 vs 1, a clock topic and an Age 5/6 level), 390×844 portrait, 1280×800 desktop, with Normal and Extra large text and the colour-blind palette.
+
+## Tablets (iPad)
+Gameplay on touch screens wider than 680px and taller than 520px (`pointer: coarse`, no device sniffing) uses the same side-by-side board as a phone held sideways: question + figure left, all answers right, answers at least 48px x text scale. Landscape: always. Portrait: Solo always; in 1 vs 1 the two boards stack (each side by side) from 940px tall (1010px at Extra large text), below that the boards sit next to each other with the figure above the answers. Checked by `tests/layout-tablet.check.js`.
