@@ -121,7 +121,7 @@
       option.textContent = topic.label;
       select.append(option);
     });
-    select.value = topics.some(t => t.value === keep) ? keep : 'mixed';
+    select.value = topics.some(t => t.value === keep) ? keep : Q.DEFAULT_TOPIC;
     row.classList.remove('hidden');
   }
 

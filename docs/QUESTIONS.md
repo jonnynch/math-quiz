@@ -3,7 +3,7 @@
 All in `public/questions.js` (pure, testable in Node: `require('./public/questions.js')`).
 
 ## Public API (`MQQuestions`)
-`DIFFICULTIES`, `TOPICS`, `isGrade(level)`, `gradeOf(level)`, `difficultyLabel`, `topicLabel`, `topicsFor(level)` (empty for age levels), `normaliseTopic(level, topic)` (falls back to `'mixed'`), `generateQuestion(level, topic='mixed')`, plus `shuffledCopy`, `intBetween`, `choose`.
+`DIFFICULTIES`, `TOPICS`, `isGrade(level)`, `gradeOf(level)`, `difficultyLabel`, `topicLabel`, `topicsFor(level)` (empty for age levels), `DEFAULT_TOPIC` (`'all'`), `normaliseTopic(level, topic)` (falls back to `DEFAULT_TOPIC`), `generateQuestion(level, topic=DEFAULT_TOPIC)`, plus `shuffledCopy`, `intBetween`, `choose`.
 
 ## Question object
 ```js
@@ -49,8 +49,8 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 
 | Topic | Grades | Generator and notes |
 |---|---|---|
-| `mixed` (default) | 1–6 | `arithmeticQuestion`: + − (Grade 1), + − × ÷ from Grade 2. Ranges grow each grade. |
-| `all` (Mixed All Questions) | 1–6 | `generateRawQuestion` picks one of `ALL_MIX_TOPICS` (`mixed`, `tables`, `compare`, `fractions`, `money`, `clock`, `shapes`) that the grade offers, then uses that generator unchanged. Add new topics to `ALL_MIX_TOPICS` too. |
+| `mixed` | 1–6 | `arithmeticQuestion`: + − (Grade 1), + − × ÷ from Grade 2. Ranges grow each grade. |
+| `all` (Mixed All Questions, first in the list and the default) | 1–6 | `generateRawQuestion` picks one of `ALL_MIX_TOPICS` (`mixed`, `tables`, `compare`, `fractions`, `money`, `clock`, `shapes`) that the grade offers, then uses that generator unchanged. Add new topics to `ALL_MIX_TOPICS` too. |
 | `add`, `sub` | 1–6 | same generator, one operator |
 | `mul`, `div` | 2–6 | same generator, one operator (division is always exact) |
 | `tables` | 2–4 | `makeTablesQuestion`: × and ÷ facts and `a × ? = p`. G2 tables of 2/5/10; G3 up to 10×10; G4 12×12 emphasis |

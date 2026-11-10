@@ -92,6 +92,9 @@ for(const g of grades){
     if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
   });
 }
+// Topic order and default: Mixed All Questions first and default; unsupported topics are not offered or generated.
+if(Q.topicsFor('grade3')[0].value!=='all'||Q.DEFAULT_TOPIC!=='all'||Q.normaliseTopic('grade3','bogus')!=='all'||Q.normaliseTopic('grade5','tables')!=='all'||Q.normaliseTopic('grade3','mixed')!=='mixed') fail('topic-default','Mixed All Questions is not first/default',{});
+for(const g of grades){ const offered=Q.topicsFor('grade'+g).map(t=>t.value); if(offered[0]!=='all') fail('g'+g+'/order','all is not first',offered); }
 console.log('questions checked:',total);
 const keys=Object.keys(fails);
 console.log('failing groups:',keys.length);

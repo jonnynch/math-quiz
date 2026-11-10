@@ -18,8 +18,8 @@
   // Topics exist only for Grade 1-6. The age levels (2-3 to 6) have a fixed activity.
   const ALL = [1, 2, 3, 4, 5, 6];
   const TOPICS = [
-    { value: 'mixed', label: 'Mixed arithmetic', grades: ALL },
     { value: 'all', label: 'Mixed All Questions', grades: ALL },
+    { value: 'mixed', label: 'Mixed arithmetic', grades: ALL },
     { value: 'add', label: 'Addition only', grades: ALL },
     { value: 'sub', label: 'Subtraction only', grades: ALL },
     { value: 'mul', label: 'Multiplication only', grades: [2, 3, 4, 5, 6] },
@@ -32,13 +32,16 @@
     { value: 'shapes', label: 'Shapes & measures', grades: ALL }
   ];
 
+  // Default for new profiles and for any missing or unavailable topic. Saved choices are never replaced.
+  const DEFAULT_TOPIC = 'all';
+
   const isGrade = (difficulty) => /^grade[1-6]$/.test(difficulty);
   const gradeOf = (difficulty) => Number(String(difficulty).replace('grade', ''));
   const difficultyLabel = (value) => (DIFFICULTIES.find(d => d.value === value) || {}).label || value;
   const topicLabel = (value) => (TOPICS.find(t => t.value === value) || {}).label || value;
   const topicsFor = (difficulty) => isGrade(difficulty) ? TOPICS.filter(t => t.grades.includes(gradeOf(difficulty))) : [];
   const normaliseTopic = (difficulty, topic) =>
-    topicsFor(difficulty).some(t => t.value === topic) ? topic : 'mixed';
+    topicsFor(difficulty).some(t => t.value === topic) ? topic : DEFAULT_TOPIC;
 
   // ---------- helpers ----------
   function shuffledCopy(items) {
@@ -591,7 +594,7 @@
 
   // Numeric answers are listed from smallest to largest. Fractions and times are sorted by their
   // value (`keys`). Text answers such as < = > keep a fixed order.
-  function generateQuestion(difficulty, topic = 'mixed') {
+  function generateQuestion(difficulty, topic = DEFAULT_TOPIC) {
     const q = generateRawQuestion(difficulty, topic);
     const keys = q.keys || (q.answers.every(a => a.trim() !== '' && !isNaN(Number(a))) ? q.answers.map(Number) : null);
     if (keys) {
@@ -651,7 +654,7 @@
   }
 
   const api = {
-    DIFFICULTIES, TOPICS, isGrade, gradeOf, difficultyLabel, topicLabel, topicsFor, normaliseTopic,
+    DIFFICULTIES, TOPICS, DEFAULT_TOPIC, isGrade, gradeOf, difficultyLabel, topicLabel, topicsFor, normaliseTopic,
     generateQuestion, shuffledCopy, intBetween, choose,
     questionKey, buildQuestionBank, createQuestionDeck
   };
