@@ -7,6 +7,7 @@
   const Store = window.MQStore;
   const Menus = window.MQMenus;
   const Trophies = window.MQTrophies;
+  const Adaptive = window.MQAdaptive;
   // Optional read-aloud and sound effects (audio.js). Every call is safe if the module or the browser feature is missing.
   const Sound = window.MQAudio || { speechSupported: () => false, speakQuestion: () => false, stopSpeech() {}, playSound: () => false, readAloudOn: () => false };
   const { choose, intBetween } = Q;
@@ -35,10 +36,15 @@
   const resultPanel = $('resultPanel');
   const playerTwoConfig = $('playerTwoConfig');
 
+  // `player.difficulty` is the level the player chose (used for trophies, rewards and saved history).
+  // `player.level` is the level the questions actually come from: the same, unless Smart Difficulty moved it.
   const levelLabel = (player) => {
-    const base = Q.difficultyLabel(player.difficulty);
-    return player.topic !== 'mixed' ? `${base} · ${Q.topicLabel(player.topic)}` : base;
+    const base = Q.difficultyLabel(player.level);
+    const text = player.topic !== 'mixed' ? `${base} · ${Q.topicLabel(player.topic)}` : base;
+    return player.smart ? `${text} · 🎯 Smart` : text;
   };
+
+  const smartOn = () => !!Adaptive && Store.getSettings().smartDifficulty === 'on';
 
   function setStatus(text) {
     $('gameStatus').textContent = text;
@@ -136,7 +142,7 @@
   }
 
   // ---------- question banks and players ----------
-  async function loadQuestionSet(difficulty, topic) {
+  function ensureQuestionSet(difficulty, topic) {
     const key = `${difficulty}|${topic}`;
     if (state.questionSets[key]) return state.questionSets[key];
     // Build a fresh bank locally in the browser. No JSON files, server API or internet needed.
@@ -145,16 +151,41 @@
     return state.questionSets[key];
   }
 
+  async function loadQuestionSet(difficulty, topic) {
+    return ensureQuestionSet(difficulty, topic);
+  }
+
+  // Smart Difficulty: every level a player might be moved to is built before the game starts, so a change
+  // in the middle of a game never makes the next question wait.
+  function preloadSmartSets(difficulty, topic) {
+    Adaptive.candidates(difficulty, topic).forEach(level => ensureQuestionSet(level, topic));
+  }
+
+  // One deck per level per player: moving between levels continues each deck instead of repeating questions.
+  function deckFor(player) {
+    if (!player.decks[player.level]) {
+      player.decks[player.level] = Q.createQuestionDeck(ensureQuestionSet(player.level, player.topic));
+    }
+    return player.decks[player.level];
+  }
+
   function createPlayer(number, difficulty, topic, profile) {
     const key = `${difficulty}|${topic}`;
-    return {
+    // Smart Difficulty is per player: a saved profile keeps its own state; a guest gets a fresh one for this game.
+    const smart = smartOn()
+      ? (profile ? Adaptive.stateFor(profile.smart || (profile.smart = {}), difficulty, topic) : Adaptive.emptyState())
+      : null;
+    const level = smart ? Adaptive.levelFor(difficulty, topic, smart) : difficulty;
+    const player = {
       id: number,
       name: profile ? `${profile.avatar} ${profile.name}` : `Player ${number}`,
       profile,
       difficulty,
+      level,
+      smart,
       topic,
       setKey: key,
-      deck: Q.createQuestionDeck(state.questionSets[key]), // new per game = repeat tracking resets
+      decks: {},               // question decks by level (new per game = repeat tracking resets)
       currentQuestion: null,
       score: 0,
       lockedOut: false,
@@ -164,15 +195,20 @@
       stickers: [],
       trophies: [],            // trophies unlocked during this game (for the result card)
       firstTapCorrect: null,   // was the first answer tapped on this question correct?
+      firstTapSeconds: 0,      // seconds from the question appearing to that first answer (Smart Difficulty)
       stats: { taps: 0, correctTaps: 0, timedQuestions: 0, totalSeconds: 0 },
       // Screen-time rewards: only saved profiles playing Grade 1-6 can earn (age levels never do).
       rewardGrade: profile && Q.isGrade(difficulty) ? Q.gradeOf(difficulty) : null,
       color: number === 1 ? 'blue' : 'orange'
     };
+    player.decks[level] = Q.createQuestionDeck(ensureQuestionSet(level, topic));
+    return player;
   }
 
   function nextQuestionFor(player) {
-    player.currentQuestion = player.deck.next();
+    // Smart Difficulty changes only here, between questions, never while a question is on screen.
+    if (player.smart) player.level = Adaptive.levelFor(player.difficulty, player.topic, player.smart);
+    player.currentQuestion = deckFor(player).next();
     return player.currentQuestion;
   }
 
@@ -191,6 +227,10 @@
       await Promise.all(versus
         ? [loadQuestionSet(d1, t1), loadQuestionSet(d2, t2)]
         : [loadQuestionSet(d1, t1)]);
+      if (smartOn()) {
+        preloadSmartSets(d1, t1);
+        if (versus) preloadSmartSets(d2, t2);
+      }
 
       state.sessionId = `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
       state.rewardSaveFailed = false;
@@ -236,6 +276,14 @@
       nameText.className = 'name-text';
       nameText.textContent = player.name;
       name.append(nameText);
+      if (player.smart) {
+        const smartBadge = document.createElement('span');
+        smartBadge.className = 'smart-badge';
+        smartBadge.textContent = '🎯';
+        smartBadge.setAttribute('aria-label', 'Smart Difficulty is on');
+        smartBadge.title = 'Smart Difficulty is on';
+        name.append(smartBadge);
+      }
       if (player.streak >= 2) {
         const badge = document.createElement('span');
         badge.className = 'streak-badge';
@@ -272,9 +320,12 @@
       player.lockedOut = false;
       player.answeredThisRound = false;
       player.firstTapCorrect = null;
+      player.firstTapSeconds = 0;
       const question = nextQuestionFor(player);
       boards.append(createQuestionBoard(player, question));
     });
+    // A Smart Difficulty change shows on the scoreboard as soon as the new question appears.
+    if (state.players.some(p => p.smart)) renderScoreboard();
     const feedback = $('roundFeedback');
     feedback.className = 'round-feedback';
     feedback.textContent = state.mode === 'solo'
@@ -282,7 +333,7 @@
       : 'First correct answer wins the point. One wrong answer and you are out for this question.';
     // Read-aloud (if on): Solo at Age 2–6 reads the new question once. Nothing waits for it; the 🔊 button replays it.
     const only = state.players[0];
-    if (state.mode === 'solo' && only && AGE_LEVELS.includes(only.difficulty) && Sound.readAloudOn()) Sound.speakQuestion(only.currentQuestion);
+    if (state.mode === 'solo' && only && AGE_LEVELS.includes(only.level) && Sound.readAloudOn()) Sound.speakQuestion(only.currentQuestion);
   }
 
   // ---------- figures: analogue clock and polygons (SVG) ----------
@@ -527,6 +578,15 @@
   function settleRound() {
     const notes = [];
     let touched = false;
+    let adjusted = false;
+    // Smart Difficulty: each player's own first answer feeds only that player's own history (guests included,
+    // for the current game). A player who never answered this question is not counted either way.
+    state.players.forEach(p => {
+      if (!p.smart || !p.answeredThisRound) return;
+      const result = Adaptive.update(p.smart, p.difficulty, p.topic, p.firstTapCorrect === true, p.firstTapSeconds);
+      if (result.changed) adjusted = true;
+      if (p.profile) touched = true;
+    });
     state.players.forEach(p => {
       if (!p.profile || !p.answeredThisRound) return;
       touched = true;
@@ -536,9 +596,10 @@
       notes.push(`${state.players.length > 1 ? `${p.name} ` : ''}${won.map(t => `${t.icon} ${t.name}`).join(', ')}`);
     });
     if (touched) Store.save();
-    if (!notes.length) return '';
+    const smartNote = adjusted ? ' · 🎯 Questions adjusted' : '';
+    if (!notes.length) return smartNote;
     launchConfetti(90);
-    return ` · 🏆 New trophy: ${notes.join('; ')}`;
+    return `${smartNote} · 🏆 New trophy: ${notes.join('; ')}`;
   }
 
   function handleAnswer(playerId, answerIndex, button) {
@@ -559,7 +620,8 @@
       player.answeredThisRound = true;
       player.firstTapCorrect = correct;
       player.stats.timedQuestions += 1;
-      player.stats.totalSeconds += (performance.now() - state.roundStart) / 1000;
+      player.firstTapSeconds = (performance.now() - state.roundStart) / 1000;
+      player.stats.totalSeconds += player.firstTapSeconds;
       // Screen-time bank: only this first answer counts for the question; retries are never reported.
       if (player.rewardGrade) {
         const rewarded = Store.rewardAnswer(player.profile, state.sessionId, player.rewardGrade, correct);

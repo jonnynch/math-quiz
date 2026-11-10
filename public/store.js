@@ -44,12 +44,14 @@
 
   // Trophy rules live in trophies.js (loaded first in the browser; required directly in Node tests).
   const Trophies = root.MQTrophies || (typeof require === 'function' ? require('./trophies.js') : null);
+  // Smart Difficulty state rules live in adaptive.js (loaded before this file in the browser).
+  const Adaptive = root.MQAdaptive || (typeof require === 'function' ? require('./adaptive.js') : null);
 
   let available = true;
   const num = (v) => (Number.isFinite(v) && v >= 0 ? v : 0);
 
   function defaults() {
-    return { settings: { palette: 'standard', text: 'normal', readAloud: 'off', sound: 'off', rewards: cleanRewardConfig(null) }, profiles: [] };
+    return { settings: { palette: 'standard', text: 'normal', readAloud: 'off', sound: 'off', smartDifficulty: 'off', rewards: cleanRewardConfig(null) }, profiles: [] };
   }
 
   // Saved data and backup files carry a schema number. When the format changes, bump SCHEMA and add a
@@ -74,6 +76,8 @@
     if (TEXT_SIZES.includes(s.text)) out.text = s.text;
     if (ON_OFF.includes(s.readAloud)) out.readAloud = s.readAloud;
     if (ON_OFF.includes(s.sound)) out.sound = s.sound;
+    // Added later (additive, no schema bump): missing or invalid means off, so older data plays exactly as before.
+    if (ON_OFF.includes(s.smartDifficulty)) out.smartDifficulty = s.smartDifficulty;
     out.rewards = cleanRewardConfig(s.rewards);
     return out;
   }
@@ -169,7 +173,9 @@
       history,
       trophies: Trophies ? Trophies.cleanAll(raw.trophies) : {},
       lastSetup: last,
-      rewards: cleanRewards(raw.rewards)
+      rewards: cleanRewards(raw.rewards),
+      // Smart Difficulty progress per chosen level/topic (additive: older profiles simply have none).
+      smart: Adaptive ? Adaptive.cleanMap(raw.smart) : {}
     };
   }
 
@@ -281,7 +287,7 @@
     setSetting(name, value) {
       if (name === 'palette' && PALETTES.includes(value)) data.settings.palette = value;
       else if (name === 'text' && TEXT_SIZES.includes(value)) data.settings.text = value;
-      else if ((name === 'readAloud' || name === 'sound') && ON_OFF.includes(value)) data.settings[name] = value;
+      else if ((name === 'readAloud' || name === 'sound' || name === 'smartDifficulty') && ON_OFF.includes(value)) data.settings[name] = value;
       else return { error: 'Unknown setting.' };
       return { saved: save() };
     },

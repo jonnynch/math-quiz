@@ -173,6 +173,7 @@ body.playing #profilesButton, body.playing #achievementsButton { display: none; 
 .score-name .name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .streak-badge { flex: none; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--orange-light); border: 1px solid var(--orange-line); color: var(--ink); font-size: .72rem; font-weight: 800; white-space: nowrap; }
 .star-rating { margin-top: 6px; font-size: 1.35rem; letter-spacing: 2px; }
+.smart-badge { flex: none; margin-left: 6px; font-size: .8rem; line-height: 1; }
 .best-badge { display: inline-block; margin-top: 8px; padding: 4px 10px; border-radius: 999px; background: var(--ok-bg); border: 1px solid var(--ok-line); color: var(--ok-ink); font-size: .8rem; font-weight: 800; }
 .earned-stickers { margin-top: 12px; padding-top: 10px; border-top: 1px solid #dbe3ef; font-size: .82rem; color: var(--muted); }
 .sticker-row { margin-top: 4px; font-size: 1.7rem; line-height: 1.25; }

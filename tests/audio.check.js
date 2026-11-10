@@ -2,7 +2,7 @@ const {JSDOM}=require('jsdom');const fs=require('fs');const path=require('path')
 // Read-aloud and sound effects in jsdom: availability/fallback, speech stops, sounds respect the setting, persistence.
 const dir=path.join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
-const SCRIPTS=['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','game.js'];
+const SCRIPTS=['questions.js','trophies.js','adaptive.js','parent.js','report.js','store.js','audio.js','menus.js','game.js'];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let failures=0;
 const ok=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg); if(!cond) failures++;};

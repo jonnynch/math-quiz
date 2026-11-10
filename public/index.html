@@ -175,6 +175,14 @@
         <p class="setting-help">A short happy sound for a right answer and a soft sound for a wrong one.</p>
       </div>
       <div class="setting-block">
+        <p class="setting-title">Smart Difficulty</p>
+        <div class="seg" role="group" aria-label="Smart Difficulty">
+          <button class="seg-button" data-setting="smartDifficulty" data-value="off" type="button">Off</button>
+          <button class="seg-button" data-setting="smartDifficulty" data-value="on" type="button">On</button>
+        </div>
+        <p class="setting-help">Off: each player gets the level they choose. On: each player's questions move one step easier or harder, based on their recent answers. Their chosen level is never changed.</p>
+      </div>
+      <div class="setting-block">
         <p class="setting-title">Install on this device</p>
         <p id="installInfo" class="setting-help"></p>
         <p id="installIos" class="setting-help hidden"></p>
@@ -296,6 +304,7 @@
 
   <script src="questions.js"></script>
   <script src="trophies.js"></script>
+  <script src="adaptive.js"></script>
   <script src="parent.js"></script>
   <script src="report.js"></script>
   <script src="store.js"></script>

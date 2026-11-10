@@ -127,7 +127,7 @@ Parent.lock();
   const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   w.localStorage.setItem('mathQuizBattle.v1', JSON.stringify({ schema: 2, settings: {}, profiles: [mia, leo] }));
-  ['questions.js', 'trophies.js', 'parent.js', 'report.js', 'store.js', 'menus.js', 'game.js'].forEach(f => w.eval(fs.readFileSync(dir + f, 'utf8')));
+  ['questions.js', 'trophies.js', 'adaptive.js', 'parent.js', 'report.js', 'store.js', 'menus.js', 'game.js'].forEach(f => w.eval(fs.readFileSync(dir + f, 'utf8')));
   const d = w.document;
   const $ = (id) => d.getElementById(id);
   const click = (el) => el.click();

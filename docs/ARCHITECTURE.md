@@ -6,6 +6,7 @@ Static single-page app. No framework, no build. Scripts share these globals:
 ```
 questions.js  -> window.MQQuestions   (pure generators; also module.exports for Node tests)
 trophies.js   -> window.MQTrophies    (trophy targets + progress rules; pure; also module.exports)
+adaptive.js   -> window.MQAdaptive    (Smart Difficulty rules; pure; also module.exports)
 parent.js     -> window.MQParent     (parent verification for the Screen-time Bank; pure; also module.exports)
 report.js     -> window.MQReport     (parent progress report + CSV; pure; also module.exports)
 store.js      -> window.MQStore       (localStorage; also module.exports)
@@ -58,6 +59,14 @@ article.question-board.{blue|orange}[.solo][.toddler]
 - Progress lives in `profile.trophies[level] = { completed, correct, streak, best, unlocked[] }` (schema 2, `cleanAll()` validates it; schema 1 data migrates to `{}`). Bronze = completed, Silver = correct, Gold = `best` run of correct first answers.
 - `game.js` `settleRound()` calls `Trophies.record()` once when a round is decided (a correct answer, or everyone out). Each player who answered is credited with one completed question, correct only if their FIRST tap was right (no inflation by retrying). Players who never answered are not credited. A wrong tap calls `Trophies.resetStreak()` at once. Guests never earn trophies. Trophies never touch scores, stars, streaks or stickers.
 - `#achievementsModal` lists every level with its 3 trophies for the chosen profile; locked ones are silhouettes with a 🔒 label.
+
+## Smart Difficulty (`adaptive.js`, `game.js`, `store.js`, Settings and Profiles windows)
+Optional, **off by default** (`settings.smartDifficulty`, `off|on`, additive: no schema bump; missing/invalid = off). With it off nothing is read, recorded or changed.
+- **Idea**: the level the player chooses is the *base*. With it on, questions come from the base level or one step above/below (`CONFIG.maxOffset`), within the same family (Age levels with Age levels, Grades with Grades) and only at levels that offer the chosen topic (e.g. Times tables: Grade 2-4, so Grade 4 never goes up and Grade 2 never goes down to Grade 1). Existing generators are unchanged.
+- **Rules** (all in `CONFIG`, internal, not parent settings): the last 20 first-attempt results are kept; up at >= 10 answers and >= 90 %; down at >= 8 answers and < 60 %; one step at a time. After a change the history is cleared and a 10-question cooldown starts, so there is no flip-flopping. Speed (average first-answer time) can only hold back a move up when answers are consistently slow (> 15 s); it never causes a change on its own.
+- **State**: per profile `profile.smart["<base>|<topic>"] = { offset, recent: [{c, s}], cd, u }` (max 30 setups; `cleanMap` validates it, so older profiles, damaged data and imports are safe). Guests get a fresh in-memory state each game. It travels with Export/Import/Backup like every other profile field. The manual level (select, `lastSetup`) is never overwritten.
+- **Game**: `player.difficulty` stays the chosen level (trophies, rewards, history, bests, last setup); `player.level` is where questions come from. The level changes only in `nextQuestionFor`, between questions. `settleRound` feeds each player's own first answer (and time) to `Adaptive.update`, so players never affect each other and a player who did not answer is not counted. All candidate levels' question banks are built before the game starts; each level has its own deck per player. Indicator: 🎯 badge on the scoreboard and "· 🎯 Smart" in the level label.
+- **UI**: Settings -> Smart Difficulty; Profiles -> Details lists each chosen setup and its current level and recent accuracy (read-only).
 
 ## Rewards (in `game.js`)
 - Streak = consecutive correct questions; wrong tap resets it; in 1 vs 1 a round won by the other player also resets it. Milestones at 3, 5, 10, then every 5 → `awardSticker()` + `launchConfetti()`.

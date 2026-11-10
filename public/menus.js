@@ -200,6 +200,23 @@
       box.append(ul);
     }
 
+    // Smart Difficulty: what each chosen level is currently adjusted to (read-only; parents change it in Settings).
+    const adaptive = root.MQAdaptive;
+    const smartRows = adaptive ? Object.entries(profile.smart || {}).filter(([, st]) => st.recent.length || st.offset).sort((x, y) => y[1].u - x[1].u).slice(0, 5) : [];
+    if (smartRows.length) {
+      const on = Store.getSettings().smartDifficulty === 'on';
+      box.append(element('p', 'detail-title', `Smart Difficulty${on ? '' : ' (currently off)'}`));
+      const ul = element('ul', 'detail-list');
+      smartRows.forEach(([key, st]) => {
+        const [base, topic] = key.split('|');
+        const now = adaptive.levelFor(base, topic, st);
+        const acc = st.recent.length ? ` · recent ${Math.round(adaptive.accuracy(st) * 100)}% (${st.recent.length} answers)` : '';
+        const where = now === base ? 'at chosen level' : `now ${Q.difficultyLabel(now)}`;
+        ul.append(element('li', '', `${levelText(base, topic)} — ${where}${acc}`));
+      });
+      box.append(ul);
+    }
+
     box.append(element('p', 'detail-title', 'Recent games'));
     if (!profile.history.length) {
       box.append(element('p', 'empty-note', 'No games saved yet.'));
