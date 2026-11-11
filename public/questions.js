@@ -466,6 +466,33 @@
     };
   }
 
+  // Age 2-3: two groups of different objects; the child taps the group with MORE (never "fewer").
+  // The answers are the groups themselves (emoji strings); `answerLabels` are for screen readers / read-aloud.
+  const COMPARE_PAIRS = [[1, 3], [1, 4], [1, 5], [2, 4], [2, 5], [3, 5]]; // clearly different, 1-5 objects
+  function makeCompareGroupsQuestion() {
+    const [small, large] = choose(COMPARE_PAIRS);
+    const [itemA, itemB] = shuffledCopy(COUNT_OBJECTS);
+    const more = itemA, less = itemB;
+    const groups = [
+      { item: more, count: large },
+      { item: less, count: small }
+    ];
+    if (choose([true, false])) groups.reverse();   // random position for the correct group
+    return {
+      question: 'Which group has more?',
+      answers: groups.map(g => g.item.emoji.repeat(g.count)),
+      answerLabels: groups.map(g => `${g.item.name}: ${g.count}`),
+      correct: groups.findIndex(g => g.count === large),
+      groups: true,
+      simple: true
+    };
+  }
+
+  // Age 2-3 has exactly two question types: counting and comparing two groups.
+  function makeToddlerQuestion() {
+    return choose([true, false]) ? makeCountingQuestion() : makeCompareGroupsQuestion();
+  }
+
   // Age 4: count 1-10 objects, laid out in rows of 5 (6 = 5 + 1, 7 = 5 + 2, ...).
   function makeCounting10Question() {
     const item = choose(COUNT_OBJECTS);
@@ -571,7 +598,7 @@
   const ALL_MIX_TOPICS = ['mixed', 'tables', 'compare', 'fractions', 'money', 'clock', 'shapes'];
 
   function generateRawQuestion(difficulty, topic) {
-    if (difficulty === 'toddler') return makeCountingQuestion();
+    if (difficulty === 'toddler') return makeToddlerQuestion();
     if (difficulty === 'age4') return makeCounting10Question();
     if (difficulty === 'age5') return makeBondsTo10Question();
     if (difficulty === 'age6') return makeWithin10Question();

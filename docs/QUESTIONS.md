@@ -38,7 +38,7 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 ## Levels
 | Level | Generator | Notes |
 |---|---|---|
-| `toddler` | `makeCountingQuestion` | 1–5 objects in a row of 5, 3 options, `simple` |
+| `toddler` | `makeToddlerQuestion` | Random mix of two types, both `simple`: `makeCountingQuestion` (1–5 objects in a row of 5, 3 options) and `makeCompareGroupsQuestion` ("Which group has more?": two groups of different objects, 1–5 each, counts differ by ≥ 2; the answers are the two groups themselves, tapped directly, `groups: true`, `answerLabels` for screen readers/read-aloud). Never asks for "fewer". Checked by `npm run test:toddler` |
 | `age4` | `makeCounting10Question` | 1–10 objects in rows of 5 (6 = 5 + 1), 4 options, `simple` |
 | `age5` | `makeBondsTo10Question` | `3 + ? = 10`; `stage` shows 3 objects, correct answer adds 7 of a different type |
 | `age6` | `makeWithin10Question` | sums ≤ 10; subtraction starts ≤ 10; `stage` adds a different object type or removes the last ones |

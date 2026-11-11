@@ -126,6 +126,9 @@ html:not([data-read-aloud="on"]) .speak-button { display: none; }
 @keyframes slot-leave { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(.2); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .object-stage .slot.pop, .object-stage .slot.leaving { animation-duration: .01s; animation-delay: 0s; } }
 .question-board.toddler .question-text { min-height: auto; justify-content: center; text-align: center; }
+.question-board.groups .answer-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+.question-board.groups .answer-button { min-height: 150px; font-size: clamp(1.8rem, 7vw, 2.8rem); line-height: 1.25; text-align: center; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; }
+.question-board.groups .answer-button.correct::after, .question-board.groups .answer-button.wrong::after, .question-board.groups .answer-button.reveal::after { flex-basis: 100%; }
 .question-board.toddler .answer-button { min-height: 72px; text-align: center; font-size: clamp(2rem, 6vw, 2.8rem); }
 .round-feedback { min-height: 26px; margin: 16px 0 0; text-align: center; color: var(--muted); font-weight: 700; }
 .round-feedback.success { color: var(--green); }
@@ -481,3 +484,12 @@ body.playing #bankButton { display: none; }
 .trophy-progress { font-weight: 900; font-size: .9rem; font-variant-numeric: tabular-nums; }
 .trophy-state { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .trophy-card.unlocked .trophy-state { color: var(--ok-ink); }
+
+/* Age 2-3 "Which group has more?": two large tappable groups side by side. Keep after the layout blocks above. */
+body.playing .question-board.groups .answer-button { min-height: calc(96px * var(--ts)); max-height: none; font-size: clamp(1.8rem, 6vw, 2.6rem); line-height: 1.2; padding: 6px 8px; }
+body.playing .question-boards.versus .question-board.groups .answer-button { font-size: clamp(1.3rem, 2.6vw, 2rem); }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.playing .question-board.groups .board-body { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  body.playing .question-board.groups .answer-grid { grid-auto-rows: auto; gap: 8px; }
+  body.playing .question-board.groups .answer-button { min-height: calc(54px * var(--ts)); font-size: clamp(1.1rem, 7.5vh, 1.9rem); padding: 2px 4px; line-height: 1.1; }
+}

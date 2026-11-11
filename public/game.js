@@ -339,7 +339,7 @@
 
   function createQuestionBoard(player, question) {
     const board = document.createElement('article');
-    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}${question.figure ? ' has-figure' : ''}`;
+    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}${question.groups ? ' groups' : ''}${question.figure ? ' has-figure' : ''}`;
     board.dataset.playerId = String(player.id);
 
     const topline = document.createElement('div');
@@ -381,6 +381,7 @@
       button.type = 'button';
       button.className = 'answer-button';
       button.textContent = question.simple ? answer : `${String.fromCharCode(65 + index)}. ${answer}`;
+      if (question.groups) button.setAttribute('aria-label', question.answerLabels[index]);
       // pointerdown fires immediately for every finger, even when two players touch the screen at
       // nearly the same time (Safari can swallow 'click' events during multi-touch).
       button.addEventListener('pointerdown', (event) => {
