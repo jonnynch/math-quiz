@@ -16,7 +16,7 @@ game.js       -> uses all three; owns game state, rounds, rewards, results
 Load order in `index.html` matters: questions → store → menus → game. `game.js` runs last, fills the level selects, calls `MQMenus.init()` and sets `MQMenus.onProfileChosen`.
 
 ## Screens (all in `index.html`)
-- `#setupPanel` – mode (Solo / 1 vs 1), game length (Endless / Timed + duration), per player: profile, level, topic (topic row hidden for age levels).
+- `#setupPanel` – mode (Solo / 1 vs 1), game length (Endless / Timed + duration), per player: profile, level, topic.
 - `#gamePanel` – `#scoreboard`, round banner (round number, `#countdown`, Stop), `#questionBoards`, `#roundFeedback`.
 - `#resultPanel` – final cards, Play Again / Change Settings.
 - `#settingsModal`, `#profilesModal` – overlay windows (`.modal-backdrop > .modal`).

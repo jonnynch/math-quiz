@@ -102,7 +102,7 @@
     select.value = selected;
   }
 
-  // Topics exist only for Grade 1-6; the age levels keep their own fixed activity.
+  // Every level offers topics (Age 2-3 to Grade 6); the row is hidden only if a level has none.
   function refreshTopicSelect(number, preferred) {
     const difficulty = $('difficulty' + number).value;
     const row = $('topicRow' + number);
@@ -285,7 +285,7 @@
     if (state.mode === 'solo' && only && AGE_LEVELS.includes(only.difficulty) && Sound.readAloudOn()) Sound.speakQuestion(only.currentQuestion);
   }
 
-  // ---------- figures: analogue clock and polygons (SVG) ----------
+  // ---------- figures: analogue clock, polygons and early-years drawings (SVG) ----------
   const SVG_NS = 'http://www.w3.org/2000/svg';
   function svgEl(name, attrs) {
     const node = document.createElementNS(SVG_NS, name);
@@ -333,8 +333,51 @@
     return svg;
   }
 
+  // Simple drawings for the early-years questions. They reuse the .poly style, so no new CSS is needed.
+  function createShapeSvg(figure) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-polygon', role: 'img', 'aria-label': 'A shape' });
+    if (figure.type === 'circle') svg.append(svgEl('circle', { cx: 50, cy: 50, r: 40, class: 'poly' }));
+    else svg.append(svgEl('rect', { x: 10, y: 27, width: 80, height: 46, rx: 2, class: 'poly' }));
+    return svg;
+  }
+
+  // A ball in, on, under or beside a box or table.
+  function createPositionSvg(rel) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-polygon', role: 'img', 'aria-label': 'A ball and a ' + (rel === 'in' ? 'box' : 'table') });
+    const add = (name, attrs) => svg.append(svgEl(name, { ...attrs, class: 'poly' }));
+    add('line', { x1: 4, y1: 91, x2: 96, y2: 91 });
+    if (rel === 'in') {
+      add('path', { d: 'M25 50 V90 H75 V50', style: 'fill:none' });
+      add('circle', { cx: 50, cy: 79, r: 10 });
+      return svg;
+    }
+    add('rect', { x: 10, y: 45, width: 60, height: 8 });
+    add('rect', { x: 14, y: 53, width: 6, height: 37 });
+    add('rect', { x: 60, y: 53, width: 6, height: 37 });
+    if (rel === 'on') add('circle', { cx: 40, cy: 35, r: 10 });
+    else if (rel === 'under') add('circle', { cx: 40, cy: 80, r: 10 });
+    else add('circle', { cx: 86, cy: 80, r: 10 });
+    return svg;
+  }
+
+  // Tally marks in groups of five (four strokes and a diagonal), up to 20.
+  function createTallySvg(count) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-polygon', role: 'img', 'aria-label': 'Tally marks' });
+    for (let g = 0; g * 5 < count; g++) {
+      const x0 = 10 + 44 * (g % 2), y0 = 10 + 44 * Math.floor(g / 2);
+      const n = Math.min(5, count - g * 5);
+      for (let j = 0; j < Math.min(n, 4); j++) svg.append(svgEl('line', { x1: x0 + 8 * j, y1: y0, x2: x0 + 8 * j, y2: y0 + 32, class: 'poly' }));
+      if (n === 5) svg.append(svgEl('line', { x1: x0 - 4, y1: y0 + 27, x2: x0 + 28, y2: y0 + 5, class: 'poly' }));
+    }
+    return svg;
+  }
+
   function createFigure(figure) {
-    return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
+    if (figure.type === 'clock') return createClockSvg(figure.hour, figure.minute);
+    if (figure.type === 'circle' || figure.type === 'rect') return createShapeSvg(figure);
+    if (figure.type === 'position') return createPositionSvg(figure.rel);
+    if (figure.type === 'tally') return createTallySvg(figure.count);
+    return createPolygonSvg(figure.sides);
   }
 
   function createQuestionBoard(player, question) {

@@ -87,7 +87,7 @@ function boot({speech=true,audio='ok',seed=null}={}){
   // ---- read-aloud: control, auto-read (Solo, Age 2-6), replay, stops
   g=boot();g.setSetting('readAloud','on');
   ok(g.d.documentElement.dataset.readAloud==='on'&&g.store().settings.readAloud==='on','read-aloud setting applied and saved');
-  g.setLevel('age6');g.$('startButton').click();await sleep(80);
+  g.setLevel('age6');g.$('topic1').value='addsub';g.$('topic1').dispatchEvent(new g.w.Event('change',{bubbles:true}));g.$('startButton').click();await sleep(80);
   const speaks=()=>g.log.filter(x=>x.startsWith('speak:'));
   ok(g.d.querySelector('.speak-button')&&speaks().length===1,'Listen button present and the Age 2-6 question is read once automatically');
   ok(/plus|minus|how many|what|\d/i.test(speaks()[0])&&!/[+−×÷=]/.test(speaks()[0]),'the spoken text uses words, not maths symbols');

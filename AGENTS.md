@@ -25,7 +25,7 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 | `docs/` | Architecture, question rules, UI/layout rules, testing, owner requirements. |
 
 ## Levels and topics
-Levels: `toddler` (Age 2–3), `age4`, `age5`, `age6`, `grade1`…`grade6`. **Topics exist only for Grade 1–6**; the age levels have one fixed activity each. Do not add topics to age levels. Full matrix: `docs/QUESTIONS.md`.
+Levels: `toddler` (Age 2–3), `age4`, `age5`, `age6`, `grade1`…`grade6`. Every level has topics (`TOPICS[].grades` / `.levels`); Mixed All Questions is the default. Age 2–3 to Grade 1 follow the curriculum in `docs/QUESTIONS.md`. Full matrix: `docs/QUESTIONS.md`.
 
 ## Rules that must not be broken
 These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md`).
