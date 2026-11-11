@@ -406,6 +406,7 @@
     if (question.stage) info.append(createStage(question.stage));
     if (question.figure) info.append(createFigure(question.figure));
     info.append(text);
+    if (question.picture) info.append(createPicture(question.picture));
     if (question.visual) {
       const visual = document.createElement('div');
       visual.className = `counting-visual${question.rowsOfFive ? ' rows-of-five' : ''}`;
@@ -422,6 +423,43 @@
     body.append(info, grid);
     board.append(body);
     return board;
+  }
+
+  // Age 4 picture: groups of cells (X object, x crossed-out object, O empty slot, . blank), see questions.js.
+  const PICTURE_CELLS = { X: 'object', x: 'object removed', O: 'slot' };
+
+  function createPicture(picture) {
+    const box = document.createElement('div');
+    box.className = 'counting-visual picture';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', picture.label);
+    picture.groups.forEach((group, index) => {
+      if (index && picture.joiner) {
+        const sign = document.createElement('span');
+        sign.className = 'picture-joiner';
+        sign.setAttribute('aria-hidden', 'true');
+        sign.textContent = picture.joiner;
+        box.append(sign);
+      }
+      const cols = Math.max(...group.rows.map(row => row.length));
+      const grid = document.createElement('div');
+      grid.className = 'picture-group';
+      grid.style.setProperty('--cols', String(cols));
+      group.rows.forEach(row => [...row.padEnd(cols, '.')].forEach(ch => {
+        const cell = document.createElement('span');
+        cell.className = `cell${PICTURE_CELLS[ch] ? ' ' + PICTURE_CELLS[ch] : ''}`;
+        cell.setAttribute('aria-hidden', 'true');
+        if (ch === 'X' || ch === 'x') {
+          const obj = document.createElement('span');
+          obj.className = 'obj';
+          obj.textContent = group.emoji;
+          cell.append(obj);
+        }
+        grid.append(cell);
+      }));
+      box.append(grid);
+    });
+    return box;
   }
 
   // Ten fixed slots (2 rows of 5) are always rendered, so the block keeps the same height
@@ -453,12 +491,12 @@
 
   // Called when the correct answer is known: add objects of another type, or remove some.
   function showResult(board, question) {
-    if (!board || !question || !question.stage || board.dataset.resultShown) return;
+    if (!board || !question || !(question.stage || question.resultText) || board.dataset.resultShown) return;
     board.dataset.resultShown = '1';
     const stage = question.stage;
     const box = board.querySelector('.object-stage');
     const slots = box ? box.querySelectorAll('.slot') : [];
-    for (let i = 0; i < stage.change; i++) {
+    for (let i = 0; stage && i < stage.change; i++) {
       if (stage.op === 'add') {
         const slot = slots[stage.baseCount + i];
         if (!slot) continue;

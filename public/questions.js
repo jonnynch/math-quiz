@@ -493,19 +493,203 @@
     return choose([true, false]) ? makeCountingQuestion() : makeCompareGroupsQuestion();
   }
 
-  // Age 4: count 1-10 objects, laid out in rows of 5 (6 = 5 + 1, 7 = 5 + 2, ...).
+  // ---------- Age 4: five picture question types that teach number sense ----------
+  // A picture is a list of groups; a group is rows of cells written as strings:
+  // X object, x crossed-out (removed) object, O empty slot (missing object), . blank space.
+  // Layouts are chosen once per question and never change while the child answers.
+  const COUNT_LAYOUTS = {
+    1: { single: ['X'] },
+    2: { pair: ['XX'], column: ['X', 'X'] },
+    3: { row: ['XXX'], diagonal: ['X..', '.X.', '..X'], corner: ['XX', 'X.'] },
+    4: { square: ['XX', 'XX'], row: ['XXXX'], 'three-one': ['XXX', 'X..'] },
+    5: { row: ['XXXXX'], dice: ['X.X', '.X.', 'X.X'], 'three-two': ['XXX', 'XX.'] },
+    6: { 'two-threes': ['XXX', 'XXX'], 'three-pairs': ['XX', 'XX', 'XX'], 'five-one': ['XXXXX', 'X....'] },
+    7: { 'four-three': ['XXXX', 'XXX.'], 'five-two': ['XXXXX', 'XX...'], 'dice-seven': ['X.X', 'XXX', 'X.X'] },
+    8: { 'two-fours': ['XXXX', 'XXXX'], 'five-three': ['XXXXX', 'XXX..'], ring: ['XXX', 'X.X', 'XXX'] },
+    9: { 'three-by-three': ['XXX', 'XXX', 'XXX'], 'five-four': ['XXXXX', 'XXXX.'], 'four-four-one': ['XXXX', 'XXXX', 'X...'] },
+    10: { 'two-fives': ['XXXXX', 'XXXXX'], 'three-four-three': ['XXX.', 'XXXX', 'XXX.'], 'four-four-two': ['XXXX', 'XXXX', 'XX..'] }
+  };
+
+  // A scattered, irregular arrangement on a small grid, so children learn the quantity and not one pattern.
+  function irregularLayout(count) {
+    const cols = count > 8 ? 5 : 4, rows = 3;
+    const known = Object.values(COUNT_LAYOUTS[count]).map(l => l.join('/'));
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const chosen = shuffledCopy([...Array(cols * rows).keys()]).slice(0, count);
+      let grid = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => chosen.includes(r * cols + c) ? 'X' : '.').join(''));
+      grid = grid.filter(r => r.includes('X'));
+      const used = [...grid[0]].map((_, c) => grid.some(r => r[c] === 'X'));
+      const first = used.indexOf(true), last = used.lastIndexOf(true);
+      grid = grid.map(r => r.slice(first, last + 1));
+      if (grid.length >= 2 && grid[0].length >= 2 && grid.some(r => r.includes('.')) && !known.includes(grid.join('/'))) {
+        return { kind: 'irregular', rows: grid };
+      }
+    }
+    const [kind, rows2] = choose(Object.entries(COUNT_LAYOUTS[count]));
+    return { kind, rows: rows2 };
+  }
+
+  const rowStrings = (sizes, ch = 'X') => sizes.map(n => ch.repeat(n));
+  const columnsOf = (sizes) => Math.max(...sizes);
+
+  // Compact row layouts for one group of n objects in an addition/subtraction picture.
+  const COMPACT = { 1: [[1]], 2: [[2]], 3: [[3]], 4: [[4], [2, 2]], 5: [[5], [3, 2]], 6: [[3, 3], [2, 2, 2]], 7: [[4, 3]], 8: [[4, 4]], 9: [[3, 3, 3], [5, 4]] };
+
+  // Two groups side by side: stay narrow enough for a phone, and prefer the same number of rows so
+  // the two quantities are easy to compare (5 + 2 = a row of five and a pair; 3 + 3 = two rows of three).
+  function pickPair(a, b) {
+    const combos = [];
+    COMPACT[a].forEach(x => COMPACT[b].forEach(y => combos.push([x, y])));
+    const narrow = combos.filter(([x, y]) => columnsOf(x) + columnsOf(y) <= 7);
+    const pool = narrow.length ? narrow : combos;
+    const gap = Math.min(...pool.map(([x, y]) => Math.abs(x.length - y.length)));
+    return choose(pool.filter(([x, y]) => Math.abs(x.length - y.length) === gap));
+  }
+
+  // Marks the last `count` objects (reading order) as removed.
+  function crossOutLast(rows, count) {
+    const out = rows.map(r => r.split(''));
+    let left = count;
+    for (let r = out.length - 1; r >= 0 && left > 0; r--) {
+      for (let c = out[r].length - 1; c >= 0 && left > 0; c--) {
+        if (out[r][c] === 'X') { out[r][c] = 'x'; left--; }
+      }
+    }
+    return out.map(r => r.join(''));
+  }
+
+  const tierOf = (size) => size <= 5 ? 1 : size <= 8 ? 2 : 3;
+  const key = (...parts) => parts.join(' ');
+
+  // A. Count 1-10 objects in a varied arrangement. Prompt: "How many?"
   function makeCounting10Question() {
     const item = choose(COUNT_OBJECTS);
     const count = intBetween(1, 10);
-    const choices = makeNumberChoices(count, 1, 10, 4);
+    const layout = count >= 4 && Math.random() < 0.25
+      ? irregularLayout(count)
+      : (([kind, rows]) => ({ kind, rows }))(choose(Object.entries(COUNT_LAYOUTS[count])));
     return {
-      question: `How many ${item.name}?`,
-      visual: Array(count).fill(item.emoji),
-      visualLabel: `${item.name}: ${count}`,
-      rowsOfFive: true,
-      ...choices,
+      question: 'How many?',
+      picture: {
+        groups: [{ emoji: item.emoji, rows: layout.rows }],
+        label: `${item.name}: ${count}`,
+        key: key('count', count, layout.kind === 'irregular' ? 'irregular' : layout.rows.join('/'))
+      },
+      ...makeNumberChoices(count, 1, 10, 4),
+      tier: tierOf(count),
       simple: true
     };
+  }
+
+  // B. "Which group has more?" with two groups of different objects (up to 10 each); tap a group.
+  // Groups of more than 5 wrap after five so rows line up and are easy to compare.
+  const groupText = (emoji, n) => n <= 5 ? emoji.repeat(n) : `${emoji.repeat(5)}\n${emoji.repeat(n - 5)}`;
+  const COMPARE_PAIRS10 = [];
+  for (let large = 2; large <= 10; large++) for (let small = 1; small < large; small++) COMPARE_PAIRS10.push([small, large]);
+  function makeCompare10Question() {
+    const [small, large] = choose(COMPARE_PAIRS10);
+    const [more, less] = shuffledCopy(COUNT_OBJECTS);
+    const groups = [{ item: more, count: large }, { item: less, count: small }];
+    if (choose([true, false])) groups.reverse();
+    const gap = large - small;
+    return {
+      question: 'Which group has more?',
+      answers: groups.map(g => groupText(g.item.emoji, g.count)),
+      answerLabels: groups.map(g => `${g.item.name}: ${g.count}`),
+      correct: groups.findIndex(g => g.count === large),
+      groups: true,
+      tier: gap === 1 ? 3 : (gap >= 3 && large <= 6) ? 1 : 2,
+      simple: true
+    };
+  }
+
+  // C. Picture addition within 10: "3 + 2 = ?" with the two groups shown side by side.
+  const ADD_PAIRS = [];
+  for (let a = 1; a <= 9; a++) for (let b = 1; a + b <= 10; b++) ADD_PAIRS.push([a, b]);
+  function makeAddition10Question() {
+    const [a, b] = choose(ADD_PAIRS);
+    const [first, second] = shuffledCopy(COUNT_OBJECTS);
+    const [x, y] = pickPair(a, b);
+    return {
+      question: `${a} + ${b} = ?`,
+      resultText: `${a} + ${b} = ${a + b}`,
+      picture: {
+        groups: [{ emoji: first.emoji, rows: rowStrings(x) }, { emoji: second.emoji, rows: rowStrings(y) }],
+        joiner: '+',
+        label: `${a} ${first.name} and ${b} ${second.name}`,
+        key: key('add', a, b, x.join(','), y.join(','))
+      },
+      ...makeNumberChoices(a + b, 1, 10, 4),
+      tier: tierOf(a + b),
+      simple: true
+    };
+  }
+
+  // D. Picture subtraction within 10: all objects are shown and the ones taken away are crossed out.
+  // The groups are chosen so the removed part and the remainder are easy to see:
+  //  - remainder of 5 or fewer: [remainder] + [removed group]   (7 - 2 = 5 + 2, 7 - 3 = 4 + 3, 8 - 3 = 5 + 3)
+  //  - bigger remainder: two near-equal groups with the removed objects at the end of the second (8 - 2 = 4 + 4)
+  const SUB_PAIRS = [];
+  for (let a = 2; a <= 10; a++) for (let b = 1; b < a; b++) SUB_PAIRS.push([a, b]);
+  function makeSubtraction10Question() {
+    const [a, b] = choose(SUB_PAIRS);
+    const item = choose(COUNT_OBJECTS);
+    const keep = a - b;
+    const sizes = keep <= 5 ? [keep, b] : [Math.ceil(a / 2), Math.floor(a / 2)];
+    const [x, y] = pickPair(sizes[0], sizes[1]);
+    const second = crossOutLast(rowStrings(y), b);
+    return {
+      question: `${a} − ${b} = ?`,
+      resultText: `${a} − ${b} = ${keep}`,
+      picture: {
+        groups: [{ emoji: item.emoji, rows: rowStrings(x) }, { emoji: item.emoji, rows: second }],
+        label: `${a} ${item.name}, ${b} crossed out`,
+        key: key('sub', a, b, x.join(','), y.join(','))
+      },
+      ...makeNumberChoices(keep, 1, 10, 4),
+      tier: tierOf(a),
+      simple: true
+    };
+  }
+
+  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total:
+  // objects for the known part and empty dashed slots for the missing part, split at a row boundary when possible.
+  const TOTAL_ROWS = { 2: [[2]], 3: [[3]], 4: [[2, 2], [4]], 5: [[5], [3, 2]], 6: [[3, 3], [5, 1], [2, 2, 2]], 7: [[4, 3], [5, 2]], 8: [[4, 4], [5, 3]], 9: [[5, 4], [3, 3, 3]], 10: [[5, 5], [4, 3, 3]] };
+  // n objects in as few rows of at most five as possible, as even as possible (7 = 4 + 3).
+  function balancedRows(n) {
+    const rows = Math.ceil(n / 5), base = Math.floor(n / rows), extra = n % rows;
+    return Array.from({ length: rows }, (_, i) => base + (i < extra ? 1 : 0));
+  }
+  const MISSING_CASES = [];
+  for (let k = 1; k <= 9; k++) for (let m = 1; k + m <= 10; m++) { MISSING_CASES.push([k, m, true]); MISSING_CASES.push([k, m, false]); }
+  function makeMissingNumberQuestion() {
+    const [known, missing, knownFirst] = choose(MISSING_CASES);
+    const total = known + missing;
+    const item = choose(COUNT_OBJECTS);
+    const boundary = knownFirst ? known : missing;
+    const options = TOTAL_ROWS[total];
+    const aligned = options.filter(sizes => sizes.some((_, i) => sizes.slice(0, i + 1).reduce((s, n) => s + n, 0) === boundary));
+    const sizes = aligned.length ? choose(aligned) : total <= 5 ? [total] : [...balancedRows(boundary), ...balancedRows(total - boundary)];
+    const cells = (knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known)).split('');
+    const rows = sizes.map(n => cells.splice(0, n).join(''));
+    return {
+      question: knownFirst ? `${known} + ? = ${total}` : `? + ${known} = ${total}`,
+      resultText: knownFirst ? `${known} + ${missing} = ${total}` : `${missing} + ${known} = ${total}`,
+      picture: {
+        groups: [{ emoji: item.emoji, rows }],
+        label: `${known} ${item.name} and ${missing} empty ${missing === 1 ? 'space' : 'spaces'}`,
+        key: key('missing', known, missing, knownFirst ? 'known-first' : 'known-last', sizes.join(','))
+      },
+      ...makeNumberChoices(missing, 1, 10, 4),
+      tier: tierOf(total),
+      simple: true
+    };
+  }
+
+  // Age 4 has exactly five question types, picked at random.
+  function makeAge4Question() {
+    return choose([makeCounting10Question, makeCompare10Question, makeAddition10Question, makeSubtraction10Question, makeMissingNumberQuestion])();
   }
 
   // Age 5: number bonds to 10 (3 + ? = 10 -> 7).
@@ -599,7 +783,7 @@
 
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeToddlerQuestion();
-    if (difficulty === 'age4') return makeCounting10Question();
+    if (difficulty === 'age4') return makeAge4Question();
     if (difficulty === 'age5') return makeBondsTo10Question();
     if (difficulty === 'age6') return makeWithin10Question();
     const grade = gradeOf(difficulty);
@@ -639,7 +823,9 @@
   // and so are decorative emoji (Age 5/6 stages), so "What is 6 × 7?" generated twice with different
   // wrong answers is the same question.
   function questionKey(q) {
-    return JSON.stringify([q.question, q.figure || null, q.answers[q.correct]]);
+    const identity = [q.question, q.figure || null, q.answers[q.correct]];
+    if (q.picture) identity.push(q.picture.key);   // Age 4: the same sum in another arrangement is a different question
+    return JSON.stringify(identity);
   }
 
   // Generates up to `size` distinct questions. Attempts are capped so a small pool (e.g. Age 5, which
@@ -664,6 +850,10 @@
     let order = shuffledCopy(bank);
     let index = 0;
     let last = null;
+    // Age 4 questions carry a `tier` (1 easiest). In the first round the highest tier allowed rises by one
+    // for every 6 questions dealt, so a game starts with small, clearly different quantities.
+    const tiered = bank.some(q => q.tier);
+    let firstRound = true;
     return {
       next() {
         if (index >= order.length) {
@@ -673,6 +863,12 @@
             [order[0], order[j]] = [order[j], order[0]];
           }
           index = 0;
+          firstRound = false;
+        }
+        if (tiered && firstRound) {
+          const allowed = 1 + Math.floor(index / 6);
+          const j = order.findIndex((q, i) => i >= index && (q.tier || 1) <= allowed);
+          if (j > index) [order[index], order[j]] = [order[j], order[index]];
         }
         last = order[index++];
         return last;

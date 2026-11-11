@@ -493,3 +493,15 @@ body.playing .question-boards.versus .question-board.groups .answer-button { fon
   body.playing .question-board.groups .answer-grid { grid-auto-rows: auto; gap: 8px; }
   body.playing .question-board.groups .answer-button { min-height: calc(54px * var(--ts)); font-size: clamp(1.1rem, 7.5vh, 1.9rem); padding: 2px 4px; line-height: 1.1; }
 }
+
+/* Age 4 pictures (counting, adding, subtracting, missing number): groups of fixed cells. Keep after the layout blocks above. */
+.counting-visual.picture { flex-wrap: nowrap; gap: .3em .55em; line-height: 1; font-size: clamp(1.8rem, 5vw, 3.2rem); }
+.picture-group { display: grid; grid-template-columns: repeat(var(--cols, 1), 1.2em); grid-auto-rows: 1.2em; gap: .1em; }
+.picture-group .cell { position: relative; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.picture-joiner { font-size: .8em; font-weight: 800; color: #92400e; }
+.picture-group .cell.removed .obj { opacity: .3; filter: grayscale(1); }
+.picture-group .cell.removed::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #dc2626; font-size: 1em; font-weight: 900; }
+.picture-group .cell.slot { border: .07em dashed #64748b; border-radius: 50%; }
+.question-board.groups .answer-button { white-space: pre-line; }
+body.playing .counting-visual.picture { font-size: clamp(1.1rem, min(calc((100vw - 120px) / 15), 9vh), 3.4rem); }
+body.playing .question-boards.versus .counting-visual.picture { font-size: clamp(1rem, min(calc((100vw - 200px) / 28), 7vh), 2.6rem); }

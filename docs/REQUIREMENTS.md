@@ -10,7 +10,7 @@ Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + 
 2. **Both players tapping at once froze the answers.** Fixed by handling `pointerdown` (multi-touch safe) instead of `click`. **Must keep.**
 3. **1 vs 1 rules**: a wrong answer locks that player out for the question; both wrong → nobody scores, move on. Solo still allows retrying. **Must keep.**
 4. **Grade 4+**: the answer could be guessed from the last digit, so at least one wrong option must share it. **Must keep.**
-5. **More levels**: Age 4 (count to 10, objects in rows of 5: 6 = 5 + 1), Age 5 (making 10, e.g. 3 → select 7), Age 6 (add/subtract within 10; sums ≤ 10, subtraction starts ≤ 10). **Adult level removed** (decimal division was unreasonable).
+5. **More levels**: Age 4 (five picture question types within 10: counting in varied subitising arrangements, "Which group has more?", picture addition, picture subtraction, missing-number addition), Age 5 (making 10, e.g. 3 → select 7), Age 6 (add/subtract within 10; sums ≤ 10, subtraction starts ≤ 10). **Adult level removed** (decimal division was unreasonable).
 6. **Answers sorted smallest → largest.** Then: "the correct answer is always third" → randomise its position while keeping the order (see `docs/QUESTIONS.md`). **Must keep both.**
 7. **Remove "both players use this iPad"** (they may not use an iPad) and **show answers one by one** (single column) because tiles were slower to read. **Must keep.**
 8. **Stop Game summary** shows, per player, score, **average time** and **correct percentage**.
