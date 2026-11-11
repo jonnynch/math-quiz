@@ -7,7 +7,8 @@ const val=s=>{const [n,d]=frac(s);return n/d};
 let total=0; const fails={};
 const fail=(k,msg,q)=>{ (fails[k]=fails[k]||[]).push(msg+' :: '+JSON.stringify(q)); };
 const N=3000;
-const grades=[1,2,3,4,5,6];
+// Grade 1 and the age levels (Age 2-3 to Grade 1 curriculum) are checked in tests/questions-early.check.js.
+const grades=[2,3,4,5,6];
 for(const g of grades){
   for(const t of Q.topicsFor('grade'+g)){
     const k=`g${g}/${t.value}`; const pos={};

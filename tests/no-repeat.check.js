@@ -19,8 +19,7 @@ ok(Q.questionKey({ question: '4 + ? = 10', stage: { base: { emoji: '🐱' } }, a
 // ---- every level and topic (incl. Mixed All Questions)
 const combos = [];
 Q.DIFFICULTIES.forEach(d => {
-  const topics = Q.isGrade(d.value) ? Q.topicsFor(d.value).map(t => t.value) : ['mixed'];
-  topics.forEach(t => combos.push([d.value, t]));
+  Q.topicsFor(d.value).forEach(t => combos.push([d.value, t.value]));
 });
 ok(combos.some(([, t]) => t === 'all') && combos.length > 50, `covering ${combos.length} level/topic combinations incl. Mixed All Questions`);
 
@@ -68,10 +67,10 @@ ok(bad.length === 0, 'every level/topic: de-duplicated bank, no repeats until ex
 // ---- small pools: no infinite loop, game never stops
 {
   const t0 = Date.now();
-  const small = Q.buildQuestionBank('age5', 'mixed', 500);    // only a handful of distinct questions
+  const small = Q.buildQuestionBank('toddler', 'subitise', 500);    // only a handful of distinct questions
   const tiny = Q.buildQuestionBank('grade1', 'shapes', 500);
   ok(Date.now() - t0 < 2000, 'building a bank for a tiny pool finishes quickly (attempts are capped)');
-  ok(small.length >= 1 && small.length < 500 && allDistinct(keysOf(small)), `small pool (age5) gives ${small.length} distinct questions`);
+  ok(small.length >= 1 && small.length < 500 && allDistinct(keysOf(small)), `small pool (toddler quick look) gives ${small.length} distinct questions`);
   ok(tiny.length >= 1 && allDistinct(keysOf(tiny)), `small pool (grade1 shapes) gives ${tiny.length} distinct questions`);
   const deck = Q.createQuestionDeck(small);
   ok(deal(deck, small.length * 10).every(Boolean), 'deck keeps dealing questions for a small pool');

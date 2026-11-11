@@ -29,14 +29,14 @@ const {solveParent}=require('./parent-solver');
 const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text));
 
 (async()=>{
-  // ---- topics only for grades
+  // ---- topics for every level
   const topicIds=s=>[...$(s).options].map(o=>o.value);
   ok(!$('topicRow1').classList.contains('hidden'),'topic row visible for default Grade 3');
   ok(topicIds('topic1')[0]==='all'&&$('topic1').options[0].textContent==='Mixed All Questions','Mixed All Questions is the first topic option');
   ok($('topic1').value==='all'&&$('topic2').value==='all','Mixed All Questions is selected by default for both players');
   ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 12 topics (incl. Mixed All Questions)');
   change($('difficulty1'),'grade1');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
+  ok(!topicIds('topic1').some(v=>['mul','div','tables'].includes(v))&&topicIds('topic1').includes('skip'),'Grade 1 excludes multiplication, division and times tables but has skip counting');
   change($('difficulty1'),'grade5');
   ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
   change($('difficulty1'),'grade3'); change($('topic1'),'tables'); change($('difficulty1'),'grade5');
@@ -44,7 +44,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('topic1'),'mixed'); change($('difficulty1'),'grade6');
   ok($('topic1').value==='mixed','an explicitly chosen topic is kept when the new level still offers it');
   change($('topic1'),'all');
-  for(const lv of ['toddler','age4','age5','age6']){ change($('difficulty1'),lv); ok($('topicRow1').classList.contains('hidden'),`no topic row for ${lv}`); }
+  for(const lv of ['toddler','age4','age5','age6']){ change($('difficulty1'),lv); ok(!$('topicRow1').classList.contains('hidden')&&topicIds('topic1')[0]==='all'&&!topicIds('topic1').includes('mixed'),`topic row for ${lv} offers its own topics, Mixed All Questions first`); }
   change($('difficulty1'),'grade3');
 
   // ---- settings

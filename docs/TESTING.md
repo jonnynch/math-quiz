@@ -36,6 +36,7 @@ Landscape phones 568×280, 667×300, 740×320, 800×300, 844×340, 844×390, 932
 
 ## Writing new checks
 - Derive the expected answer independently from the question text (as `questions.check.js` does).
+- Age 2–3 to Grade 1 question types are checked by `tests/questions-early.check.js` (`npm run test:early`).
 - For UI flow tests, dispatch `pointerdown` on `.answer-button` (that is the real input path).
 - Layout stress ideas already used: 14-character profile names, 15-streak badge, long feedback text, Extra large text, colour-blind palette.
 
