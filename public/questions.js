@@ -653,24 +653,16 @@
     };
   }
 
-  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total:
-  // objects for the known part and empty dashed slots for the missing part, split at a row boundary when possible.
-  const TOTAL_ROWS = { 2: [[2]], 3: [[3]], 4: [[2, 2], [4]], 5: [[5], [3, 2]], 6: [[3, 3], [5, 1], [2, 2, 2]], 7: [[4, 3], [5, 2]], 8: [[4, 4], [5, 3]], 9: [[5, 4], [3, 3, 3]], 10: [[5, 5], [4, 3, 3]] };
-  // n objects in as few rows of at most five as possible, as even as possible (7 = 4 + 3).
-  function balancedRows(n) {
-    const rows = Math.ceil(n / 5), base = Math.floor(n / rows), extra = n % rows;
-    return Array.from({ length: rows }, (_, i) => base + (i < extra ? 1 : 0));
-  }
+  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total, filled
+  // in reading order with rows of five (10 = 5 + 5): objects for the known number, empty circles for the missing
+  // one, in the same order as the equation.
   const MISSING_CASES = [];
   for (let k = 1; k <= 9; k++) for (let m = 1; k + m <= 10; m++) { MISSING_CASES.push([k, m, true]); MISSING_CASES.push([k, m, false]); }
   function makeMissingNumberQuestion() {
     const [known, missing, knownFirst] = choose(MISSING_CASES);
     const total = known + missing;
     const item = choose(COUNT_OBJECTS);
-    const boundary = knownFirst ? known : missing;
-    const options = TOTAL_ROWS[total];
-    const aligned = options.filter(sizes => sizes.some((_, i) => sizes.slice(0, i + 1).reduce((s, n) => s + n, 0) === boundary));
-    const sizes = aligned.length ? choose(aligned) : total <= 5 ? [total] : [...balancedRows(boundary), ...balancedRows(total - boundary)];
+    const sizes = total > 5 ? [5, total - 5] : [total];
     const cells = (knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known)).split('');
     const rows = sizes.map(n => cells.splice(0, n).join(''));
     return {

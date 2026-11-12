@@ -81,6 +81,9 @@ for (let i = 0; i < N; i++) {
     if (!numeric(q.answers) || correct.length !== 1 || new Set(q.answers).size !== 4 || Number(q.answers[q.correct]) !== total - known) fail('missing: need exactly one correct answer', q);
     // the equation really holds only for the correct answer
     q.answers.forEach((a, j) => { if ((j === q.correct) !== (known + Number(a) === total)) fail('missing: ambiguous answers', q); });
+    // rows of five filled in order: first row full before the second starts
+    const expect = total > 5 ? [5, total - 5] : [total];
+    if (g.rows.map(r => r.length).join() !== expect.join()) fail('missing: rows must fill five at a time', q);
     seen.missing += 0;
   } else fail('unknown question type', q);
   q.answers.forEach((a, j, arr) => { if (/^\d+$/.test(a) && j && Number(a) <= Number(arr[j - 1])) fail('numeric answers must ascend', q); });
@@ -112,6 +115,16 @@ for (let g = 0; g < 200; g++) {
   if (first.length !== 6) fail('deal', first);
 }
 if (!(late / 200 > 2.2 && late > early)) fail('later questions should be harder on average', { early: early / 200, late: late / 200 });
+// "? + 3 = 10": 7 circles then 3 stars in two rows of five; "3 + ? = 10": 3 stars then 7 circles.
+{
+  const want = { '? + 3 = 10': ['OOOOO', 'OOXXX'], '3 + ? = 10': ['XXXOO', 'OOOOO'], '? + 5 = 8': ['OOOXX', 'XXX'], '4 + ? = 6': ['XXXXO', 'O'] };
+  const found = {};
+  for (let i = 0; i < 20000 && Object.keys(found).length < 4; i++) {
+    const q = Q.generateQuestion('age4');
+    if (want[q.question] && q.picture) found[q.question] = q.picture.groups[0].rows;
+  }
+  Object.entries(want).forEach(([k, rows]) => { if (!found[k] || found[k].join() !== rows.join()) fail('missing layout ' + k, found[k]); });
+}
 // The Age 2-3 and Age 5-6 generators are untouched.
 for (let i = 0; i < 300; i++) {
   ['toddler', 'age5', 'age6'].forEach(l => { const q = Q.generateQuestion(l); if (q.picture || q.tier) fail('picture/tier leaked into ' + l, q); });
