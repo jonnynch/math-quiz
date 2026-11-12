@@ -9,6 +9,13 @@ const objects = (g) => g.rows.join('').replace(/[^Xx]/g, '').length;      // obj
 const kept = (g) => g.rows.join('').replace(/[^X]/g, '').length;
 const removed = (g) => g.rows.join('').replace(/[^x]/g, '').length;
 const slots = (g) => g.rows.join('').replace(/[^O]/g, '').length;
+// Layout rule, restated from the spec: all numbers (answer included) in {3,6,9} -> 3 per row; else all in {2,4,6,8}
+// -> two rows filled column by column; else 5 per row filled in reading order.
+function expectedRows(seq, nums) {
+  if (nums.every(n => [3, 6, 9].includes(n))) return seq.match(/.{1,3}/g);
+  if (nums.every(n => [2, 4, 6, 8].includes(n))) return [0, 1].map(r => [...seq].filter((_, i) => i % 2 === r).join(''));
+  return seq.match(/.{1,5}/g);
+}
 const seen = { count: 0, compare: 0, add: 0, sub: 0, missing: 0 };
 const arrangements = {};                                  // count -> Set of arrangement keys
 let irregular = 0, countTotal = 0;
@@ -48,10 +55,12 @@ for (let i = 0; i < N; i++) {
   } else if (/^(\d+) \+ (\d+) = \?$/.test(q.question)) {
     seen.add++;
     const [, a, b] = q.question.match(/^(\d+) \+ (\d+)/).map(Number);
-    const [g1, g2] = q.picture.groups;
+    const g1 = q.picture.groups[0], flat = g1.rows.join('');
     if (a + b > 10 || a < 1 || b < 1) fail('add: sum over 10', q);
-    if (q.picture.groups.length !== 2 || q.picture.joiner !== '+' || g1.emoji === g2.emoji) fail('add: two distinct groups joined by +', q);
-    if (kept(g1) !== a || kept(g2) !== b || removed(g1) + removed(g2) + slots(g1) + slots(g2)) fail('add: picture does not match equation', q);
+    if (q.picture.joiner) fail('add: no plus sign between groups', q);
+    if (q.picture.groups.length !== 1 || !g1.emoji2 || g1.emoji === g1.emoji2) fail('add: one frame, two kinds of object', q);
+    if (cnt([flat], /[^X]/g) !== a || cnt([flat], /[^Y]/g) !== b || flat.length !== a + b) fail('add: picture does not match equation', q);
+    if (g1.rows.join() !== expectedRows('X'.repeat(a) + 'Y'.repeat(b), [a, b, a + b]).join()) fail('add: layout rule', q);
     if (!numeric(q.answers) || Number(q.answers[q.correct]) !== a + b || new Set(q.answers).size !== 4) fail('add: wrong answer', q);
     if (q.resultText !== `${a} + ${b} = ${a + b}`) fail('add: resultText', q);
   } else if (/^(\d+) − (\d+) = \?$/.test(q.question)) {
@@ -61,9 +70,8 @@ for (let i = 0; i < N; i++) {
     const total = gs.reduce((s, g) => s + objects(g), 0), gone = gs.reduce((s, g) => s + removed(g), 0), left = gs.reduce((s, g) => s + kept(g), 0);
     if (a > 10 || b >= a || b < 1) fail('sub: range / negative', q);
     if (total !== a || gone !== b || left !== a - b) fail('sub: picture does not show removed/remaining', q);
-    if (gs.some(g => g.emoji !== gs[0].emoji) || gs.length !== 2) fail('sub: one kind of object in two groups', q);
-    // removed objects are one whole group or the tail of one group (never scattered across both)
-    if (gs.filter(g => removed(g) > 0).length !== 1) fail('sub: removed objects must sit in one group', q);
+    if (gs.length !== 1 || q.picture.groups[0].rows.join('').length !== a) fail('sub: one frame holding exactly the starting objects', q);
+    if (gs[0].rows.join() !== expectedRows('X'.repeat(a - b) + 'x'.repeat(b), [a, b, a - b]).join()) fail('sub: layout rule', q);
     if (!numeric(q.answers) || Number(q.answers[q.correct]) !== a - b || Number(q.answers[q.correct]) < 0) fail('sub: wrong answer', q);
     if (q.resultText !== `${a} − ${b} = ${a - b}`) fail('sub: resultText', q);
   } else if (/\?/.test(q.question)) {
@@ -74,17 +82,12 @@ for (let i = 0; i < N; i++) {
     const rowText = g.rows.join('');
     if (total > 10 || known < 1 || known >= total) fail('missing: range', q);
     if (q.picture.groups.length !== 1 || kept(g) !== known || slots(g) !== total - known) fail('missing: picture does not match equation', q);
-    // known objects and empty slots are each one contiguous block (so the missing part is easy to see)
-    if (!/^X+O+$|^O+X+$/.test(rowText)) fail('missing: known and missing parts must be contiguous', q);
-    if (q.question.startsWith('?') !== rowText.startsWith('O')) fail('missing: slots must come first only for "? + n"', q);
     const correct = q.answers.filter(a => Number(a) === total - known);
     if (!numeric(q.answers) || correct.length !== 1 || new Set(q.answers).size !== 4 || Number(q.answers[q.correct]) !== total - known) fail('missing: need exactly one correct answer', q);
     // the equation really holds only for the correct answer
     q.answers.forEach((a, j) => { if ((j === q.correct) !== (known + Number(a) === total)) fail('missing: ambiguous answers', q); });
-    // rows of five filled in order: first row full before the second starts
-    const expect = total > 5 ? [5, total - 5] : [total];
-    if (g.rows.map(r => r.length).join() !== expect.join()) fail('missing: rows must fill five at a time', q);
-    seen.missing += 0;
+    const seq = q.question.startsWith('?') ? 'O'.repeat(total - known) + 'X'.repeat(known) : 'X'.repeat(known) + 'O'.repeat(total - known);
+    if (g.rows.join() !== expectedRows(seq, [known, total - known, total]).join()) fail('missing: layout rule / order of addends', q);
   } else fail('unknown question type', q);
   q.answers.forEach((a, j, arr) => { if (/^\d+$/.test(a) && j && Number(a) <= Number(arr[j - 1])) fail('numeric answers must ascend', q); });
 }
@@ -115,15 +118,23 @@ for (let g = 0; g < 200; g++) {
   if (first.length !== 6) fail('deal', first);
 }
 if (!(late / 200 > 2.2 && late > early)) fail('later questions should be harder on average', { early: early / 200, late: late / 200 });
-// "? + 3 = 10": 7 circles then 3 stars in two rows of five; "3 + ? = 10": 3 stars then 7 circles.
+// Layout selection looks at every number, answer included (X known/first, Y second, x crossed out, O missing).
 {
-  const want = { '? + 3 = 10': ['OOOOO', 'OOXXX'], '3 + ? = 10': ['XXXOO', 'OOOOO'], '? + 5 = 8': ['OOOXX', 'XXX'], '4 + ? = 6': ['XXXXO', 'O'] };
+  const want = {
+    '? + 6 = 10': ['OOOOX', 'XXXXX'], '3 + 3 = ?': ['XXX', 'YYY'], '? + 3 = 10': ['OOOOO', 'OOXXX'], '3 + ? = 10': ['XXXOO', 'OOOOO'], '7 + ? = 10': ['XXXXX', 'XXOOO'],
+    '6 + ? = 9': ['XXX', 'XXX', 'OOO'], '? + 3 = 9': ['OOO', 'OOO', 'XXX'],
+    '8 − 4 = ?': ['XXxx', 'XXxx'], '6 − 3 = ?': ['XXX', 'xxx'], '7 − 2 = ?': ['XXXXX', 'xx'],
+    '2 + 4 = ?': ['XYY', 'XYY'],
+    '3 + 6 = ?': ['XXX', 'YYY', 'YYY'], '4 + 3 = ?': ['XXXXY', 'YY'], '5 + 4 = ?': ['XXXXX', 'YYYY'],
+    '? + 4 = 8': ['OOXX', 'OOXX'], '2 + ? = 4': ['XO', 'XO'], '4 + ? = 6': ['XXO', 'XXO'], '5 + ? = 7': ['XXXXX', 'OO']
+  };
   const found = {};
-  for (let i = 0; i < 20000 && Object.keys(found).length < 4; i++) {
+  const total = Object.keys(want).length;
+  for (let i = 0; i < 60000 && Object.keys(found).length < total; i++) {
     const q = Q.generateQuestion('age4');
     if (want[q.question] && q.picture) found[q.question] = q.picture.groups[0].rows;
   }
-  Object.entries(want).forEach(([k, rows]) => { if (!found[k] || found[k].join() !== rows.join()) fail('missing layout ' + k, found[k]); });
+  Object.entries(want).forEach(([k, rows]) => { if (!found[k] || found[k].join() !== rows.join()) fail('layout for ' + k, found[k]); });
 }
 // The Age 2-3 and Age 5-6 generators are untouched.
 for (let i = 0; i < 300; i++) {

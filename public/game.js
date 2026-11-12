@@ -426,7 +426,7 @@
   }
 
   // Age 4 picture: groups of cells (X object, x crossed-out object, O empty slot, . blank), see questions.js.
-  const PICTURE_CELLS = { X: 'object', x: 'object removed', O: 'slot' };
+  const PICTURE_CELLS = { X: 'object', Y: 'object', x: 'object removed', O: 'slot' };
 
   function createPicture(picture) {
     const box = document.createElement('div');
@@ -449,10 +449,10 @@
         const cell = document.createElement('span');
         cell.className = `cell${PICTURE_CELLS[ch] ? ' ' + PICTURE_CELLS[ch] : ''}`;
         cell.setAttribute('aria-hidden', 'true');
-        if (ch === 'X' || ch === 'x') {
+        if (ch === 'X' || ch === 'x' || ch === 'Y') {
           const obj = document.createElement('span');
           obj.className = 'obj';
-          obj.textContent = group.emoji;
+          obj.textContent = ch === 'Y' ? group.emoji2 : group.emoji;
           cell.append(obj);
         }
         grid.append(cell);

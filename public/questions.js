@@ -530,33 +530,29 @@
     return { kind, rows: rows2 };
   }
 
-  const rowStrings = (sizes, ch = 'X') => sizes.map(n => ch.repeat(n));
-  const columnsOf = (sizes) => Math.max(...sizes);
-
-  // Compact row layouts for one group of n objects in an addition/subtraction picture.
-  const COMPACT = { 1: [[1]], 2: [[2]], 3: [[3]], 4: [[4], [2, 2]], 5: [[5], [3, 2]], 6: [[3, 3], [2, 2, 2]], 7: [[4, 3]], 8: [[4, 4]], 9: [[3, 3, 3], [5, 4]] };
-
-  // Two groups side by side: stay narrow enough for a phone, and prefer the same number of rows so
-  // the two quantities are easy to compare (5 + 2 = a row of five and a pair; 3 + 3 = two rows of three).
-  function pickPair(a, b) {
-    const combos = [];
-    COMPACT[a].forEach(x => COMPACT[b].forEach(y => combos.push([x, y])));
-    const narrow = combos.filter(([x, y]) => columnsOf(x) + columnsOf(y) <= 7);
-    const pool = narrow.length ? narrow : combos;
-    const gap = Math.min(...pool.map(([x, y]) => Math.abs(x.length - y.length)));
-    return choose(pool.filter(([x, y]) => Math.abs(x.length - y.length) === gap));
+  // One layout rule for every Age 4 arithmetic picture (add, subtract, missing number). It looks at EVERY number
+  // in the equation, answer included:
+  //  - all in {3, 6, 9}: 3 per row, so each number fills whole rows;
+  //  - else all in {2, 4, 6, 8}: two rows filled column by column, so each number fills whole columns;
+  //  - else 5 per row (up to two rows), filled in reading order.
+  function pictureLayout(...numbers) {
+    if (numbers.every(n => [3, 6, 9].includes(n))) return 'threes';
+    if (numbers.every(n => [2, 4, 6, 8].includes(n))) return 'twos';
+    return 'fives';
   }
 
-  // Marks the last `count` objects (reading order) as removed.
-  function crossOutLast(rows, count) {
-    const out = rows.map(r => r.split(''));
-    let left = count;
-    for (let r = out.length - 1; r >= 0 && left > 0; r--) {
-      for (let c = out[r].length - 1; c >= 0 && left > 0; c--) {
-        if (out[r][c] === 'X') { out[r][c] = 'x'; left--; }
-      }
+  // Lays the cells of `sequence` (a string such as 'XXXOO') out as rows for the chosen layout.
+  function arrangeCells(sequence, layout) {
+    const cells = sequence.split('');
+    if (layout === 'twos') {
+      const rows = ['', ''];
+      cells.forEach((c, i) => { rows[i % 2] += c; });
+      return rows;
     }
-    return out.map(r => r.join(''));
+    const perRow = layout === 'threes' ? 3 : 5;
+    const rows = [];
+    for (let i = 0; i < cells.length; i += perRow) rows.push(cells.slice(i, i + perRow).join(''));
+    return rows;
   }
 
   const tierOf = (size) => size <= 5 ? 1 : size <= 8 ? 2 : 3;
@@ -610,15 +606,15 @@
   function makeAddition10Question() {
     const [a, b] = choose(ADD_PAIRS);
     const [first, second] = shuffledCopy(COUNT_OBJECTS);
-    const [x, y] = pickPair(a, b);
+    const layout = pictureLayout(a, b, a + b);
     return {
       question: `${a} + ${b} = ?`,
       resultText: `${a} + ${b} = ${a + b}`,
       picture: {
-        groups: [{ emoji: first.emoji, rows: rowStrings(x) }, { emoji: second.emoji, rows: rowStrings(y) }],
-        joiner: '+',
+        // X = first kind of object, Y = second kind; one frame shows both addends together
+        groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: arrangeCells('X'.repeat(a) + 'Y'.repeat(b), layout) }],
         label: `${a} ${first.name} and ${b} ${second.name}`,
-        key: key('add', a, b, x.join(','), y.join(','))
+        key: key('add', a, b, layout)
       },
       ...makeNumberChoices(a + b, 1, 10, 4),
       tier: tierOf(a + b),
@@ -626,26 +622,22 @@
     };
   }
 
-  // D. Picture subtraction within 10: all objects are shown and the ones taken away are crossed out.
-  // The groups are chosen so the removed part and the remainder are easy to see:
-  //  - remainder of 5 or fewer: [remainder] + [removed group]   (7 - 2 = 5 + 2, 7 - 3 = 4 + 3, 8 - 3 = 5 + 3)
-  //  - bigger remainder: two near-equal groups with the removed objects at the end of the second (8 - 2 = 4 + 4)
+  // D. Picture subtraction within 10: all objects are shown in one frame, the remaining ones first and the
+  // ones taken away (crossed out) last, laid out by pictureLayout(a, b, a - b).
   const SUB_PAIRS = [];
   for (let a = 2; a <= 10; a++) for (let b = 1; b < a; b++) SUB_PAIRS.push([a, b]);
   function makeSubtraction10Question() {
     const [a, b] = choose(SUB_PAIRS);
     const item = choose(COUNT_OBJECTS);
     const keep = a - b;
-    const sizes = keep <= 5 ? [keep, b] : [Math.ceil(a / 2), Math.floor(a / 2)];
-    const [x, y] = pickPair(sizes[0], sizes[1]);
-    const second = crossOutLast(rowStrings(y), b);
+    const layout = pictureLayout(a, b, keep);
     return {
       question: `${a} − ${b} = ?`,
       resultText: `${a} − ${b} = ${keep}`,
       picture: {
-        groups: [{ emoji: item.emoji, rows: rowStrings(x) }, { emoji: item.emoji, rows: second }],
+        groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
         label: `${a} ${item.name}, ${b} crossed out`,
-        key: key('sub', a, b, x.join(','), y.join(','))
+        key: key('sub', a, b, layout)
       },
       ...makeNumberChoices(keep, 1, 10, 4),
       tier: tierOf(a),
@@ -653,25 +645,24 @@
     };
   }
 
-  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total, filled
-  // in reading order with rows of five (10 = 5 + 5): objects for the known number, empty circles for the missing
-  // one, in the same order as the equation.
+  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total:
+  // objects for the known number and empty circles for the missing one, in the order of the equation,
+  // laid out by pictureLayout(known, missing, total).
   const MISSING_CASES = [];
   for (let k = 1; k <= 9; k++) for (let m = 1; k + m <= 10; m++) { MISSING_CASES.push([k, m, true]); MISSING_CASES.push([k, m, false]); }
   function makeMissingNumberQuestion() {
     const [known, missing, knownFirst] = choose(MISSING_CASES);
     const total = known + missing;
     const item = choose(COUNT_OBJECTS);
-    const sizes = total > 5 ? [5, total - 5] : [total];
-    const cells = (knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known)).split('');
-    const rows = sizes.map(n => cells.splice(0, n).join(''));
+    const layout = pictureLayout(known, missing, total);
+    const rows = arrangeCells(knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known), layout);
     return {
       question: knownFirst ? `${known} + ? = ${total}` : `? + ${known} = ${total}`,
       resultText: knownFirst ? `${known} + ${missing} = ${total}` : `${missing} + ${known} = ${total}`,
       picture: {
         groups: [{ emoji: item.emoji, rows }],
         label: `${known} ${item.name} and ${missing} empty ${missing === 1 ? 'space' : 'spaces'}`,
-        key: key('missing', known, missing, knownFirst ? 'known-first' : 'known-last', sizes.join(','))
+        key: key('missing', known, missing, knownFirst ? 'known-first' : 'known-last', layout)
       },
       ...makeNumberChoices(missing, 1, 10, 4),
       tier: tierOf(total),
