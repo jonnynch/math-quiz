@@ -466,19 +466,213 @@
     };
   }
 
-  // Age 4: count 1-10 objects, laid out in rows of 5 (6 = 5 + 1, 7 = 5 + 2, ...).
+  // Age 2-3: two groups of different objects; the child taps the group with MORE (never "fewer").
+  // The answers are the groups themselves (emoji strings); `answerLabels` are for screen readers / read-aloud.
+  const COMPARE_PAIRS = [[1, 3], [1, 4], [1, 5], [2, 4], [2, 5], [3, 5]]; // clearly different, 1-5 objects
+  function makeCompareGroupsQuestion() {
+    const [small, large] = choose(COMPARE_PAIRS);
+    const [itemA, itemB] = shuffledCopy(COUNT_OBJECTS);
+    const more = itemA, less = itemB;
+    const groups = [
+      { item: more, count: large },
+      { item: less, count: small }
+    ];
+    if (choose([true, false])) groups.reverse();   // random position for the correct group
+    return {
+      question: 'Which group has more?',
+      answers: groups.map(g => g.item.emoji.repeat(g.count)),
+      answerLabels: groups.map(g => `${g.item.name}: ${g.count}`),
+      correct: groups.findIndex(g => g.count === large),
+      groups: true,
+      simple: true
+    };
+  }
+
+  // Age 2-3 has exactly two question types: counting and comparing two groups.
+  function makeToddlerQuestion() {
+    return choose([true, false]) ? makeCountingQuestion() : makeCompareGroupsQuestion();
+  }
+
+  // ---------- Age 4: five picture question types that teach number sense ----------
+  // A picture is a list of groups; a group is rows of cells written as strings:
+  // X object, x crossed-out (removed) object, O empty slot (missing object), . blank space.
+  // Layouts are chosen once per question and never change while the child answers.
+  const COUNT_LAYOUTS = {
+    1: { single: ['X'] },
+    2: { pair: ['XX'], column: ['X', 'X'] },
+    3: { row: ['XXX'], diagonal: ['X..', '.X.', '..X'], corner: ['XX', 'X.'] },
+    4: { square: ['XX', 'XX'], row: ['XXXX'], 'three-one': ['XXX', 'X..'] },
+    5: { row: ['XXXXX'], dice: ['X.X', '.X.', 'X.X'], 'three-two': ['XXX', 'XX.'] },
+    6: { 'two-threes': ['XXX', 'XXX'], 'three-pairs': ['XX', 'XX', 'XX'], 'five-one': ['XXXXX', 'X....'] },
+    7: { 'four-three': ['XXXX', 'XXX.'], 'five-two': ['XXXXX', 'XX...'], 'dice-seven': ['X.X', 'XXX', 'X.X'] },
+    8: { 'two-fours': ['XXXX', 'XXXX'], 'five-three': ['XXXXX', 'XXX..'], ring: ['XXX', 'X.X', 'XXX'] },
+    9: { 'three-by-three': ['XXX', 'XXX', 'XXX'], 'five-four': ['XXXXX', 'XXXX.'], 'four-four-one': ['XXXX', 'XXXX', 'X...'] },
+    10: { 'two-fives': ['XXXXX', 'XXXXX'], 'three-four-three': ['XXX.', 'XXXX', 'XXX.'], 'four-four-two': ['XXXX', 'XXXX', 'XX..'] }
+  };
+
+  // A scattered, irregular arrangement on a small grid, so children learn the quantity and not one pattern.
+  function irregularLayout(count) {
+    const cols = count > 8 ? 5 : 4, rows = 3;
+    const known = Object.values(COUNT_LAYOUTS[count]).map(l => l.join('/'));
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const chosen = shuffledCopy([...Array(cols * rows).keys()]).slice(0, count);
+      let grid = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => chosen.includes(r * cols + c) ? 'X' : '.').join(''));
+      grid = grid.filter(r => r.includes('X'));
+      const used = [...grid[0]].map((_, c) => grid.some(r => r[c] === 'X'));
+      const first = used.indexOf(true), last = used.lastIndexOf(true);
+      grid = grid.map(r => r.slice(first, last + 1));
+      if (grid.length >= 2 && grid[0].length >= 2 && grid.some(r => r.includes('.')) && !known.includes(grid.join('/'))) {
+        return { kind: 'irregular', rows: grid };
+      }
+    }
+    const [kind, rows2] = choose(Object.entries(COUNT_LAYOUTS[count]));
+    return { kind, rows: rows2 };
+  }
+
+  // One layout rule for every Age 4 arithmetic picture (add, subtract, missing number). It looks at EVERY number
+  // in the equation, answer included:
+  //  - all in {3, 6, 9}: 3 per row, so each number fills whole rows;
+  //  - else all in {2, 4, 6, 8}: two rows filled column by column, so each number fills whole columns;
+  //  - else 5 per row (up to two rows), filled in reading order.
+  function pictureLayout(...numbers) {
+    if (numbers.every(n => [3, 6, 9].includes(n))) return 'threes';
+    if (numbers.every(n => [2, 4, 6, 8].includes(n))) return 'twos';
+    return 'fives';
+  }
+
+  // Lays the cells of `sequence` (a string such as 'XXXOO') out as rows for the chosen layout.
+  function arrangeCells(sequence, layout) {
+    const cells = sequence.split('');
+    if (layout === 'twos') {
+      const rows = ['', ''];
+      cells.forEach((c, i) => { rows[i % 2] += c; });
+      return rows;
+    }
+    const perRow = layout === 'threes' ? 3 : 5;
+    const rows = [];
+    for (let i = 0; i < cells.length; i += perRow) rows.push(cells.slice(i, i + perRow).join(''));
+    return rows;
+  }
+
+  const tierOf = (size) => size <= 5 ? 1 : size <= 8 ? 2 : 3;
+  const key = (...parts) => parts.join(' ');
+
+  // A. Count 1-10 objects in a varied arrangement. Prompt: "How many?"
   function makeCounting10Question() {
     const item = choose(COUNT_OBJECTS);
     const count = intBetween(1, 10);
-    const choices = makeNumberChoices(count, 1, 10, 4);
+    const layout = count >= 4 && Math.random() < 0.25
+      ? irregularLayout(count)
+      : (([kind, rows]) => ({ kind, rows }))(choose(Object.entries(COUNT_LAYOUTS[count])));
     return {
-      question: `How many ${item.name}?`,
-      visual: Array(count).fill(item.emoji),
-      visualLabel: `${item.name}: ${count}`,
-      rowsOfFive: true,
-      ...choices,
+      question: 'How many?',
+      picture: {
+        groups: [{ emoji: item.emoji, rows: layout.rows }],
+        label: `${item.name}: ${count}`,
+        key: key('count', count, layout.kind === 'irregular' ? 'irregular' : layout.rows.join('/'))
+      },
+      ...makeNumberChoices(count, 1, 10, 4),
+      tier: tierOf(count),
       simple: true
     };
+  }
+
+  // B. "Which group has more?" with two groups of different objects (up to 10 each); tap a group.
+  // Groups of more than 5 wrap after five so rows line up and are easy to compare.
+  const groupText = (emoji, n) => n <= 5 ? emoji.repeat(n) : `${emoji.repeat(5)}\n${emoji.repeat(n - 5)}`;
+  const COMPARE_PAIRS10 = [];
+  for (let large = 2; large <= 10; large++) for (let small = 1; small < large; small++) COMPARE_PAIRS10.push([small, large]);
+  function makeCompare10Question() {
+    const [small, large] = choose(COMPARE_PAIRS10);
+    const [more, less] = shuffledCopy(COUNT_OBJECTS);
+    const groups = [{ item: more, count: large }, { item: less, count: small }];
+    if (choose([true, false])) groups.reverse();
+    const gap = large - small;
+    return {
+      question: 'Which group has more?',
+      answers: groups.map(g => groupText(g.item.emoji, g.count)),
+      answerLabels: groups.map(g => `${g.item.name}: ${g.count}`),
+      correct: groups.findIndex(g => g.count === large),
+      groups: true,
+      tier: gap === 1 ? 3 : (gap >= 3 && large <= 6) ? 1 : 2,
+      simple: true
+    };
+  }
+
+  // C. Picture addition within 10: "3 + 2 = ?" with the two groups shown side by side.
+  const ADD_PAIRS = [];
+  for (let a = 1; a <= 9; a++) for (let b = 1; a + b <= 10; b++) ADD_PAIRS.push([a, b]);
+  function makeAddition10Question() {
+    const [a, b] = choose(ADD_PAIRS);
+    const [first, second] = shuffledCopy(COUNT_OBJECTS);
+    const layout = pictureLayout(a, b, a + b);
+    return {
+      question: `${a} + ${b} = ?`,
+      resultText: `${a} + ${b} = ${a + b}`,
+      picture: {
+        // X = first kind of object, Y = second kind; one frame shows both addends together
+        groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: arrangeCells('X'.repeat(a) + 'Y'.repeat(b), layout) }],
+        label: `${a} ${first.name} and ${b} ${second.name}`,
+        key: key('add', a, b, layout)
+      },
+      ...makeNumberChoices(a + b, 1, 10, 4),
+      tier: tierOf(a + b),
+      simple: true
+    };
+  }
+
+  // D. Picture subtraction within 10: all objects are shown in one frame, the remaining ones first and the
+  // ones taken away (crossed out) last, laid out by pictureLayout(a, b, a - b).
+  const SUB_PAIRS = [];
+  for (let a = 2; a <= 10; a++) for (let b = 1; b < a; b++) SUB_PAIRS.push([a, b]);
+  function makeSubtraction10Question() {
+    const [a, b] = choose(SUB_PAIRS);
+    const item = choose(COUNT_OBJECTS);
+    const keep = a - b;
+    const layout = pictureLayout(a, b, keep);
+    return {
+      question: `${a} − ${b} = ?`,
+      resultText: `${a} − ${b} = ${keep}`,
+      picture: {
+        groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
+        label: `${a} ${item.name}, ${b} crossed out`,
+        key: key('sub', a, b, layout)
+      },
+      ...makeNumberChoices(keep, 1, 10, 4),
+      tier: tierOf(a),
+      simple: true
+    };
+  }
+
+  // E. Missing-number addition within 10: "3 + ? = 5" or "? + 2 = 5". One frame shows the whole total:
+  // objects for the known number and empty circles for the missing one, in the order of the equation,
+  // laid out by pictureLayout(known, missing, total).
+  const MISSING_CASES = [];
+  for (let k = 1; k <= 9; k++) for (let m = 1; k + m <= 10; m++) { MISSING_CASES.push([k, m, true]); MISSING_CASES.push([k, m, false]); }
+  function makeMissingNumberQuestion() {
+    const [known, missing, knownFirst] = choose(MISSING_CASES);
+    const total = known + missing;
+    const item = choose(COUNT_OBJECTS);
+    const layout = pictureLayout(known, missing, total);
+    const rows = arrangeCells(knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known), layout);
+    return {
+      question: knownFirst ? `${known} + ? = ${total}` : `? + ${known} = ${total}`,
+      resultText: knownFirst ? `${known} + ${missing} = ${total}` : `${missing} + ${known} = ${total}`,
+      picture: {
+        groups: [{ emoji: item.emoji, rows }],
+        label: `${known} ${item.name} and ${missing} empty ${missing === 1 ? 'space' : 'spaces'}`,
+        key: key('missing', known, missing, knownFirst ? 'known-first' : 'known-last', layout)
+      },
+      ...makeNumberChoices(missing, 1, 10, 4),
+      tier: tierOf(total),
+      simple: true
+    };
+  }
+
+  // Age 4 has exactly five question types, picked at random.
+  function makeAge4Question() {
+    return choose([makeCounting10Question, makeCompare10Question, makeAddition10Question, makeSubtraction10Question, makeMissingNumberQuestion])();
   }
 
   // Age 5: number bonds to 10 (3 + ? = 10 -> 7).
@@ -571,8 +765,8 @@
   const ALL_MIX_TOPICS = ['mixed', 'tables', 'compare', 'fractions', 'money', 'clock', 'shapes'];
 
   function generateRawQuestion(difficulty, topic) {
-    if (difficulty === 'toddler') return makeCountingQuestion();
-    if (difficulty === 'age4') return makeCounting10Question();
+    if (difficulty === 'toddler') return makeToddlerQuestion();
+    if (difficulty === 'age4') return makeAge4Question();
     if (difficulty === 'age5') return makeBondsTo10Question();
     if (difficulty === 'age6') return makeWithin10Question();
     const grade = gradeOf(difficulty);
@@ -612,7 +806,9 @@
   // and so are decorative emoji (Age 5/6 stages), so "What is 6 × 7?" generated twice with different
   // wrong answers is the same question.
   function questionKey(q) {
-    return JSON.stringify([q.question, q.figure || null, q.answers[q.correct]]);
+    const identity = [q.question, q.figure || null, q.answers[q.correct]];
+    if (q.picture) identity.push(q.picture.key);   // Age 4: the same sum in another arrangement is a different question
+    return JSON.stringify(identity);
   }
 
   // Generates up to `size` distinct questions. Attempts are capped so a small pool (e.g. Age 5, which
@@ -637,6 +833,10 @@
     let order = shuffledCopy(bank);
     let index = 0;
     let last = null;
+    // Age 4 questions carry a `tier` (1 easiest). In the first round the highest tier allowed rises by one
+    // for every 6 questions dealt, so a game starts with small, clearly different quantities.
+    const tiered = bank.some(q => q.tier);
+    let firstRound = true;
     return {
       next() {
         if (index >= order.length) {
@@ -646,6 +846,12 @@
             [order[0], order[j]] = [order[j], order[0]];
           }
           index = 0;
+          firstRound = false;
+        }
+        if (tiered && firstRound) {
+          const allowed = 1 + Math.floor(index / 6);
+          const j = order.findIndex((q, i) => i >= index && (q.tier || 1) <= allowed);
+          if (j > index) [order[index], order[j]] = [order[j], order[index]];
         }
         last = order[index++];
         return last;

@@ -39,7 +39,7 @@
   // One string: the question, then "A, 5. B, 7. ..." (the letters are shown on screen except for the youngest boards).
   function questionSpeech(question) {
     const letters = !question.simple;
-    const answers = (question.answers || []).map((answer, index) =>
+    const answers = (question.answerLabels || question.answers || []).map((answer, index) =>
       `${letters ? `${String.fromCharCode(65 + index)}, ` : ''}${spokenText(answer)}`);
     const intro = spokenText(question.question);
     return answers.length ? `${intro} ${/[?.!]$/.test(intro) ? '' : '. '}${answers.join('. ')}.` : intro;
