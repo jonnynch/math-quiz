@@ -41,7 +41,9 @@
     const letters = !question.simple;
     const answers = (question.answerLabels || question.answers || []).map((answer, index) =>
       `${letters ? `${String.fromCharCode(65 + index)}, ` : ''}${spokenText(answer)}`);
-    const intro = spokenText(question.question);
+    // A counting sequence is part of the question (3, 4, ?, 6); pictures are never described.
+    const sequence = question.numbers ? ` ${question.numbers.join(', ').replace('?', 'what')}.` : '';
+    const intro = spokenText(question.question) + sequence;
     return answers.length ? `${intro} ${/[?.!]$/.test(intro) ? '' : '. '}${answers.join('. ')}.` : intro;
   }
 

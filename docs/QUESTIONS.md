@@ -13,7 +13,7 @@ All in `public/questions.js` (pure, testable in Node: `require('./public/questio
   correct: 2,                            // index into answers (after ordering)
   simple: true,                          // optional: big centred number buttons, no A/B/C prefix (age levels)
   visual: ['🍎', …], visualLabel, rowsOfFive: true,       // optional counting objects (age 2–4)
-  stage: { base:{emoji,name}, baseCount, op:'add'|'remove', change, added?:{emoji,name} },  // age 5/6
+  stage: { base:{emoji,name}, baseCount, op:'add'|'remove', change, added?:{emoji,name} },  // age 6
   resultText: '3 + 7 = 10',              // optional: replaces the question text after a correct answer
   figure: { type:'clock', hour, minute } | { type:'polygon', sides }   // optional SVG drawn by game.js
 }
@@ -33,14 +33,14 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 - `tests/questions.check.js` prints the position distribution per level/topic; it should be roughly even (see `docs/TESTING.md`). Limits that are unavoidable: when the correct answer is the smallest or largest possible, the randomisation is constrained.
 
 ## No repeats within a game
-`buildQuestionBank` makes up to 500 distinct questions per level/topic (identity = `questionKey`: wording + figure + correct answer; capped attempts, so tiny pools such as Age 5 simply give a smaller bank).
+`buildQuestionBank` makes up to 500 distinct questions per level/topic (identity = `questionKey`: wording + figure + correct answer; capped attempts, so small pools such as Age 4 simply give a smaller bank).
 
 ## Levels
 | Level | Generator | Notes |
 |---|---|---|
 | `toddler` | `makeToddlerQuestion` | Random mix of two types, both `simple`: `makeCountingQuestion` (1–5 objects in a row of 5, 3 options) and `makeCompareGroupsQuestion` ("Which group has more?": two groups of different objects, 1–5 each, counts differ by ≥ 2; the answers are the two groups themselves, tapped directly, `groups: true`, `answerLabels` for screen readers/read-aloud). Never asks for "fewer". Checked by `npm run test:toddler` |
 | `age4` | `makeAge4Question` | Random mix of exactly five `simple` picture types, all within 10: `makeCounting10Question` ("How many?", 1–10 objects in a varied layout from `COUNT_LAYOUTS` or an occasional irregular one), `makeCompare10Question` ("Which group has more?", tap a group, closer pairs are harder), `makeAddition10Question` (`3 + 2 = ?`, two kinds of object in one frame), `makeSubtraction10Question` (`7 − 3 = ?`, all objects shown, remainder first, removed ones crossed out), `makeMissingNumberQuestion` (`3 + ? = 5` / `? + 2 = 5`, one frame of the total with dashed empty slots). Add, subtract and missing-number pictures share `pictureLayout()`: if every number in the equation (answer included) is in {3, 6, 9} → 3 per row; else if all in {2, 4, 6, 8} → two rows filled column by column; else 5 per row. Pictures are `picture` = groups of cell rows (`X` object, `x` crossed out, `O` empty slot, `.` blank), rendered by `createPicture()` in `game.js`; the arrangement is fixed per question and is part of `questionKey`. Each question has a `tier` (1–3); `createQuestionDeck` deals easier tiers first in the first round (allowed tier +1 every 6 questions). Checked by `npm run test:age4` |
-| `age5` | `makeBondsTo10Question` | `3 + ? = 10`; `stage` shows 3 objects, correct answer adds 7 of a different type |
+| `age5` | `makeAge5Question` | ONE pool, ten weighted topics, no stages. Each question has `topic`, `kind` and `tier` (1–3; `createQuestionDeck` raises the allowed tier every 6 questions in the first round): counting 1–20 (`makeCounting20Question`, grouped 10+n / 6+6 / 10+10 layouts), compare more/fewer ("fewer" only from tier 2, gap ≥ 2), addition (picture → "How many altogether?" → notation; bonds, make 10, doubles, missing addend, beyond 10 without carrying), subtraction (picture, within 20, crossing 10 at tier 3 only, missing subtrahend/minuend, inverse), place value (rectangle marked 10 = one ten, circle marked 1 = one one; never money, no "tens/ones" wording), counting sequences (`numbers`, step ±1, 2, 5, 10, one gap), visual patterns (`pattern`, AB/AAB/ABB/ABC, `answerVisuals`), equal grouping ("How many groups?"), equal sharing ("How many each?", `lead` child per group), 2D shapes (circle/square/triangle/rectangle, `figure.type:'shape'`). Excluded: money, time, measurement, 3D shapes, number patterns, skip counting by 3, × ÷ symbols. Checked by `npm run test:age5` and `npm run test:age5ui` |
 | `age6` | `makeWithin10Question` | sums ≤ 10; subtraction starts ≤ 10; `stage` adds a different object type or removes the last ones |
 | `grade1`–`grade6` | topic generators | below |
 

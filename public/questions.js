@@ -3,10 +3,10 @@
   'use strict';
 
   const DIFFICULTIES = [
-    { value: 'toddler', label: 'Age 2–3 · Counting' },
-    { value: 'age4', label: 'Age 4 · Counting to 10' },
-    { value: 'age5', label: 'Age 5 · Making 10' },
-    { value: 'age6', label: 'Age 6 · Add & subtract to 10' },
+    { value: 'toddler', label: 'Age 2–3' },
+    { value: 'age4', label: 'Age 4' },
+    { value: 'age5', label: 'Age 5' },
+    { value: 'age6', label: 'Age 6' },
     { value: 'grade1', label: 'Grade 1' },
     { value: 'grade2', label: 'Grade 2' },
     { value: 'grade3', label: 'Grade 3' },
@@ -675,19 +675,525 @@
     return choose([makeCounting10Question, makeCompare10Question, makeAddition10Question, makeSubtraction10Question, makeMissingNumberQuestion])();
   }
 
-  // Age 5: number bonds to 10 (3 + ? = 10 -> 7).
-  // The object stage shows the first number; the correct answer adds that many objects of another type.
-  function makeBondsTo10Question() {
-    const known = intBetween(1, 9);
+  // ---------- Age 5: ONE question pool, ten topics, difficulty rising through `tier` ----------
+  // There are no stages or sub-levels. Every question carries a `topic`, a `kind` and a `tier` (1 easiest);
+  // `createQuestionDeck` deals easier tiers first (allowed tier +1 every 6 questions), so "fewer", crossing 10,
+  // place value, number notation and so on arrive gradually inside the same pool.
+  const weightedChoose = (pairs) => {
+    let roll = Math.random() * pairs.reduce((sum, p) => sum + p[1], 0);
+    for (const [item, weight] of pairs) { roll -= weight; if (roll < 0) return item; }
+    return pairs[pairs.length - 1][0];
+  };
+  const tag = (q, topic, kind, tier) => Object.assign(q, { topic, kind, tier, simple: true });
+
+  // Four numeric choices within min..max around `answer`; `extras` are typical mistakes (one is always included).
+  function numberChoices(answer, min, max, extras = []) {
+    const pool = [];
+    for (let n = Math.max(min, answer - 5); n <= Math.min(max, answer + 5); n++) if (n !== answer) pool.push(n);
+    const mistakes = [...new Set(extras)].filter(v => Number.isInteger(v) && v >= min && v <= max && v !== answer);
+    pool.push(...mistakes);
+    return { answers: [answer, ...pickWithMistake(answer, pool, 3, mistakes)].map(String), correct: 0 };
+  }
+
+  // Same, but from an explicit candidate list (skip counting, tens).
+  function choicesFrom(answer, candidates, mistakes = []) {
+    const fits = (v) => Number.isInteger(v) && v >= 0 && v !== answer;
+    const pool = [...new Set(candidates)].filter(fits);
+    return { answers: [answer, ...pickWithMistake(answer, pool, 3, mistakes.filter(fits))].map(String), correct: 0 };
+  }
+
+  const chunkRows = (size, perRow) => {
+    const rows = [];
+    for (let i = 0; i < size; i += perRow) rows.push('X'.repeat(Math.min(perRow, size - i)));
+    return rows;
+  };
+
+  // ----- 1. Counting objects 1-20 -----
+  // 11-20 are shown as familiar groups of [size, objects per row]: 10 + n as a ten-frame, 6 + 6, 10 + 5, 10 + 10 ...
+  const GROUPED_COUNTS = {
+    11: [[[10, 5], [1, 1]], [[5, 5], [6, 3]]],
+    12: [[[10, 5], [2, 2]], [[6, 3], [6, 3]]],
+    13: [[[10, 5], [3, 3]], [[5, 5], [8, 4]]],
+    14: [[[10, 5], [4, 2]], [[7, 4], [7, 4]]],
+    15: [[[10, 5], [5, 5]], [[6, 3], [9, 3]]],
+    16: [[[10, 5], [6, 3]], [[8, 4], [8, 4]]],
+    17: [[[10, 5], [7, 4]], [[9, 3], [8, 4]]],
+    18: [[[10, 5], [8, 4]], [[9, 3], [9, 3]]],
+    19: [[[10, 5], [9, 3]], [[10, 5], [9, 5]]],
+    20: [[[10, 5], [10, 5]]]
+  };
+
+  // Scattered arrangement of 11-15 objects on a 6 x 3 grid (never a full block, so it is not a known pattern).
+  function scatterLayout(count) {
+    const cols = 6, rows = 3;
+    for (let attempt = 0; attempt < 60; attempt++) {
+      const chosen = shuffledCopy([...Array(cols * rows).keys()]).slice(0, count);
+      let grid = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => chosen.includes(r * cols + c) ? 'X' : '.').join(''));
+      grid = grid.filter(r => r.includes('X'));
+      const used = [...grid[0]].map((_, c) => grid.some(r => r[c] === 'X'));
+      const first = used.indexOf(true), last = used.lastIndexOf(true);
+      grid = grid.map(r => r.slice(first, last + 1));
+      if (grid.length >= 2 && grid.some(r => r.includes('.'))) return grid;
+    }
+    return null;
+  }
+
+  function makeCounting20Question() {
+    const item = choose(COUNT_OBJECTS);
+    const count = intBetween(1, 20);
+    let groups, arrangement, irregular = false;
+    if (count <= 10) {
+      const layout = count >= 4 && Math.random() < 0.25
+        ? irregularLayout(count)
+        : (([kind, rows]) => ({ kind, rows }))(choose(Object.entries(COUNT_LAYOUTS[count])));
+      irregular = layout.kind === 'irregular';
+      groups = [{ emoji: item.emoji, rows: layout.rows }];
+      arrangement = layout.rows.join('/');
+    } else {
+      const scatter = count <= 15 && Math.random() < 0.25 ? scatterLayout(count) : null;
+      if (scatter) {
+        irregular = true;
+        groups = [{ emoji: item.emoji, rows: scatter }];
+        arrangement = scatter.join('/');
+      } else {
+        const spec = choose(GROUPED_COUNTS[count]);
+        groups = spec.map(([size, perRow]) => ({ emoji: item.emoji, rows: chunkRows(size, perRow) }));
+        arrangement = groups.map(g => g.rows.join('/')).join('+');
+      }
+    }
+    const base = count <= 6 ? 1 : count <= 15 ? 2 : 3;
+    return tag({
+      question: 'How many?',
+      picture: { groups, label: `${item.name}: ${count}`, key: key('count5', count, irregular ? 'irregular ' + arrangement : arrangement) },
+      ...numberChoices(count, 1, 20)
+    }, 'counting', irregular ? 'irregular' : count > 10 ? 'grouped' : 'arranged', Math.min(3, base + (irregular && count > 6 ? 1 : 0)));
+  }
+
+  // ----- 2. Comparing groups: "more", with "fewer" introduced gradually -----
+  const COMPARE_PAIRS12 = [];
+  for (let large = 2; large <= 12; large++) for (let small = 1; small < large; small++) COMPARE_PAIRS12.push([small, large]);
+  const groupTextSix = (emoji, n) => n <= 6 ? emoji.repeat(n) : `${emoji.repeat(6)}\n${emoji.repeat(n - 6)}`;
+
+  function makeCompareAge5Question() {
+    const [small, large] = choose(COMPARE_PAIRS12);
+    const gap = large - small;
+    const base = gap === 1 || large >= 10 ? 3 : gap >= 4 && large <= 8 ? 1 : 2;
+    // "fewer" needs a clear gap; it is rare among the easy pairs and common among the harder ones.
+    const fewer = gap >= 2 && Math.random() < [0, 0.1, 0.25, 0.6][base];
     const [first, second] = shuffledCopy(COUNT_OBJECTS);
-    const choices = makeNumberChoices(10 - known, 0, 10, 4);
-    return {
-      question: `${known} + ? = 10`,
-      resultText: `${known} + ${10 - known} = 10`,
-      stage: { base: first, baseCount: known, op: 'add', change: 10 - known, added: second },
-      ...choices,
-      simple: true
-    };
+    const groups = [{ item: first, count: large }, { item: second, count: small }];
+    if (choose([true, false])) groups.reverse();
+    const target = fewer ? small : large;
+    return tag({
+      question: fewer ? 'Which group has fewer?' : 'Which group has more?',
+      answers: groups.map(g => groupTextSix(g.item.emoji, g.count)),
+      answerLabels: groups.map(g => `${g.item.name}: ${g.count}`),
+      correct: groups.findIndex(g => g.count === target),
+      groups: true
+    }, 'compare', fewer ? 'fewer' : 'more', fewer ? Math.max(2, base) : base);
+  }
+
+  // ----- 3. Addition -----
+  const DOUBLE_ITEMS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+  function makeAdditionAge5Question() {
+    const kind = weightedChoose([['picture', 26], ['bond', 14], ['make10', 16], ['double', 14], ['missing', 16], ['beyond', 14]]);
+    const [first, second] = shuffledCopy(COUNT_OBJECTS);
+
+    if (kind === 'picture') {
+      // Picture first. Small sums are asked without any numbers ("How many altogether?"); notation comes in with larger sums.
+      const [a, b] = choose(ADD_PAIRS);
+      const sum = a + b, layout = pictureLayout(a, b, sum);
+      const words = sum <= 6 && Math.random() < 0.65;
+      return tag({
+        question: words ? 'How many altogether?' : `${a} + ${b} = ?`,
+        resultText: `${a} + ${b} = ${sum}`,
+        picture: {
+          groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: arrangeCells('X'.repeat(a) + 'Y'.repeat(b), layout) }],
+          label: `${a} ${first.name} and ${b} ${second.name}`,
+          key: key('add5', a, b, layout, words ? 'words' : 'sum')
+        },
+        ...numberChoices(sum, 1, 10, [a, b])
+      }, 'addition', 'picture', words ? 1 : 2);
+    }
+
+    if (kind === 'bond') {
+      // Number bonds within 10: the whole is shown, find the missing part.
+      const total = intBetween(3, 10), known = intBetween(1, total - 1), missing = total - known;
+      const layout = pictureLayout(known, missing, total);
+      return tag({
+        question: `${known} and ? make ${total}`,
+        resultText: `${known} + ${missing} = ${total}`,
+        picture: {
+          groups: [{ emoji: first.emoji, rows: arrangeCells('X'.repeat(known) + 'O'.repeat(missing), layout) }],
+          label: `${known} ${first.name} and ${missing} empty ${missing === 1 ? 'space' : 'spaces'}`,
+          key: key('bond5', known, missing, layout)
+        },
+        ...numberChoices(missing, 1, 10, [known, total])
+      }, 'addition', 'bond', total <= 6 ? 1 : 2);
+    }
+
+    if (kind === 'make10') {
+      const known = intBetween(1, 9), missing = 10 - known, knownFirst = Math.random() < 0.7;
+      const withPicture = Math.random() < 0.6;
+      const q = {
+        question: knownFirst ? `${known} + ? = 10` : `? + ${known} = 10`,
+        resultText: knownFirst ? `${known} + ${missing} = 10` : `${missing} + ${known} = 10`,
+        ...numberChoices(missing, 0, 10, [known, 9])
+      };
+      if (withPicture) {
+        const seq = knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known);
+        q.picture = { groups: [{ emoji: first.emoji, rows: arrangeCells(seq, 'fives') }], label: `${known} ${first.name} and ${missing} empty spaces`, key: key('make10', known, knownFirst ? 'first' : 'last') };
+      }
+      return tag(q, 'addition', 'make10', withPicture ? 1 : 2);
+    }
+
+    if (kind === 'double') {
+      const a = choose(DOUBLE_ITEMS);
+      const q = { question: `${a} + ${a} = ?`, resultText: `${a} + ${a} = ${2 * a}`, ...numberChoices(2 * a, 2, 20, [a, 2 * a - 1, 2 * a + 1]) };
+      if (a <= 5) {
+        // two matching rows make the "double" easy to see
+        q.picture = { groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: ['X'.repeat(a), 'Y'.repeat(a)] }], label: `${a} ${first.name} and ${a} ${second.name}`, key: key('double', a) };
+      }
+      return tag(q, 'addition', 'double', a <= 3 ? 1 : a <= 5 ? 2 : 3);
+    }
+
+    if (kind === 'missing') {
+      // Missing addend. Within 10 a picture is shown; beyond 10 it is numbers only.
+      const big = Math.random() < 0.4;
+      let known, total;
+      if (big) { known = intBetween(10, 17); total = intBetween(known + 1, 10 * Math.floor(known / 10) + 9); }
+      else { total = intBetween(3, 10); known = intBetween(1, total - 1); }
+      const missing = total - known, knownFirst = Math.random() < 0.6;
+      const q = {
+        question: knownFirst ? `${known} + ? = ${total}` : `? + ${known} = ${total}`,
+        resultText: knownFirst ? `${known} + ${missing} = ${total}` : `${missing} + ${known} = ${total}`,
+        ...numberChoices(missing, 1, big ? 9 : 10, [known > 9 ? known - 10 : known, total])
+      };
+      if (!big) {
+        const layout = pictureLayout(known, missing, total);
+        const seq = knownFirst ? 'X'.repeat(known) + 'O'.repeat(missing) : 'O'.repeat(missing) + 'X'.repeat(known);
+        q.picture = { groups: [{ emoji: first.emoji, rows: arrangeCells(seq, layout) }], label: `${known} ${first.name} and ${missing} empty ${missing === 1 ? 'space' : 'spaces'}`, key: key('miss5', known, missing, knownFirst ? 'first' : 'last', layout) };
+      }
+      return tag(q, 'addition', 'missing', big ? 3 : 2);
+    }
+
+    // Beyond 10 with no carrying: 12 + 3, 3 + 12 ...
+    const a = intBetween(10, 18), b = intBetween(1, 9 - (a % 10));
+    const swap = a > 10 && Math.random() < 0.3;
+    const [x, y] = swap ? [b, a] : [a, b];
+    return tag({
+      question: `${x} + ${y} = ?`,
+      resultText: `${x} + ${y} = ${a + b}`,
+      ...numberChoices(a + b, 11, 20, [a, a + b - 10, a + b + 1])
+    }, 'addition', 'beyond10', a === 10 ? 2 : 3);
+  }
+
+  // ----- 4. Subtraction -----
+  // Picture of up to 20 objects as a ten-frame group plus the rest; the last `gone` objects are crossed out.
+  function crossedGroups(emoji, keep, gone) {
+    const seq = 'X'.repeat(keep) + 'x'.repeat(gone);
+    return [seq.slice(0, 10), seq.slice(10)].filter(Boolean).map(s => ({ emoji, rows: s.match(/.{1,5}/g) }));
+  }
+
+  function makeSubtractionAge5Question() {
+    const kind = weightedChoose([['picture10', 20], ['picture20', 12], ['beyond10', 14], ['cross10', 14], ['missingSub', 12], ['missingMin', 8], ['inverse', 18]]);
+    const item = choose(COUNT_OBJECTS);
+
+    if (kind === 'picture10') {
+      const [a, b] = choose(SUB_PAIRS), keep = a - b, layout = pictureLayout(a, b, keep);
+      const words = a <= 6 && Math.random() < 0.65;
+      return tag({
+        question: words ? 'How many are left?' : `${a} − ${b} = ?`,
+        resultText: `${a} − ${b} = ${keep}`,
+        picture: {
+          groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
+          label: `${a} ${item.name}, ${b} crossed out`,
+          key: key('sub5', a, b, layout, words ? 'words' : 'sum')
+        },
+        ...numberChoices(keep, 1, 10, [b, a])
+      }, 'subtraction', 'picture', words ? 1 : 2);
+    }
+
+    if (kind === 'picture20') {
+      // Within 20 with a picture. Taking away across 10 (13 − 5) is the harder version and is only tier 3.
+      const crossing = Math.random() < 0.3;
+      const a = intBetween(11, 20);
+      const b = crossing ? intBetween(a - 9, Math.min(9, a - 1)) : intBetween(1, a - 10);
+      if (crossing && a - 9 > Math.min(9, a - 1)) return makeSubtractionAge5Question();
+      const keep = a - b;
+      return tag({
+        question: `${a} − ${b} = ?`,
+        resultText: `${a} − ${b} = ${keep}`,
+        picture: { groups: crossedGroups(item.emoji, keep, b), label: `${a} ${item.name}, ${b} crossed out`, key: key('sub5', 'twenty', a, b) },
+        ...numberChoices(keep, 1, 20, [b, crossing ? b - (a - 10) : a - b - 1, a])
+      }, 'subtraction', crossing ? 'cross10' : 'within20', crossing ? 3 : 2);
+    }
+
+    if (kind === 'beyond10') {
+      const a = intBetween(12, 19), b = intBetween(1, a - 10);
+      return tag({
+        question: `${a} − ${b} = ?`,
+        resultText: `${a} − ${b} = ${a - b}`,
+        ...numberChoices(a - b, 10, 19, [b, a, a - b - 1])
+      }, 'subtraction', 'within20', 3);
+    }
+
+    if (kind === 'cross10') {
+      // Crossing 10 with numbers only, e.g. 13 − 5.
+      const a = intBetween(11, 18), b = intBetween(a - 9, 9);
+      if (b >= a) return makeSubtractionAge5Question();
+      const answer = a - b;
+      return tag({
+        question: `${a} − ${b} = ?`,
+        resultText: `${a} − ${b} = ${answer}`,
+        ...numberChoices(answer, 1, 19, [b - (a - 10), answer + 2, a - 10])
+      }, 'subtraction', 'cross10', 3);
+    }
+
+    if (kind === 'missingSub') {
+      const a = intBetween(4, 20), b = intBetween(1, a - 1), c = a - b;
+      return tag({
+        question: `${a} − ? = ${c}`,
+        resultText: `${a} − ${b} = ${c}`,
+        ...numberChoices(b, 1, 19, [c, a])
+      }, 'subtraction', 'missingSubtrahend', a <= 10 ? 2 : 3);
+    }
+
+    if (kind === 'missingMin') {
+      const b = intBetween(1, 9), c = intBetween(1, 20 - b), a = b + c;
+      return tag({
+        question: `? − ${b} = ${c}`,
+        resultText: `${a} − ${b} = ${c}`,
+        ...numberChoices(a, 2, 20, [c, b, c - b > 0 ? c - b : c + 1])
+      }, 'subtraction', 'missingMinuend', 3);
+    }
+
+    // Inverse relationship: a fact family. "3 + 4 = 7, so 7 − 4 = ?" or "7 − 4 = 3, so 3 + 4 = ?"
+    const total = intBetween(3, 20), y = intBetween(1, total - 1), x = total - y;
+    const tier = total <= 10 ? 2 : 3;
+    if (Math.random() < 0.55) {
+      return tag({ question: `${x} + ${y} = ${total}, so ${total} − ${y} = ?`, ...numberChoices(x, 1, 19, [y, total]) }, 'subtraction', 'inverse', tier);
+    }
+    return tag({ question: `${total} − ${y} = ${x}, so ${x} + ${y} = ?`, ...numberChoices(total, 2, 20, [x, y, total - 1]) }, 'subtraction', 'inverse', tier);
+  }
+
+  // ----- 5. Place value: a rectangle marked 10 = one ten, a circle marked 1 = one one (never money) -----
+  const blocksOf = (n) => {
+    const tens = Math.floor(n / 10), ones = n % 10;
+    const label = `${tens} ${tens === 1 ? 'rectangle' : 'rectangles'} marked 10${ones ? ` and ${ones} ${ones === 1 ? 'circle' : 'circles'} marked 1` : ''}`;
+    return { type: 'blocks', tens, ones, label };
+  };
+  const swapDigits = (n) => (n % 10) * 10 + Math.floor(n / 10);
+
+  function makePlaceValueQuestion() {
+    const kind = weightedChoose([['read', 28], ['build', 24], ['count', 22], ['decompose', 26]]);
+    let n = intBetween(11, 29);
+    if (n % 10 === 0) n += 1;
+    const tens = Math.floor(n / 10), ones = n % 10;
+
+    if (kind === 'read') {
+      const swap = swapDigits(n);
+      const candidates = [n - 1, n + 1, n - 10, n + 10, swap, tens + ones, n + 2, n - 2];
+      return tag({
+        question: 'What number is shown?',
+        promptVisual: blocksOf(n),
+        ...choicesFrom(n, candidates, [swap !== n ? swap : n + 1, tens + ones])
+      }, 'placevalue', 'read', n < 20 ? 1 : 2);
+    }
+
+    if (kind === 'build') {
+      const swap = swapDigits(n);
+      const candidates = [n - 1, n + 1, n - 10, n + 10, swap, n + 9, n - 9].filter(v => v >= 1 && v <= 49);
+      const wrong = pickWithMistake(n, candidates, 3, swap !== n && swap <= 49 ? [swap] : []);
+      const values = [n, ...wrong].sort((a, b) => a - b);
+      return tag({
+        question: `Which shows ${n}?`,
+        answers: values.map(v => blocksOf(v).label),
+        answerLabels: values.map(v => blocksOf(v).label),
+        answerVisuals: values.map(blocksOf),
+        correct: values.indexOf(n)
+      }, 'placevalue', 'build', n < 20 ? 2 : 3);
+    }
+
+    if (kind === 'count') {
+      const askTens = Math.random() < 0.5;
+      const choices = askTens ? numberChoices(tens, 0, 5, [ones <= 5 ? ones : tens + 1]) : numberChoices(ones, 0, 9, [tens]);
+      return tag({ question: askTens ? 'How many 10s?' : 'How many 1s?', promptVisual: blocksOf(n), ...choices }, 'placevalue', askTens ? 'count10s' : 'count1s', 2);
+    }
+
+    // Decomposing. With one ten there is a picture; beyond that it is numbers only.
+    const form = tens === 1 ? choose(['pic', 'tail']) : choose(['head', 'tail']);
+    if (form === 'pic') {
+      return tag({ question: `${n} = 10 + ?`, promptVisual: blocksOf(n), ...numberChoices(ones, 0, 9, [tens + 1, ones + 1]) }, 'placevalue', 'decompose', 2);
+    }
+    if (form === 'head') {
+      return tag({ question: `${n} = ${tens * 10} + ?`, ...numberChoices(ones, 0, 9, [tens, ones + 1]) }, 'placevalue', 'decompose', 3);
+    }
+    const answer = tens * 10;
+    return tag({
+      question: `${n} = ? + ${ones}`,
+      ...choicesFrom(answer, [answer + 10, answer - 10, answer + 20, ones, tens, n], [ones, tens])
+    }, 'placevalue', 'decompose', 3);
+  }
+
+  // ----- 6. Counting sequences: short, one missing number, forwards/backwards by 1, skip counting by 2, 5, 10 -----
+  function makeSequenceQuestion() {
+    const kind = weightedChoose([['forward', 30], ['backward', 22], ['skip2', 18], ['skip5', 16], ['skip10', 14]]);
+    const len = choose([3, 4, 4, 5, 5]);
+    let step, start, base;
+    if (kind === 'forward') { step = 1; start = intBetween(1, 21 - len); base = 1; }
+    else if (kind === 'backward') { step = -1; start = intBetween(len, 20); base = 2; }
+    else if (kind === 'skip2') { step = 2; start = intBetween(1, 20 - 2 * (len - 1)); base = start % 2 === 0 ? 2 : 3; }
+    else if (kind === 'skip5') { step = 5; start = 5 * intBetween(1, 10 - (len - 1)); base = start <= 15 ? 2 : 3; }
+    else { step = 10; start = 10 * intBetween(1, 11 - len); base = start <= 30 ? 2 : 3; }
+    const seq = Array.from({ length: len }, (_, i) => start + step * i);
+    const hole = intBetween(0, len - 1), answer = seq[hole], size = Math.abs(step);
+    const candidates = [answer + size, answer - size, answer + 2 * size, answer - 2 * size, answer + 1, answer - 1, answer + 2, answer - 2];
+    const mistakes = size > 1 ? [answer + 1, answer - 1, answer + 2 * size] : [answer + 2, answer - 2];
+    return tag({
+      question: 'What number is missing?',
+      numbers: seq.map((v, i) => i === hole ? '?' : String(v)),
+      ...choicesFrom(answer, candidates, mistakes)
+    }, 'sequences', kind, Math.min(3, base + (hole === 0 ? 1 : 0)));
+  }
+
+  // ----- 7. Visual patterns: AB, AAB, ABB, ABC in shapes and colours -----
+  // Colours come from the colour-blind-safe palette; shapes always differ between pattern elements.
+  const PATTERN_SHAPES = ['circle', 'square', 'triangle'];
+  const PATTERN_COLOURS = [
+    { name: 'blue', hex: '#0072B2' }, { name: 'orange', hex: '#E69F00' },
+    { name: 'pink', hex: '#CC79A7' }, { name: 'green', hex: '#009E73' }
+  ];
+  const shapeVisual = (shape, colour, extra = {}) => ({ type: 'shape', shape, color: colour.hex, label: `${colour.name} ${shape}`, rotate: 0, scale: 1, ratio: shape === 'rectangle' ? 2 : 1, variant: 0, ...extra });
+
+  function makePatternQuestion() {
+    const kind = weightedChoose([['AB', 30], ['AAB', 24], ['ABB', 24], ['ABC', 22]]);
+    const letters = [...new Set(kind)];
+    const mode = choose(['shape', 'both', 'both']);   // 'shape': same colour, different shapes; 'both': shape and colour change
+    const shapes = shuffledCopy(PATTERN_SHAPES), colours = shuffledCopy(PATTERN_COLOURS);
+    const items = {};
+    letters.forEach((l, i) => { items[l] = shapeVisual(shapes[i], mode === 'shape' ? colours[0] : colours[i]); });
+    const shown = Array.from({ length: 5 }, (_, i) => items[kind[i % kind.length]]);
+    const next = items[kind[5 % kind.length]];
+    // Wrong choices: the other pattern elements first, then mixed-up shape/colour combinations.
+    const usedColours = mode === 'shape' ? [colours[0], colours[letters.length]] : colours.slice(0, letters.length + 1);
+    const pool = PATTERN_SHAPES.flatMap(s => usedColours.map(c => shapeVisual(s, c)));
+    const wrong = [];
+    const add = (v) => { if (v.label !== next.label && !wrong.some(w => w.label === v.label)) wrong.push(v); };
+    shuffledCopy(Object.values(items)).forEach(add);
+    shuffledCopy(pool).forEach(v => { if (wrong.length < 3) add(v); });
+    const choices = shuffledCopy([next, ...wrong.slice(0, 3)]);
+    const base = kind === 'AB' ? 1 : kind === 'ABC' ? 3 : 2;
+    return tag({
+      question: 'What comes next?',
+      pattern: [...shown, null],
+      answers: choices.map(c => c.label),
+      answerLabels: choices.map(c => c.label),
+      answerVisuals: choices,
+      correct: choices.findIndex(c => c.label === next.label)
+    }, 'patterns', kind, Math.min(3, base + (mode === 'both' ? 1 : 0)));
+  }
+
+  // ----- 8. Equal grouping: how many groups? (no multiplication or division symbols) -----
+  const GROUP_ROWS = { 2: ['X', 'X'], 3: ['XX', 'X.'], 4: ['XX', 'XX'], 5: ['XXX', 'XX.'] };
+  const GROUPING_CASES = [];
+  [[2, [2, 3, 4, 5, 6]], [3, [2, 3, 4]], [4, [2, 3, 4]], [5, [2, 3]]].forEach(([size, list]) => list.forEach(g => GROUPING_CASES.push([size, g])));
+
+  function makeGroupingQuestion() {
+    const [size, count] = choose(GROUPING_CASES);
+    const item = choose(COUNT_OBJECTS), total = size * count;
+    return tag({
+      question: 'How many groups?',
+      picture: {
+        groups: Array.from({ length: count }, () => ({ emoji: item.emoji, rows: [...GROUP_ROWS[size]], framed: true })),
+        label: `${total} ${item.name} in groups of ${size}`,
+        key: key('group', size, count)
+      },
+      ...numberChoices(count, 1, 8, [size, total])
+    }, 'grouping', 'groups', total <= 8 ? 1 : total <= 12 ? 2 : 3);
+  }
+
+  // ----- 9. Equal sharing: objects shared equally between children; how many each? -----
+  const SHARE_ROWS = { 1: ['X'], 2: ['XX'], 3: ['XX', 'X.'], 4: ['XX', 'XX'], 5: ['XXX', 'XX.'] };
+  const SHARE_CASES = [];
+  [[2, [1, 2, 3, 4, 5]], [3, [1, 2, 3, 4, 5]], [4, [1, 2, 3, 4]]].forEach(([kids, list]) => list.forEach(each => SHARE_CASES.push([kids, each])));
+  const CHILD_EMOJI = ['👧', '👦', '🧒'];
+
+  function makeSharingQuestion() {
+    const [kids, each] = choose(SHARE_CASES);
+    const item = choose(COUNT_OBJECTS), total = kids * each;
+    const children = Array.from({ length: kids }, (_, i) => CHILD_EMOJI[i % CHILD_EMOJI.length]);
+    return tag({
+      question: 'How many each?',
+      picture: {
+        groups: children.map(lead => ({ emoji: item.emoji, rows: [...SHARE_ROWS[each]], framed: true, lead })),
+        label: `${item.name} shared equally between ${kids} children`,
+        key: key('share', kids, each)
+      },
+      ...numberChoices(each, 1, 20, [total, kids])
+    }, 'sharing', 'each', total <= 6 ? 1 : total <= 10 ? 2 : 3);
+  }
+
+  // ----- 10. 2D shapes: circle, square, triangle, rectangle (different sizes and orientations) -----
+  const SHAPE_NAMES = ['circle', 'square', 'triangle', 'rectangle'];
+  const SHAPE_TURNS = { circle: [0], square: [0, 15, -15, 25, -25], rectangle: [0, 90, 15, -15, 75], triangle: [0, 180, 90, 270, 20, -20, 45] };
+  function randomShape(shape, plain) {
+    const colour = choose(PATTERN_COLOURS);
+    if (plain) return shapeVisual(shape, colour, { rotate: 0, scale: 1, ratio: shape === 'rectangle' ? 2 : 1, variant: 0 });
+    return shapeVisual(shape, colour, {
+      rotate: choose(SHAPE_TURNS[shape]),
+      scale: choose([0.65, 0.8, 1]),
+      ratio: shape === 'rectangle' ? choose([1.7, 2, 2.3]) : 1,
+      variant: shape === 'triangle' ? choose([0, 1, 2]) : 0
+    });
+  }
+
+  function makeShapes2dQuestion() {
+    const kind = weightedChoose([['name', 30], ['sides', 18], ['corners', 18], ['pick', 22], ['property', 12]]);
+
+    if (kind === 'name') {
+      const shape = choose(SHAPE_NAMES), plain = Math.random() < 0.35;
+      const names = shuffledCopy(SHAPE_NAMES);
+      return tag({ question: 'Which shape is this?', figure: randomShape(shape, plain), answers: names, correct: names.indexOf(shape) }, 'shapes', 'name', plain ? 1 : 2);
+    }
+
+    if (kind === 'sides' || kind === 'corners') {
+      const shape = choose(['triangle', 'square', 'rectangle']), answer = shape === 'triangle' ? 3 : 4;
+      return tag({
+        question: kind === 'sides' ? 'How many sides?' : 'How many corners?',
+        figure: randomShape(shape, Math.random() < 0.3),
+        ...numberChoices(answer, 1, 8, [3, 4, 5])
+      }, 'shapes', kind, 2);
+    }
+
+    const visuals = shuffledCopy(SHAPE_NAMES.map(s => randomShape(s, false)));
+    const ask = kind === 'pick'
+      ? (() => { const s = choose(SHAPE_NAMES); return { text: `Which shape is a ${s}?`, shape: s, tier: 2 }; })()
+      : choose([
+        { text: 'Which shape has 3 sides?', shape: 'triangle', tier: 3 },
+        { text: 'Which shape has 3 corners?', shape: 'triangle', tier: 3 },
+        { text: 'Which shape has no corners?', shape: 'circle', tier: 3 },
+        { text: 'Which shape has 4 equal sides?', shape: 'square', tier: 3 }
+      ]);
+    return tag({
+      question: ask.text,
+      answers: visuals.map(v => v.label),
+      answerLabels: visuals.map(v => v.label),
+      answerVisuals: visuals,
+      correct: visuals.findIndex(v => v.shape === ask.shape),
+      // the shape names in the labels would give the property away only to someone who already knows it
+      shapeKey: visuals.map(v => `${v.shape}:${v.rotate}:${v.scale}:${v.ratio}:${v.variant}`).join('|')
+    }, 'shapes', kind, ask.tier);
+  }
+
+  // Age 5 has ten topics in ONE pool; none is a stage. Weights keep every topic well represented.
+  function makeAge5Question() {
+    return weightedChoose([
+      [makeCounting20Question, 14], [makeCompareAge5Question, 10], [makeAdditionAge5Question, 14],
+      [makeSubtractionAge5Question, 14], [makePlaceValueQuestion, 10], [makeSequenceQuestion, 10],
+      [makePatternQuestion, 8], [makeGroupingQuestion, 6], [makeSharingQuestion, 6], [makeShapes2dQuestion, 8]
+    ])();
   }
 
   // Age 6: addition with a sum of at most 10, or subtraction starting from at most 10.
@@ -767,7 +1273,7 @@
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeToddlerQuestion();
     if (difficulty === 'age4') return makeAge4Question();
-    if (difficulty === 'age5') return makeBondsTo10Question();
+    if (difficulty === 'age5') return makeAge5Question();
     if (difficulty === 'age6') return makeWithin10Question();
     const grade = gradeOf(difficulty);
     let name = normaliseTopic(difficulty, topic);
@@ -808,6 +1314,11 @@
   function questionKey(q) {
     const identity = [q.question, q.figure || null, q.answers[q.correct]];
     if (q.picture) identity.push(q.picture.key);   // Age 4: the same sum in another arrangement is a different question
+    // Age 5: the sequence, pattern, place-value blocks or shape choices are part of the question too.
+    if (q.numbers) identity.push(q.numbers);
+    if (q.pattern) identity.push(q.pattern.map(p => p && p.label));
+    if (q.promptVisual) identity.push(`${q.promptVisual.tens}:${q.promptVisual.ones}`);
+    if (q.shapeKey) identity.push(q.shapeKey);
     return JSON.stringify(identity);
   }
 

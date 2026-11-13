@@ -25,7 +25,7 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 | `docs/` | Architecture, question rules, UI/layout rules, testing, owner requirements. |
 
 ## Levels and topics
-Levels: `toddler` (Age 2–3), `age4`, `age5`, `age6`, `grade1`…`grade6`. **Topics exist only for Grade 1–6**; the age levels have one fixed activity each. Do not add topics to age levels. Full matrix: `docs/QUESTIONS.md`.
+Levels: `toddler` (Age 2–3), `age4`, `age5`, `age6`, `grade1`…`grade6`. **Topics exist only for Grade 1–6**; the age levels have no topic selector. Age 5 is ONE pool of ten internal topics whose difficulty rises through `tier` (no stages or sub-levels). Full matrix: `docs/QUESTIONS.md`.
 
 ## Rules that must not be broken
 These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md`).
@@ -35,7 +35,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 4. **Grade 4+ arithmetic**: at least one wrong option has the same last digit as the correct one.
 5. **Solo**: a wrong answer is disabled and the player may keep trying. **1 vs 1**: a wrong answer locks that player out of the question; if both are wrong nobody scores, the correct answers are revealed, then the next question.
 6. **Answer input uses `pointerdown`** (so two fingers at nearly the same time both register). `click` is only honoured when `event.detail === 0` (keyboard). Do not switch to plain `click`.
-7. **Age 5 / Age 6 object stage keeps a fixed height**: always 10 slots (2 rows of 5); empty slots are invisible (outlines would reveal the answer). Added objects must be a *different* type from the original; subtraction removes the last objects.
+7. **Age 6 object stage keeps a fixed height**: always 10 slots (2 rows of 5); empty slots are invisible (outlines would reveal the answer). Added objects must be a *different* type from the original; subtraction removes the last objects.
 8. **Phones held sideways**: the question and every answer must be visible without scrolling in Solo and 1 vs 1 (layout in the `max-height: 520px` landscape block of `style.css`).
 9. **Colour is never the only cue**: right/wrong also use ✓/✗; the colour-blind palette and text-size setting must keep working.
 10. **Streaks, stars and stickers never change the score** (keeps 1 vs 1 fair).

@@ -45,7 +45,7 @@ article.question-board.{blue|orange}[.solo][.toddler]
   div.board-body
     div.board-info
       div.question-topline  (.player-label, .difficulty-label, [.lock-badge])
-      [div.object-stage]        age 5/6: 10 .slot spans
+      [div.object-stage]        age 6: 10 .slot spans
       [svg.figure]              clock / polygon
       h3.question-text
       [div.counting-visual]     age 2–4 objects (rows of 5)

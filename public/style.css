@@ -502,6 +502,86 @@ body.playing .question-boards.versus .question-board.groups .answer-button { fon
 .picture-group .cell.removed .obj { opacity: .3; filter: grayscale(1); }
 .picture-group .cell.removed::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #dc2626; font-size: 1em; font-weight: 900; }
 .picture-group .cell.slot { border: .07em dashed #64748b; border-radius: 50%; }
+/* Delayed teaching aids: empty circles and crossed-out objects appear a moment after the question (see scheduleAids in game.js).
+   While pending the cells keep their size, so nothing moves; the flash is short and is switched off for reduced motion. */
+.picture.aids-pending .cell.removed .obj { opacity: 1; filter: none; }
+.picture.aids-pending .cell.removed::after { content: none; }
+.picture.aids-pending .cell.slot { border-color: transparent; }
+.picture.aids-flash .cell.removed::after, .picture.aids-flash .cell.slot { animation: aid-flash .8s ease-in-out 2; }
+@keyframes aid-flash { 0%, 100% { transform: scale(1); filter: none; } 50% { transform: scale(1.2); filter: drop-shadow(0 0 .1em #f59e0b); } }
+@media (prefers-reduced-motion: reduce) { .picture.aids-flash .cell.removed::after, .picture.aids-flash .cell.slot { animation: none; } }
 .question-board.groups .answer-button { white-space: pre-line; }
 body.playing .counting-visual.picture { font-size: clamp(1.1rem, min(calc((100vw - 120px) / 15), 9vh), 3.4rem); }
 body.playing .question-boards.versus .counting-visual.picture { font-size: clamp(1rem, min(calc((100vw - 200px) / 28), 7vh), 2.6rem); }
+
+/* Age 5 (one pool of ten topics). Keep at the end so these win over the layout blocks above. */
+.counting-visual.picture.wide { font-size: min(2.4rem, calc((100vw - 90px) / (var(--tc, 10) * 1.3 + 1.5))); gap: .3em .4em; }
+.counting-visual.prompt-visual { font-size: min(2.2rem, calc((100vw - 90px) / 11)); }
+.picture-group.framed { padding: .12em; border: .06em dashed #b45309; border-radius: .3em; }
+.picture-share { display: flex; flex-direction: column; align-items: center; gap: .05em; }
+.picture-lead { font-size: .85em; line-height: 1; }
+/* place value: a rectangle marked 10 = one ten, a circle marked 1 = one one */
+.blocks { display: inline-flex; align-items: center; justify-content: center; gap: .45em; line-height: 1; }
+.block-tens { display: flex; gap: .15em; align-items: center; }
+.block-ones { display: grid; grid-template-columns: repeat(var(--cols, 1), 1.1em); grid-auto-rows: 1.1em; gap: .1em; }
+/* the numeral is smaller than the shape, so sizes below are written for font-size .55em (1em of the block = .55 of the parent) */
+.block-ten, .block-one { display: flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: .55em; font-weight: 900; color: #1e3a8a; }
+.block-ten { width: 3.4em; height: 2em; border: .1em solid #1d4ed8; border-radius: .3em; background: #dbeafe; }
+.block-one { width: 2em; height: 2em; border: .1em solid #b45309; border-radius: 50%; background: #fef3c7; color: #78350f; }
+/* number sequence on its own line, and visual patterns */
+.number-sequence { display: flex; flex-wrap: wrap; justify-content: center; gap: .35em; margin: 0 0 14px; font-size: clamp(1.6rem, 6vw, 2.6rem); font-weight: 900; line-height: 1.1; }
+.seq-item { min-width: 1.6em; padding: .15em .3em; text-align: center; border-radius: .3em; background: #fffbeb; border: 1px solid #fcd34d; }
+.seq-item.seq-blank { border: .07em dashed #64748b; background: transparent; }
+.pattern-row { display: flex; justify-content: center; align-items: center; gap: .25em; margin: 0 0 14px; font-size: clamp(1.6rem, 6vw, 2.6rem); }
+.pattern-item, .pattern-blank { width: 1.3em; height: 1.3em; flex: 0 0 auto; }
+.pattern-blank { display: flex; align-items: center; justify-content: center; box-sizing: border-box; border: .07em dashed #64748b; border-radius: .2em; font-weight: 900; font-size: .8em; }
+.figure-shape { max-height: 100%; }
+/* answers drawn as pictures (shapes, place-value blocks): 2 x 2, or 4 in a row on a phone held sideways */
+.question-board.visual-choices .answer-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+.question-board.visual-choices .answer-button { min-height: 96px; display: flex; align-items: center; justify-content: center; gap: .3em; text-align: center; padding: 6px; }
+.answer-visual { width: clamp(44px, 12vw, 72px); height: clamp(44px, 12vw, 72px); flex: 0 0 auto; }
+.visual-choices .answer-button .blocks { font-size: clamp(.8rem, 3.2vw, 1.3rem); flex-direction: column; gap: .25em; }
+body.playing .question-board.visual-choices .answer-button { min-height: calc(72px * var(--ts)); padding: 4px; }
+@media (orientation: landscape) and (max-height: 520px) {
+  body.playing .question-board.visual-choices .board-body { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  body.playing .question-board.visual-choices .answer-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: auto; gap: 8px; }
+  body.playing .question-board.visual-choices .answer-button { min-height: calc(50px * var(--ts)); }
+  body.playing .answer-visual { width: clamp(30px, 11vh, 52px); height: clamp(30px, 11vh, 52px); }
+  body.playing .visual-choices .answer-button .blocks { font-size: clamp(.55rem, 1.9vw, .95rem); }
+  body.playing .number-sequence, body.playing .pattern-row { margin-bottom: 6px; font-size: clamp(1.2rem, 8vh, 2rem); }
+}
+/* Wide pictures and place-value blocks on a phone held sideways: the question column is about 45% of the width in Solo and
+   about 21% in 1 vs 1, so Solo scales objects to that width and 1 vs 1 stacks the two groups (and tens above ones). */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.playing .counting-visual.picture.wide { font-size: min(2.4rem, 8vh, calc((45vw - 24px) / (var(--tc, 10) * 1.3 + 1.5))); }
+  body.playing .counting-visual.prompt-visual { font-size: min(2.2rem, 8vh, calc((45vw - 24px) / 11)); }
+  body.playing .question-boards.versus .counting-visual.picture.wide { flex-wrap: wrap; gap: .15em .3em; font-size: min(1.8rem, 5vh, calc((21vw - 22px) / (var(--wc, 6) * 1.2 + 1))); }
+  body.playing .question-boards.versus .question-board.block-choices .answer-grid { grid-template-columns: 1fr 1fr; }
+  body.playing .question-boards.versus .counting-visual.prompt-visual { font-size: min(1.8rem, 6vh, calc((21vw - 22px) / 6.5)); }
+  body.playing .question-boards.versus .prompt-visual .blocks { flex-direction: column; gap: .2em; }
+}
+/* Tablet portrait: question and answers side by side, so the question column is half the width. */
+@media (orientation: portrait) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing .counting-visual.picture.wide { font-size: min(2.2rem, calc((50vw - 50px) / (var(--tc, 10) * 1.3 + 1.5))); }
+  body.playing .counting-visual.prompt-visual { font-size: min(2rem, calc((50vw - 50px) / 11)); }
+}
+/* Sizes from the real width of the question column (container units), so every layout fits: Solo, 1 vs 1, phone sideways,
+   tablet, desktop. The viewport-based rules above remain as the fallback for browsers without container queries. */
+@supports (width: 1cqw) {
+  .question-board, .board-info, .visual-choices .answer-grid { container-type: inline-size; }   /* nearest one wins: the info column, or the whole board where the column is `display: contents` */
+  body.playing .question-boards .counting-visual.picture.wide { font-size: min(2.4rem, 8vh, calc((100cqw - 24px) / (var(--tc, 10) * 1.3 + 1.5))); }
+  body.playing .question-boards .counting-visual.prompt-visual { font-size: min(2.2rem, 8vh, calc((100cqw - 24px) / 11)); }
+  body.playing .question-boards .pattern-row, body.playing .question-boards .number-sequence { font-size: min(2.6rem, 8vh, calc(100cqw / 9.5)); }
+  /* 1 vs 1: the column is narrow, so groups wrap and tens stack above ones */
+  body.playing .question-boards.versus .counting-visual.picture.wide { flex-wrap: wrap; gap: .15em .3em; font-size: min(1.8rem, 5vh, calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1))); }
+  body.playing .question-boards.versus .counting-visual.prompt-visual { font-size: min(1.8rem, 6vh, calc((100cqw - 22px) / 6.5)); }
+  body.playing .question-boards.versus .prompt-visual .blocks { flex-direction: column; gap: .2em; }
+  body.playing .question-boards.versus .pattern-row, body.playing .question-boards.versus .number-sequence { font-size: min(2rem, 7vh, calc(100cqw / 9.5)); }
+  /* place-value blocks inside answer buttons: two columns, or four on a phone held sideways */
+  body.playing .visual-choices .answer-button .blocks { font-size: min(1.3rem, calc((50cqw - 24px) / 8.5)); }
+  @media (orientation: landscape) and (max-height: 520px) {
+    body.playing .visual-choices .answer-button .blocks { font-size: min(1.1rem, calc((25cqw - 20px) / 8.5)); }
+    body.playing .question-boards.versus .question-board.block-choices .answer-grid { grid-template-columns: 1fr 1fr; }
+    body.playing .question-boards.versus .visual-choices .answer-button .blocks { font-size: min(1.1rem, calc((50cqw - 24px) / 8.5)); }
+  }
+}

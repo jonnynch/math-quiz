@@ -333,13 +333,114 @@
     return svg;
   }
 
+  // 2D shape (Age 5): drawn inside a 100 x 100 box; every outline stays within 50 units of the centre, so it never
+  // clips when turned. `scale`, `rotate`, `ratio` (rectangles) and `variant` (triangles) vary size and orientation.
+  const TRIANGLES = ['50,14 88,80 12,80', '50,10 78,88 22,88', '20,16 20,84 80,84'];
+  function createShapeSvg(spec, cls, label) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: cls, role: 'img', 'aria-label': label });
+    const group = svgEl('g', { transform: `translate(50 50) rotate(${spec.rotate || 0}) scale(${spec.scale || 1}) translate(-50 -50)` });
+    const paint = { fill: spec.color, stroke: '#1f2937', 'stroke-width': 3, 'stroke-linejoin': 'round' };
+    if (spec.shape === 'circle') group.append(svgEl('circle', { cx: 50, cy: 50, r: 38, ...paint }));
+    else if (spec.shape === 'square') group.append(svgEl('rect', { x: 20, y: 20, width: 60, height: 60, ...paint }));
+    else if (spec.shape === 'rectangle') {
+      const h = 80 / (spec.ratio || 2);
+      group.append(svgEl('rect', { x: 10, y: 50 - h / 2, width: 80, height: h, ...paint }));
+    } else group.append(svgEl('polygon', { points: TRIANGLES[spec.variant || 0], ...paint }));
+    svg.append(group);
+    return svg;
+  }
+
   function createFigure(figure) {
+    if (figure.type === 'shape') return createShapeSvg(figure, 'figure figure-shape', 'A shape');
     return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
+  }
+
+  // Place-value blocks (Age 5): a rectangle marked 10 is one ten, a circle marked 1 is one one. Never money.
+  function createBlocks(spec) {
+    const box = document.createElement('span');
+    box.className = 'blocks';
+    const tens = document.createElement('span');
+    tens.className = 'block-tens';
+    for (let i = 0; i < spec.tens; i++) {
+      const block = document.createElement('span');
+      block.className = 'block-ten';
+      block.textContent = '10';
+      tens.append(block);
+    }
+    box.append(tens);
+    if (spec.ones) {
+      const ones = document.createElement('span');
+      ones.className = 'block-ones';
+      ones.style.setProperty('--cols', String(Math.min(5, spec.ones)));
+      for (let i = 0; i < spec.ones; i++) {
+        const dot = document.createElement('span');
+        dot.className = 'block-one';
+        dot.textContent = '1';
+        ones.append(dot);
+      }
+      box.append(ones);
+    }
+    return box;
+  }
+
+  // Visual answer choices (Age 5): a shape or a set of place-value blocks inside the answer button.
+  function createVisual(spec) {
+    if (spec.type === 'blocks') return createBlocks(spec);
+    const svg = createShapeSvg(spec, 'answer-visual', spec.label);
+    svg.setAttribute('aria-hidden', 'true');
+    return svg;
+  }
+
+  // Number sequence on its own line, e.g. 3, 4, ?, 6 (Age 5 counting sequences).
+  function createNumberSequence(numbers) {
+    const row = document.createElement('div');
+    row.className = 'number-sequence';
+    row.setAttribute('role', 'img');
+    row.setAttribute('aria-label', numbers.map(n => n === '?' ? 'missing number' : n).join(', '));
+    numbers.forEach(n => {
+      const item = document.createElement('span');
+      item.className = n === '?' ? 'seq-item seq-blank' : 'seq-item';
+      item.textContent = n;
+      item.setAttribute('aria-hidden', 'true');
+      row.append(item);
+    });
+    return row;
+  }
+
+  // Visual pattern (Age 5): a short row of shapes ending in an empty box.
+  function createPattern(pattern) {
+    const row = document.createElement('div');
+    row.className = 'pattern-row';
+    row.setAttribute('role', 'img');
+    row.setAttribute('aria-label', `Pattern: ${pattern.map(p => p ? p.label : 'missing').join(', ')}`);
+    pattern.forEach(spec => {
+      if (spec) {
+        const svg = createShapeSvg(spec, 'pattern-item', spec.label);
+        svg.setAttribute('aria-hidden', 'true');
+        row.append(svg);
+      } else {
+        const blank = document.createElement('span');
+        blank.className = 'pattern-blank';
+        blank.setAttribute('aria-hidden', 'true');
+        blank.textContent = '?';
+        row.append(blank);
+      }
+    });
+    return row;
+  }
+
+  function createPromptBlocks(spec) {
+    const box = document.createElement('div');
+    box.className = 'counting-visual prompt-visual';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', spec.label);
+    box.append(createBlocks(spec));
+    return box;
   }
 
   function createQuestionBoard(player, question) {
     const board = document.createElement('article');
-    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}${question.groups ? ' groups' : ''}${question.figure ? ' has-figure' : ''}`;
+    board.className = `question-board ${player.color}${state.mode === 'solo' ? ' solo' : ''}${question.simple ? ' toddler' : ''}${question.groups ? ' groups' : ''}${question.answerVisuals ? ' visual-choices' : ''}${question.answerVisuals && question.answerVisuals[0].type === 'blocks' ? ' block-choices' : ''}${question.figure ? ' has-figure' : ''}`;
     board.dataset.playerId = String(player.id);
 
     const topline = document.createElement('div');
@@ -380,8 +481,9 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'answer-button';
-      button.textContent = question.simple ? answer : `${String.fromCharCode(65 + index)}. ${answer}`;
-      if (question.groups) button.setAttribute('aria-label', question.answerLabels[index]);
+      if (question.answerVisuals) button.append(createVisual(question.answerVisuals[index]));
+      else button.textContent = question.simple ? answer : `${String.fromCharCode(65 + index)}. ${answer}`;
+      if (question.groups || question.answerVisuals) button.setAttribute('aria-label', question.answerLabels[index]);
       // pointerdown fires immediately for every finger, even when two players touch the screen at
       // nearly the same time (Safari can swallow 'click' events during multi-touch).
       button.addEventListener('pointerdown', (event) => {
@@ -406,6 +508,9 @@
     if (question.stage) info.append(createStage(question.stage));
     if (question.figure) info.append(createFigure(question.figure));
     info.append(text);
+    if (question.numbers) info.append(createNumberSequence(question.numbers));
+    if (question.pattern) info.append(createPattern(question.pattern));
+    if (question.promptVisual) info.append(createPromptBlocks(question.promptVisual));
     if (question.picture) info.append(createPicture(question.picture));
     if (question.visual) {
       const visual = document.createElement('div');
@@ -428,11 +533,28 @@
   // Age 4 picture: groups of cells (X object, x crossed-out object, O empty slot, . blank), see questions.js.
   const PICTURE_CELLS = { X: 'object', Y: 'object', x: 'object removed', O: 'slot' };
 
+  // Circles (empty slots) and crossed-out objects are teaching aids: they appear a moment AFTER the question, with a
+  // short highlight, so children first see the plain objects. They only change how the cells look (never the layout),
+  // answers stay tappable and the question timer is untouched. With reduced motion they are shown at once, unanimated.
+  const AID_DELAY_MS = 1200;
+  const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function scheduleAids(box) {
+    if (prefersReducedMotion()) return;
+    box.classList.add('aids-pending');
+    setTimeout(() => {
+      if (!box.classList.contains('aids-pending')) return;
+      box.classList.remove('aids-pending');
+      box.classList.add('aids-flash');
+    }, AID_DELAY_MS);
+  }
+
   function createPicture(picture) {
     const box = document.createElement('div');
     box.className = 'counting-visual picture';
     box.setAttribute('role', 'img');
     box.setAttribute('aria-label', picture.label);
+    let totalCols = 0;
     picture.groups.forEach((group, index) => {
       if (index && picture.joiner) {
         const sign = document.createElement('span');
@@ -442,8 +564,9 @@
         box.append(sign);
       }
       const cols = Math.max(...group.rows.map(row => row.length));
+      totalCols += cols;
       const grid = document.createElement('div');
-      grid.className = 'picture-group';
+      grid.className = `picture-group${group.framed ? ' framed' : ''}`;
       grid.style.setProperty('--cols', String(cols));
       group.rows.forEach(row => [...row.padEnd(cols, '.')].forEach(ch => {
         const cell = document.createElement('span');
@@ -457,8 +580,27 @@
         }
         grid.append(cell);
       }));
-      box.append(grid);
+      if (group.lead) {
+        // equal sharing: a child above the objects that child has
+        const share = document.createElement('div');
+        share.className = 'picture-share';
+        const lead = document.createElement('span');
+        lead.className = 'picture-lead';
+        lead.setAttribute('aria-hidden', 'true');
+        lead.textContent = group.lead;
+        share.append(lead, grid);
+        box.append(share);
+      } else box.append(grid);
     });
+    if (totalCols > 5 || picture.groups.length > 1 || picture.groups.some(g => g.framed)) {   // two side-by-side groups (11-20 objects) or framed groups use objects sized to fit the width
+      box.classList.add('wide');
+      const framed = picture.groups.some(g => g.framed) ? 0.6 : 0;
+      const maxCols = Math.max(...picture.groups.map(g => Math.max(...g.rows.map(r => r.length))));
+      const tc = totalCols + (picture.groups.length - 1) * 0.6 + picture.groups.length * framed;
+      box.style.setProperty('--tc', String(tc));                          // columns needed in one row
+      box.style.setProperty('--wc', String(Math.min(tc, Math.max(maxCols + framed, 6))));   // columns per row when the groups wrap
+    }
+    if (picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);
     return box;
   }
 
