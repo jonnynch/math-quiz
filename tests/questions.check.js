@@ -30,7 +30,6 @@ for(const g of grades){
         } else if((m=text.match(/^(\d+) × \? = (\d+)$/))){ if(+m[1]*Number(ans)!==+m[2]) fail(k,'wrong missing factor',q);} else fail(k,'unrecognised text',q);
         if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^What is (\d+) × (\d+)\?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
       }
-      if(t.value==='compare'){ m=text.match(/^Compare: (\d+) \? (\d+)$/); if(!m) fail(k,'compare text',q); else{const x=+m[1],y=+m[2];const exp=x<y?0:x===y?1:2; if(c!==exp) fail(k,'wrong compare',q); const max=[0,20,99,999,9999][g]; if(x>max||y>max) fail(k,'compare range',q);} if(a.length!==3) fail(k,'compare answers',q);}
       if(t.value==='money'){ const nn=Number(ans); if(m=text.match(/^You have (.+)\. How many cents altogether\?$/)){const s=m[1].split(', ').reduce((s,x)=>s+(x.startsWith('$')?100*+x.slice(1):+x.slice(0,-1)),0); if(s!==nn) fail(k,'coins wrong',q);}
         else if(m=text.match(/^Something costs (\d+)c\. You pay (\S+)\. How many cents change\?$/)){const pay=m[2].startsWith('$')?100*+m[2].slice(1):+m[2].slice(0,-1); if(pay-m[1]!==nn||pay-m[1]<=0) fail(k,'change wrong',q);}
         else if(m=text.match(/^A pen costs (\d+)c and a rubber costs (\d+)c/)){ if(+m[1]+ +m[2]!==nn) fail(k,'sum wrong',q);}
@@ -54,6 +53,8 @@ for(const g of grades){
         if(m=text.match(/^What is half of (\d+)\?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
         else if(m=text.match(/^What is (\d+)\/(\d+) of (\d+)\?$/)){ if(m[1]*m[3]/m[2]!==+ans||!Number.isInteger(m[3]/m[2])) fail(k,'fraction of amount wrong',q);}
         else if(m=text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/)){ if(m[1]/m[2]!==+ans/m[3]) fail(k,'equiv wrong',q);}
+        else if(m=text.match(/^Compare: (\d+)\/(\d+) \? (0\.\d+)$/)){ const x=m[1]/m[2],y=+m[3]; const exp=Math.abs(x-y)<1e-12?1:x<y?0:2; if(c!==exp) fail(k,'frac vs decimal wrong',q);}
+        else if(m=text.match(/^Compare: (0\.\d+) \? (\d+)\/(\d+)$/)){ const x=+m[1],y=m[2]/m[3]; const exp=Math.abs(x-y)<1e-12?1:x<y?0:2; if(c!==exp) fail(k,'decimal vs frac wrong',q);}
         else if(m=text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/)){ const x=m[1]/m[2],y=m[3]/m[4]; const exp=Math.abs(x-y)<1e-12?1:x<y?0:2; if(c!==exp) fail(k,'frac compare wrong',q);}
         else if(m=text.match(/^(\d+)\/(\d+) ([+−×÷]) (\d+)(?:\/(\d+))? = \? \(simplest form\)$/)){
           const x=m[1]/m[2]; const y=m[5]?m[4]/m[5]:+m[4]; const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[3]]; if(Math.abs(val(ans)-r)>1e-9) fail(k,'frac arithmetic wrong',q);
@@ -79,7 +80,6 @@ for(const g of grades){
     let cat;
     if(q.figure&&q.figure.type==='clock') cat='clock';
     else if(q.figure&&q.figure.type==='polygon') cat='shapes';
-    else if(/^Compare: \d+ \? \d+$/.test(x)) cat='compare';
     else if(/cents/.test(x)) cat='money';
     else if(/\d\/\d|half of/.test(x)) cat='fractions';
     else if(/cm|°|faces|edges|vertices|sides/.test(x)) cat='shapes';
@@ -88,7 +88,7 @@ for(const g of grades){
     seen[cat]=(seen[cat]||0)+1;
     if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);
   }
-  ['arithmetic','compare','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c)).forEach(c=>{
+  ['arithmetic','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c)).forEach(c=>{
     if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
   });
 }

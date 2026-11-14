@@ -5,7 +5,7 @@ const launch=async()=>puppeteer.launch(process.env.CHROME_PATH?{executablePath:p
 const url=require('url').pathToFileURL(require('path').join(__dirname,'..','public','index.html')).href;
 const VIEWPORTS=(process.env.VP||'568x280,667x300,740x320,800x300,844x340,844x390,932x360').split(',').map(s=>s.split('x').map(Number));
 const TEXTS=(process.env.TEXTS||'normal,large,xlarge').split(',');
-const CONFIGS=[['toddler'],['age4'],['age5'],['age6'],['grade1','clock'],['grade2','shapes'],['grade3','fractions'],['grade4','clock'],['grade5','fractions'],['grade6','shapes'],['grade6','mixed'],['grade4','money'],['grade3','compare'],['grade4','mixed'],['grade2','tables']];
+const CONFIGS=[['toddler'],['age4'],['age5'],['age6'],['grade1','clock'],['grade2','shapes'],['grade3','fractions'],['grade4','clock'],['grade5','fractions'],['grade6','shapes'],['grade6','mixed'],['grade4','money'],['grade3','tables'],['grade4','mixed'],['grade2','tables']];
 const REPS=Number(process.env.REPS||2);
 (async()=>{
   const browser=await launch();

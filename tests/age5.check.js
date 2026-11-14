@@ -125,7 +125,7 @@ for (let i = 0; i < N; i++) {
       if (q.kind === 'picture') {
         const all = g0.rows.join(''), a = objs([all], /[^Xx]/g), b = (all.match(/x/g) || []).length;
         if (a > 10 || Number(ans) !== a - b || b < 1 || q.resultText !== `${a} − ${b} = ${a - b}`) fail('subtraction picture', q);
-        if (q.question !== 'How many are left?' && q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt', q);
+        if (q.question !== `How many are left? ${a} − ${b} = ?` && q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt (the equation is always shown)', q);
       } else if (q.kind === 'within20' || q.kind === 'cross10') {
         const [, a, b] = q.question.match(/^(\d+) − (\d+) = \?$/).map(Number);
         if (a > 20 || Number(ans) !== a - b || a - b < 1) fail('subtraction within 20', q);
@@ -266,7 +266,7 @@ if (topicsEarly.size < 6) fail('the opening questions should already mix several
 // Age 6 and Age 4 generators are untouched by Age 5.
 for (let i = 0; i < 300; i++) {
   const q6 = Q.generateQuestion('age6');
-  if (!q6.stage || q6.topic || q6.tier || q6.picture) fail('Age 6 must still use the object stage only', q6);
+  if ((!q6.stage && !/^Which /.test(q6.question)) || q6.topic || q6.picture) fail('Age 6 uses the object stage or a comparison question only', q6);
   const q4 = Q.generateQuestion('age4');
   if (q4.topic || q4.kind) fail('Age 4 questions carry no Age 5 fields', q4);
 }

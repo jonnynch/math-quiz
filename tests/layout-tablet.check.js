@@ -14,7 +14,7 @@ const OTHER_VPS=parse((process.env.VP||'744x1024,820x1080,1133x744,1024x694').sp
 const TEXTS=(process.env.TEXTS||'normal,large,xlarge').split(',');
 const REPS=Number(process.env.REPS||1);
 const MIN_TOUCH=44; // px: smallest answer button allowed on a tablet (the layout itself aims for 48px x text scale)
-const OTHER=[['toddler'],['age4'],['age5'],['age6'],['grade1','mixed'],['grade2','shapes'],['grade3','fractions'],['grade4','money'],['grade3','compare'],['grade6','mixed'],['grade2','tables']];
+const OTHER=[['toddler'],['age4'],['age5'],['age6'],['grade1','mixed'],['grade2','shapes'],['grade3','fractions'],['grade4','money'],['grade3','tables'],['grade6','mixed'],['grade2','tables']];
 (async()=>{
   const browser=await launch(); const page=await browser.newPage();
   await page.emulateMediaFeatures([{name:'prefers-reduced-motion',value:'reduce'}]);

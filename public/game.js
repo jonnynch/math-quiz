@@ -165,8 +165,10 @@
       trophies: [],            // trophies unlocked during this game (for the result card)
       firstTapCorrect: null,   // was the first answer tapped on this question correct?
       stats: { taps: 0, correctTaps: 0, timedQuestions: 0, totalSeconds: 0 },
-      // Screen-time rewards: only saved profiles playing Grade 1-6 can earn (age levels never do).
-      rewardGrade: profile && Q.isGrade(difficulty) ? Q.gradeOf(difficulty) : null,
+      // Screen-time rewards: only saved profiles playing Grade 1-6 in Mixed All Questions can earn (age levels never do).
+      rewardGrade: profile && Q.isGrade(difficulty) && Q.countsForProgress(difficulty, topic) ? Q.gradeOf(difficulty) : null,
+      // Achievements (trophies): Grade 1-6 only in Mixed All Questions; age levels have no topics and always count.
+      earnsTrophies: !!profile && Q.countsForProgress(difficulty, topic),
       color: number === 1 ? 'blue' : 'orange'
     };
   }
@@ -709,7 +711,7 @@
     const notes = [];
     let touched = false;
     state.players.forEach(p => {
-      if (!p.profile || !p.answeredThisRound) return;
+      if (!p.profile || !p.earnsTrophies || !p.answeredThisRound) return;
       touched = true;
       const won = Trophies.record(p.profile, p.difficulty, p.firstTapCorrect === true);
       if (!won.length) return;
@@ -756,7 +758,7 @@
       button.disabled = true;
       player.streak = 0;
       // A wrong answer also ends the trophy run straight away (saved profiles only).
-      if (player.profile && Trophies.resetStreak(player.profile, player.difficulty)) Store.save();
+      if (player.profile && player.earnsTrophies && Trophies.resetStreak(player.profile, player.difficulty)) Store.save();
       renderScoreboard();
 
       if (!versus) {

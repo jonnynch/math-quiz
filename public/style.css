@@ -507,7 +507,11 @@ body.playing .question-boards.versus .question-board.groups .answer-button { fon
 .picture.aids-pending .cell.removed .obj { opacity: 1; filter: none; }
 .picture.aids-pending .cell.removed::after { content: none; }
 .picture.aids-pending .cell.slot { border-color: transparent; }
-.picture.aids-flash .cell.removed::after, .picture.aids-flash .cell.slot { animation: aid-flash .8s ease-in-out 2; }
+.picture.aids-flash .cell.slot { animation: aid-flash .8s ease-in-out 2; }
+/* "How many left?": the cross is drawn in and the taken-away object fades, once, after the child has read the equation. */
+.picture-group .cell.removed .obj { transition: opacity .6s ease, filter .6s ease; }
+.picture.aids-flash .cell.removed::after { animation: aid-cross .7s ease-out both; }
+@keyframes aid-cross { 0% { transform: scale(.3) rotate(-25deg); opacity: 0; } 60% { transform: scale(1.15) rotate(0); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes aid-flash { 0%, 100% { transform: scale(1); filter: none; } 50% { transform: scale(1.2); filter: drop-shadow(0 0 .1em #f59e0b); } }
 @media (prefers-reduced-motion: reduce) { .picture.aids-flash .cell.removed::after, .picture.aids-flash .cell.slot { animation: none; } }
 .question-board.groups .answer-button { white-space: pre-line; }

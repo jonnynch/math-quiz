@@ -6,6 +6,10 @@ const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pret
 const w=dom.window;
 ['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
+// Trophies and screen time are only earned in Mixed All Questions (Grade 1-6), but this test needs questions it can solve
+// from the screen. So for Mixed All the bank is built from one solvable topic; the game still sees topic 'all'.
+const realBank=w.MQQuestions.buildQuestionBank;
+w.MQQuestions.buildQuestionBank=(lv,tp,n)=>realBank(lv,tp==='all'&&/^grade/.test(lv)?({grade1:'add',grade2:'tables',grade3:'tables',grade4:'tables',grade5:'mul',grade6:'mul'})[lv]:tp,n);
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const tap=b=>b.dispatchEvent(new w.Event('pointerdown',{bubbles:true,cancelable:true}));
@@ -18,7 +22,7 @@ const solve=(i=0)=>{ // answers tables / compare questions
   let m;
   if(m=t.match(/^What is (\d+) (×|÷) (\d+)\?$/)) return String(m[2]==='×'?+m[1]*+m[3]:+m[1]/+m[3]);
   if(m=t.match(/^(\d+) × \? = (\d+)$/)) return String(+m[2]/+m[1]);
-  if(m=t.match(/^Compare: (\d+) \? (\d+)$/)) return +m[1]<+m[2]?'<':+m[1]===+m[2]?'=':'>';
+  if(m=t.match(/^What is (\d+) ([+−]) (\d+)\?$/)) return String(m[2]==='+'?+m[1]+ +m[3]:+m[1]-+m[3]);
   throw new Error('cannot solve '+t);
 };
 const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.textContent.replace(/^[A-E]\. /,'');return txt===a||txt.startsWith(a+' ');});};
@@ -34,9 +38,9 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(!$('topicRow1').classList.contains('hidden'),'topic row visible for default Grade 3');
   ok(topicIds('topic1')[0]==='all'&&$('topic1').options[0].textContent==='Mixed All Questions','Mixed All Questions is the first topic option');
   ok($('topic1').value==='all'&&$('topic2').value==='all','Mixed All Questions is selected by default for both players');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 12 topics (incl. Mixed All Questions)');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,fractions,money,clock,shapes','Grade 3 has all 11 topics (incl. Mixed All Questions)');
   change($('difficulty1'),'grade1');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
   change($('difficulty1'),'grade5');
   ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
   change($('difficulty1'),'grade3'); change($('topic1'),'tables'); change($('difficulty1'),'grade5');
@@ -88,7 +92,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   click($('stopButton'));
   const st=mia();
   ok(st.totals.games===1&&st.totals.correct===4&&st.totals.taps===5&&st.totals.correctTaps===4&&st.totals.bestStreak===3,'profile totals saved: '+JSON.stringify(st.totals));
-  ok(st.trophies.grade2&&st.trophies.grade2.completed===4&&st.trophies.grade2.correct===3&&st.trophies.grade2.streak===0&&st.trophies.grade2.best===3,'trophy progress: 4 completed, 3 correct first tries (the retried question is completed but not correct): '+JSON.stringify(st.trophies.grade2));
+  ok(!st.trophies.grade2,'Grade 2 Times tables (not Mixed All Questions) adds no achievement progress: '+JSON.stringify(st.trophies||{}));
   ok(st.history.length===1&&st.history[0].level==='grade2'&&st.history[0].topic==='tables'&&st.history[0].mode==='solo','game added to history');
   ok(Number.isInteger(st.history[0].played)&&st.history[0].played>=1,'game history records the seconds actually played');
   ok(st.lastSetup.difficulty==='grade2'&&st.lastSetup.topic==='tables','last level and topic remembered');
@@ -111,7 +115,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('profile2'),leoId);
   ok([...$('profile1').options].find(o=>o.value===leoId).disabled===true,'Player 1 cannot pick the profile Player 2 chose');
   ok([...$('profile2').options].find(o=>o.value===mia().id).disabled===true,'Player 2 cannot pick the profile Player 1 chose');
-  change($('difficulty2'),'grade3'); change($('topic2'),'compare'); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty2'),'grade3'); change($('topic2'),'all'); change($('difficulty1'),'grade3'); change($('topic1'),'all');
   w.MQTrophies.TARGETS.grade3={bronze:1,silver:1,gold:2}; // tiny targets so unlocking can be seen in this test
   click(d.querySelector('[data-length=timed]')); $('duration').innerHTML='<option value="1" selected>1</option>';
   click($('startButton')); await sleep(80);
@@ -120,7 +124,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(d.querySelector('.score-card.orange')&&true,'scoreboard rendered');
   await sleep(1300);
   ok(!$('resultPanel').classList.contains('hidden')&&$('resultEyebrow').textContent.includes('TIME'),'timed versus game ended');
-  ok(mia().bests['grade3|compare|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
+  ok(mia().bests['grade3|all|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
   ok(store().profiles[1].history.length===0&&store().profiles[1].totals.games===0,'player 2 (never tapped) not recorded');
   ok(mia().trophies.grade3.completed===1&&mia().trophies.grade3.correct===1&&mia().trophies.grade3.unlocked.slice().sort().join()==='bronze,silver','1 vs 1: the winner is credited and unlocks bronze + silver');
   ok(!store().profiles[1].trophies.grade3,'1 vs 1: the player who never answered gets no trophy progress');
@@ -210,7 +214,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- guest streak stickers are not saved
   change($('profile1'),''); change($('profile2'),'');
   click(d.querySelector('[data-mode=solo]')); click(d.querySelector('[data-length=endless]'));
-  change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty1'),'grade3'); change($('topic1'),'all');
   const gamesBefore=store().profiles[0].totals.games, countBefore=store().profiles.length;
   click($('startButton')); await sleep(80);
   for(let i=0;i<3;i++){ tap(answerBtn()); await sleep(900); }
@@ -238,7 +242,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   click($('profilesButton')); $('profileName').value='Earner'; click($('addProfileButton')); click($('profilesClose'));
   const earnerId=store().profiles.find(p=>p.name==='Earner').id;
   const bankOf=()=>w.MQStore.getProfile(earnerId).rewards;
-  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'all');
   click($('startButton')); await sleep(80);
   tap(wrongBtn()); tap(answerBtn()); await sleep(900); tap(answerBtn()); // wrong then retry, then a right answer
   click($('stopButton'));
@@ -286,6 +290,14 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   click($('bankClose')); click($('bankButton'));
   ok($('parentAnswer').disabled&&!$('redeemMinutes'),'reopening the bank during the cooldown is still locked out');
   click($('bankClose'));
+  // a single-topic game (not Mixed All Questions) earns neither screen time nor achievements, even at 100%
+  click($('changeSetupButton')); change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'tables');
+  const trophiesBefore=JSON.stringify(w.MQStore.getProfile(earnerId).trophies||{}), earnedBefore=bankOf().earned, txBefore=bankOf().earnTx.length;
+  click($('startButton')); await sleep(80);
+  tap(answerBtn()); await sleep(900); tap(answerBtn()); await sleep(900); click($('stopButton'));
+  ok(bankOf().earned===earnedBefore&&bankOf().earnTx.length===txBefore&&!bankOf().session&&!Object.keys(bankOf().pending).length,'a single-topic game (not Mixed All) adds no screen-time progress');
+  ok(JSON.stringify(w.MQStore.getProfile(earnerId).trophies||{})===trophiesBefore,'a single-topic game (not Mixed All) adds no achievement progress');
+  ok(!$('finalScores').textContent.includes('minutes'),'the result card shows no screen-time line for a single-topic game');
   click($('changeSetupButton')); change($('profile1'),''); click($('startButton')); await sleep(80);
   tap(answerBtn()); click($('stopButton'));
   ok(bankOf().earned===18&&!Object.keys(bankOf().pending).length&&!bankOf().session,'guests do not earn screen time');

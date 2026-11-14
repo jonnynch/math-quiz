@@ -55,7 +55,6 @@ Under each Grade level a Topic can be chosen. The age levels (2–3 to 6) do not
 | Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, comparing, fractions, money, clock, shapes |
 | Multiplication only, Division only | 2–6 | |
 | Times tables | 2–4 | × and ÷ facts, e.g. 7 × ? = 56 (Grade 2: tables of 2, 5, 10; Grade 4: up to 12 × 12) |
-| Comparing numbers | 1–4 | choose <, = or > (0–20, up to 99, 999, 9999) |
 | Fractions | 1–6 | half of a number, 1/4 of 20, comparing, equivalent, add/subtract, multiply/divide (answers in simplest form) |
 | Money | 1–4 | coins, change and totals, answered in cents |
 | Clock reading | 1–4 | an analogue clock (o'clock/half past, quarter hours, 5 minutes, any minute) |
@@ -67,7 +66,7 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 - Streaks: a 🔥 badge appears from 2 correct answers in a row. At 3, 5, 10 and every 5 after that there is confetti and a new sticker. In 1 vs 1, winning a round also ends the other player's streak. Streaks never change the score, so 1 vs 1 stays fair.
 - Stars: the result screen gives ⭐ for accuracy (3 stars for 90% or more, 2 for 70% or more, otherwise 1).
 - Trophies: Bronze (questions completed), Silver (questions answered correctly) and Gold (correct answers in a row) for every level, with targets that grow from Age 2–3 to Grade 6. Only a question's first answer counts, so retrying cannot inflate progress; in 1 vs 1 each player is credited separately. Progress is kept per saved profile and level (and included in backups). Open 🏆 Achievements to see them. Targets are set in `public/trophies.js`.
-- Stickers: 100 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
+- Stickers: 131 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
 - Confetti is skipped when the device asks for reduced motion.
 
 ## Profiles
@@ -85,7 +84,7 @@ Open ⚙️ Settings for:
 - Text size: Normal, Large or Extra large. On very short landscape phone screens the biggest sizes are capped slightly so every answer still fits.
 
 ## Screen-time bank
-Saved profiles playing **Grade 1–6** earn screen-time minutes (Age 2–3 to Age 6 levels and guests do not). Open ⏱ Screen time to see each profile's available, earned and redeemed minutes, progress to the next reward, and recent history; a parent redeems minutes by hand (two taps). Minutes are only tracked: the game cannot restrict screen time on a device.
+Saved profiles playing **Grade 1–6 in Mixed All Questions** earn screen-time minutes and achievements (single-topic games, Age 2–3 to Age 6 levels and guests do not earn screen time). Open ⏱ Screen time to see each profile's available, earned and redeemed minutes, progress to the next reward, and recent history; a parent redeems minutes by hand (two taps). Minutes are only tracked: the game cannot restrict screen time on a device.
 - Only the **first** answer to a question counts, so retrying cannot raise the score used for rewards.
 - Rewards are paid per batch of at least 20 completed questions in one grade (smaller sessions carry forward; grades are never mixed). A batch needs at least 80% right on the first try. Minutes = correct answers × 0.1 × accuracy bonus (80%: ×1.0, 90%: ×1.2, 95%: ×1.4, 100%: ×1.5) × grade bonus (Grade 1 ×1.0 up to Grade 6 ×1.5), rounded down once per batch.
 - Parent settings (in the same window) change all of these numbers. Balances, history and settings are saved with the profiles and included in Backup and restore.

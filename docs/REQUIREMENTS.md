@@ -27,7 +27,10 @@ Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + 
 - Score = number of correct answers. Streaks/stickers/stars are celebration only, so 1 vs 1 fairness is unaffected.
 - Accuracy counts every tapped answer; average time is first tap per question.
 - Empty slots in the object stage are invisible (outlines would let a child count the gaps to get the answer).
-- Money answers are in cents and there are no decimals anywhere (decimal division was rejected earlier).
+- Money answers are in cents. Decimals appear only in Grade 6 fraction-vs-decimal comparisons (requested later; exact values, two places at most); decimal division was rejected earlier.
+- Whole-number comparison is an Age 6 topic (1–20). Grade 1–6 compare fractions instead (Grade 5 fraction vs fraction, Grade 6 unlike denominators and fraction vs decimal); there is no "Comparing numbers" topic.
+- Achievements and screen-time rewards for Grade 1–6 are earned only in Mixed All Questions, so a child cannot collect them on one easy topic. Age-level achievements are unchanged.
+- "How many are left?" (Age 5) always shows the equation; crossing out comes after a short pause, subtly, and at once with reduced motion.
 - Profiles live in `localStorage` (this device/browser only) because the server is static; there is no backend by design. Moving them between devices is done with Export/Import, not a cloud account (avoids storing children's data online).
 - Topics are filtered per grade so a Grade 1 child never sees times tables, etc.
 - Long-press/double-tap/selection are suppressed on buttons (`touch-action: manipulation`, `user-select: none`) for kids tapping quickly.

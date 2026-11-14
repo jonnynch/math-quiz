@@ -56,6 +56,7 @@ article.question-board.{blue|orange}[.solo][.toddler]
 ## Trophies (`trophies.js`, `game.js`, Achievements window in `menus.js`)
 - `TARGETS` (level id → bronze/silver/gold target) is the single place to tune them; `LEVELS` follow its key order and must match `DIFFICULTIES`.
 - Progress lives in `profile.trophies[level] = { completed, correct, streak, best, unlocked[] }` (schema 2, `cleanAll()` validates it; schema 1 data migrates to `{}`). Bronze = completed, Silver = correct, Gold = `best` run of correct first answers.
+- **Mixed All Questions only (Grade 1–6)**: `Q.countsForProgress(difficulty, topic)` decides; `player.earnsTrophies` / `player.rewardGrade` in `createPlayer` are set from it, so a single-topic game neither records trophies (or resets their streak) nor reports screen-time answers. Age levels have no topics and keep earning trophies. Two players on the same profile are not possible (Player 2 is treated as a guest), so progress is never counted twice.
 - `game.js` `settleRound()` calls `Trophies.record()` once when a round is decided (a correct answer, or everyone out). Each player who answered is credited with one completed question, correct only if their FIRST tap was right (no inflation by retrying). Players who never answered are not credited. A wrong tap calls `Trophies.resetStreak()` at once. Guests never earn trophies. Trophies never touch scores, stars, streaks or stickers.
 - `#achievementsModal` lists every level with its 3 trophies for the chosen profile; locked ones are silhouettes with a 🔒 label.
 

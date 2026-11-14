@@ -25,7 +25,6 @@
     { value: 'mul', label: 'Multiplication only', grades: [2, 3, 4, 5, 6] },
     { value: 'div', label: 'Division only', grades: [2, 3, 4, 5, 6] },
     { value: 'tables', label: 'Times tables', grades: [2, 3, 4] },
-    { value: 'compare', label: 'Comparing numbers', grades: [1, 2, 3, 4] },
     { value: 'fractions', label: 'Fractions', grades: ALL },
     { value: 'money', label: 'Money', grades: [1, 2, 3, 4] },
     { value: 'clock', label: 'Clock reading', grades: [1, 2, 3, 4] },
@@ -39,6 +38,9 @@
   const gradeOf = (difficulty) => Number(String(difficulty).replace('grade', ''));
   const difficultyLabel = (value) => (DIFFICULTIES.find(d => d.value === value) || {}).label || value;
   const topicLabel = (value) => (TOPICS.find(t => t.value === value) || {}).label || value;
+  // Achievements and screen-time rewards: Grade 1-6 progress only counts in Mixed All Questions, so a child cannot
+  // collect it by picking one easy topic. Age levels have no topics, so they always count (achievements only).
+  const countsForProgress = (difficulty, topic) => !isGrade(difficulty) || topic === DEFAULT_TOPIC;
   const topicsFor = (difficulty) => isGrade(difficulty) ? TOPICS.filter(t => t.grades.includes(gradeOf(difficulty))) : [];
   const normaliseTopic = (difficulty, topic) =>
     topicsFor(difficulty).some(t => t.value === topic) ? topic : DEFAULT_TOPIC;
@@ -187,6 +189,55 @@
     return { question: text, answers: [...COMPARE_ANSWERS], correct: cmp < 0 ? 0 : cmp === 0 ? 1 : 2 };
   }
 
+  // Grade 5-6 comparisons are always fraction vs fraction (or fraction vs decimal), never plain whole numbers.
+  // The pair is returned in random order so the larger one is not always on the left.
+  const FIVE_PAIRS = () => {
+    const kind = weightedChoose([['same', 4], ['related', 4], ['equiv', 3]]);
+    let a, b, c, d;
+    if (kind === 'same') {          // same denominator, e.g. 2/5 vs 4/5
+      b = d = intBetween(3, 10); a = intBetween(1, b - 1); c = intBetween(1, b - 1);
+      if (Math.random() > 0.1) while (c === a) c = intBetween(1, b - 1);
+    } else if (kind === 'related') { // one denominator is a multiple of the other, e.g. 3/4 vs 5/8
+      b = choose([2, 3, 4, 5, 6]); d = b * choose([2, 3]);
+      a = intBetween(1, b - 1); c = intBetween(1, d - 1);
+      if (a * d === c * b) c = c === d - 1 ? c - 1 : c + 1;   // keep these "not equal"; equivalents have their own kind
+    } else {                         // equivalent fractions, e.g. 1/2 vs 2/4 (sometimes a near miss such as 1/2 vs 3/6 + 1)
+      b = choose([2, 3, 4, 5]); const k = choose([2, 3]); d = b * k;
+      a = intBetween(1, b - 1); c = a * k;
+      if (Math.random() < 0.4 && c < d - 1) c += 1;
+    }
+    return Math.random() < 0.5 ? [a, b, c, d] : [c, d, a, b];
+  };
+  function makeFractionCompareQuestion5() {
+    const [a, b, c, d] = FIVE_PAIRS();
+    return makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, sign(a * d - c * b));
+  }
+
+  // Grade 6: unlike denominators (related and less obvious) and fraction vs decimal.
+  // Decimals have at most two places and are exact (3/8 vs 0.4, 5/6 vs 0.8), so the answer is never a rounding call.
+  function makeFractionCompareQuestion6() {
+    if (Math.random() < 0.4) {
+      const opts = [];
+      [[2, 3], [4, 5], [3, 8], [5, 8], [5, 6], [1, 6], [3, 4], [2, 5], [7, 8], [3, 5], [1, 4], [7, 10], [1, 8]].forEach(([n, d]) => {
+        [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9].forEach(x => {
+          const diff = Math.abs(n / d - x);
+          if (diff > 0.001 && diff < 0.12) opts.push([n, d, x]);   // close, so it needs real thought
+        });
+      });
+      const [n, d, x] = choose(opts);
+      const cmp = sign(n * 100 - Math.round(x * 100) * d);      // integer arithmetic, no float rounding
+      return Math.random() < 0.5
+        ? makeCompareQuestion(`Compare: ${n}/${d} ? ${x}`, cmp)
+        : makeCompareQuestion(`Compare: ${x} ? ${n}/${d}`, -cmp);
+    }
+    let b, d, a, c;
+    do {
+      b = choose([3, 4, 5, 6, 7, 8, 9, 10, 12]); d = choose([3, 4, 5, 6, 7, 8, 9, 10, 12]);
+      a = intBetween(1, b - 1); c = intBetween(1, d - 1);
+    } while (b === d || a * d === c * b || Math.abs(a * d - c * b) > Math.max(b, d) * 1.2);   // unlike, never equal, fairly close
+    return makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, sign(a * d - c * b));
+  }
+
   function makeFractionsQuestion(grade) {
     if (grade === 1) {
       const n = intBetween(1, 10) * 2;
@@ -239,11 +290,7 @@
     if (grade === 5) {
       const kind = choose(['add', 'sub', 'compare', 'amount']);
       if (kind === 'amount') return ofAmount([3, 4, 5, 6, 8, 10, 12], 12);
-      if (kind === 'compare') {
-        let a, b, c, d;
-        do { b = intBetween(2, 8); d = intBetween(2, 8); a = intBetween(1, b - 1); c = intBetween(1, d - 1); } while (b === d);
-        return makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, sign(a * d - c * b));
-      }
+      if (kind === 'compare') return makeFractionCompareQuestion5();
       // Denominators where one is a multiple of the other, answer below 1.
       for (let tries = 0; tries < 200; tries++) {
         const b = choose([2, 3, 4, 5]);
@@ -263,7 +310,8 @@
       return ofAmount([3, 4, 5, 6, 8, 10, 12], 12);
     }
     // Grade 6
-    const kind = choose(['mul', 'divWhole', 'howMany', 'addUnlike']);
+    const kind = choose(['mul', 'divWhole', 'howMany', 'addUnlike', 'compare', 'compare']);
+    if (kind === 'compare') return makeFractionCompareQuestion6();
     if (kind === 'mul') {
       const b = intBetween(2, 9), d = intBetween(2, 9);
       const a = intBetween(1, b - 1), c = intBetween(1, d - 1);
@@ -287,21 +335,6 @@
       }
     }
     return makeFractionQuestion('1/2 × 1/3 = ? (simplest form)', [1, 6], [[2, 5]]);
-  }
-
-  // ---------- comparing numbers ----------
-  function makeCompareNumbersQuestion(grade) {
-    const range = [null, [0, 20], [10, 99], [100, 999], [1000, 9999]][grade];
-    const [min, max] = range;
-    const near = Math.max(1, Math.round((max - min) * (grade === 1 ? 0.15 : 0.06)));
-    const clamp = (v) => Math.min(max, Math.max(min, v));
-    const a = intBetween(min, max);
-    const mode = Math.random();
-    let b;
-    if (mode < 0.12) b = a;
-    else if (mode < 0.62) b = clamp(a + choose([-1, 1]) * intBetween(1, near));
-    else b = intBetween(min, max);
-    return makeCompareQuestion(`Compare: ${a} ? ${b}`, sign(a - b));
   }
 
   // ---------- times tables ----------
@@ -904,7 +937,7 @@
       const [a, b] = choose(SUB_PAIRS), keep = a - b, layout = pictureLayout(a, b, keep);
       const words = a <= 6 && Math.random() < 0.65;
       return tag({
-        question: words ? 'How many are left?' : `${a} − ${b} = ?`,
+        question: words ? `How many are left? ${a} − ${b} = ?` : `${a} − ${b} = ?`,
         resultText: `${a} − ${b} = ${keep}`,
         picture: {
           groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
@@ -1220,8 +1253,55 @@
         ? { base: first, baseCount: a, op: 'add', change: b, added: second }
         : { base: first, baseCount: a, op: 'remove', change: b },
       ...choices,
+      tier: operator === '+' ? 1 : 2,
       simple: true
     };
+  }
+
+  // Age 6 comparing numbers, 1-20 only (whole-number comparison stops here; Grade 1-6 compare fractions instead).
+  // Difficulty rises through `tier`: 1 = pick the greater/smaller of two far-apart numbers; 2 = close numbers (16 and 17,
+  // 18 and 20) and the signs < and >; 3 = the sign = too, and "Which is true?" with four statements.
+  // Two-number picks are shown in the order asked (`keepOrder`), not sorted, otherwise the greater would always be last.
+  const A6_ANSWERS = ['< (less than)', '= (equal to)', '> (greater than)'];
+  function makeCompareAge6Question() {
+    const tier = weightedChoose([[1, 4], [2, 5], [3, 5]]);
+    const pair = (minGap, maxGap) => {
+      const gap = intBetween(minGap, maxGap), a = intBetween(1, 20 - gap);
+      return Math.random() < 0.5 ? [a, a + gap] : [a + gap, a];
+    };
+    const same = () => { const n = intBetween(1, 20); return [n, n]; };
+    if (tier === 3 && Math.random() < 0.5) {
+      // Four statements, exactly one true. The fourth is the mirror of a false one, so it is false too.
+      const [a, b] = Math.random() < 0.25 ? same() : pair(1, 4);
+      const right = a < b ? `${a} < ${b}` : a > b ? `${a} > ${b}` : `${a} = ${b}`;
+      const statements = [`${a} < ${b}`, `${a} > ${b}`, `${a} = ${b}`, a < b ? `${b} < ${a}` : `${b} > ${a}`];
+      const answers = shuffledCopy([...new Set(statements)]);
+      return { question: 'Which is true?', resultText: right, answers, correct: answers.indexOf(right), tier: 3, simple: true, keepOrder: true };
+    }
+    if (tier === 3 || (tier === 2 && Math.random() < 0.5)) {
+      // Which sign goes between the numbers. Tier 2 has < and > only; tier 3 adds =.
+      const [a, b] = tier === 3 && Math.random() < 0.25 ? same() : pair(tier === 3 ? 1 : 2, tier === 3 ? 4 : 6);
+      const cmp = sign(a - b);
+      const answers = tier === 3 ? [...A6_ANSWERS] : [A6_ANSWERS[0], A6_ANSWERS[2]];
+      return {
+        question: `Which sign goes here? ${a} ? ${b}`,
+        resultText: `${a} ${cmp < 0 ? '<' : cmp > 0 ? '>' : '='} ${b}`,
+        answers, correct: cmp < 0 ? 0 : cmp === 0 ? 1 : answers.length - 1, tier, simple: true, keepOrder: true
+      };
+    }
+    const [a, b] = tier === 1 ? pair(5, 12) : pair(1, 3);
+    const greater = Math.random() < 0.5;
+    const target = greater ? Math.max(a, b) : Math.min(a, b);
+    return {
+      question: `Which number is ${greater ? 'greater' : 'smaller'}? ${a} or ${b}`,
+      resultText: `${target} is ${greater ? 'greater' : 'smaller'}`,
+      answers: [String(a), String(b)], correct: target === a ? 0 : 1, tier, simple: true, keepOrder: true
+    };
+  }
+
+  // Age 6 is one pool: sums and differences within 10, plus number comparison 1-20.
+  function makeAge6Question() {
+    return Math.random() < 0.4 ? makeCompareAge6Question() : makeWithin10Question();
   }
 
   // ---------- Grade 1-6 arithmetic ----------
@@ -1268,13 +1348,13 @@
 
   // "Mixed All Questions" draws each question from one of these categories (only those the grade offers).
   // 'mixed' covers + − × ÷ (÷ and × from Grade 2); add/sub/mul/div are not listed so arithmetic is not over-weighted.
-  const ALL_MIX_TOPICS = ['mixed', 'tables', 'compare', 'fractions', 'money', 'clock', 'shapes'];
+  const ALL_MIX_TOPICS = ['mixed', 'tables', 'fractions', 'money', 'clock', 'shapes'];
 
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeToddlerQuestion();
     if (difficulty === 'age4') return makeAge4Question();
     if (difficulty === 'age5') return makeAge5Question();
-    if (difficulty === 'age6') return makeWithin10Question();
+    if (difficulty === 'age6') return makeAge6Question();
     const grade = gradeOf(difficulty);
     let name = normaliseTopic(difficulty, topic);
     if (name === 'all') {
@@ -1283,7 +1363,6 @@
     }
     switch (name) {
       case 'tables': return makeTablesQuestion(grade);
-      case 'compare': return makeCompareNumbersQuestion(grade);
       case 'fractions': return makeFractionsQuestion(grade);
       case 'money': return makeMoneyQuestion(grade);
       case 'clock': return makeClockQuestion(grade);
@@ -1296,13 +1375,14 @@
   // value (`keys`). Text answers such as < = > keep a fixed order.
   function generateQuestion(difficulty, topic = DEFAULT_TOPIC) {
     const q = generateRawQuestion(difficulty, topic);
-    const keys = q.keys || (q.answers.every(a => a.trim() !== '' && !isNaN(Number(a))) ? q.answers.map(Number) : null);
+    const keys = q.keepOrder ? null : q.keys || (q.answers.every(a => a.trim() !== '' && !isNaN(Number(a))) ? q.answers.map(Number) : null);
     if (keys) {
       const order = q.answers.map((_, i) => i).sort((x, y) => keys[x] - keys[y]);
       q.answers = order.map(i => q.answers[i]);
       q.correct = order.indexOf(q.correct);
     }
     delete q.keys;
+    delete q.keepOrder;
     return q;
   }
 
@@ -1371,7 +1451,7 @@
   }
 
   const api = {
-    DIFFICULTIES, TOPICS, DEFAULT_TOPIC, isGrade, gradeOf, difficultyLabel, topicLabel, topicsFor, normaliseTopic,
+    DIFFICULTIES, TOPICS, DEFAULT_TOPIC, countsForProgress, isGrade, gradeOf, difficultyLabel, topicLabel, topicsFor, normaliseTopic,
     generateQuestion, shuffledCopy, intBetween, choose,
     questionKey, buildQuestionBank, createQuestionDeck
   };

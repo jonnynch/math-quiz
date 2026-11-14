@@ -43,6 +43,29 @@ const hasCell = (q, re) => q.picture && q.picture.groups.some(g => g.rows.some(r
     ok([...g.$('difficulty2').options].map(o => o.textContent).join() === [...g.$('difficulty1').options].map(o => o.textContent).join(), 'player 2 selector matches');
   }
 
+  // ---- Age 5 "How many are left?": the equation and all objects first, crossing out a moment later
+  {
+    const left = find('age5', q => /^How many are left\? \d+ − \d+ = \?$/.test(q.question));
+    const [, la, lb] = left.question.match(/(\d+) − (\d+)/).map(Number);
+    const g = boot();
+    await g.play(left, 'age5');
+    let pic = g.d.querySelector('.picture');
+    ok(g.board().querySelector('.question-text').textContent === left.question && left.question.includes(`${la} − ${lb} = ?`), 'the subtraction equation is on screen from the start');
+    ok(pic.querySelectorAll('.obj').length === la && pic.classList.contains('aids-pending') && !pic.classList.contains('aids-flash'), 'all original objects are shown first, with nothing crossed out yet');
+    const wrong = g.buttons().find((b, j) => j !== left.correct);
+    g.tap(wrong);
+    ok(wrong.disabled && g.d.querySelector('.picture').classList.contains('aids-pending'), 'answering during the pause works and does not change the animation timing');
+    await sleep(1500);
+    pic = g.d.querySelector('.picture');
+    ok(pic.classList.contains('aids-flash') && pic.querySelectorAll('.cell.removed').length === lb, 'afterwards the objects being taken away are crossed out with a short animation');
+    g.tap(g.buttons()[left.correct]);
+    ok(g.score() === '1' && g.errors.length === 0, 'the correct answer still scores; no script errors');
+    const r = boot({ reducedMotion: true });
+    await r.play(left, 'age5');
+    const rp = r.d.querySelector('.picture');
+    ok(!rp.classList.contains('aids-pending') && !rp.classList.contains('aids-flash') && rp.querySelectorAll('.cell.removed').length === lb, 'reduced motion: crossing out is shown at once, without animation');
+  }
+
   // ---- delayed teaching aids
   const sub = find('age4', q => /^\d+ − \d+ = \?$/.test(q.question) && hasCell(q, /x/));
   const miss = find('age4', q => hasCell(q, /O/));
