@@ -46,7 +46,7 @@ const OTHER=[['toddler'],['age4'],['age5'],['age6'],['grade1','mixed'],['grade2'
         chk(b,`board${i}`); chk(b.querySelector('.question-text'),`board${i} question`);
         const f=b.querySelector('.figure'); if(f){chk(f,`board${i} figure`); if(clock&&f.getBoundingClientRect().height<90) out.push(`board${i} clock too small`);} else if(clock) out.push(`board${i} has no clock`);
         const st=b.querySelector('.object-stage,.counting-visual'); if(st) chk(st,`board${i} objects`);
-        const btns=b.querySelectorAll('.answer-button'); if(btns.length<3) out.push(`board${i} has ${btns.length} answers`); if(clock&&btns.length!==5) out.push(`board${i} has ${btns.length} answers`);
+        const btns=b.querySelectorAll('.answer-button'); if(btns.length<(b.classList.contains('groups')?2:3)) out.push(`board${i} has ${btns.length} answers`); if(clock&&btns.length!==5) out.push(`board${i} has ${btns.length} answers`);
         btns.forEach((a,j)=>{chk(a,`board${i} answer${j}`); if(a.getBoundingClientRect().height<MIN_TOUCH) out.push(`board${i} answer${j} too small`); if(a.scrollWidth>a.clientWidth+1) out.push(`board${i} answer${j} text overflow`);});
         // side by side: question side (info) on the left, all answers on the right. Expected in landscape, in Solo portrait and in
         // 1 vs 1 portrait once the screen is tall enough for two stacked boards (940px, 1010px at Extra large text; see style.css).

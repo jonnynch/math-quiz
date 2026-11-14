@@ -68,10 +68,10 @@ ok(bad.length === 0, 'every level/topic: de-duplicated bank, no repeats until ex
 // ---- small pools: no infinite loop, game never stops
 {
   const t0 = Date.now();
-  const small = Q.buildQuestionBank('age5', 'mixed', 500);    // only a handful of distinct questions
+  const small = Q.buildQuestionBank('age4', 'mixed', 500);    // a few hundred distinct questions at most (Age 4 is a small pool)
   const tiny = Q.buildQuestionBank('grade1', 'shapes', 500);
   ok(Date.now() - t0 < 2000, 'building a bank for a tiny pool finishes quickly (attempts are capped)');
-  ok(small.length >= 1 && small.length < 500 && allDistinct(keysOf(small)), `small pool (age5) gives ${small.length} distinct questions`);
+  ok(small.length >= 1 && small.length < 500 && allDistinct(keysOf(small)), `small pool (age4) gives ${small.length} distinct questions`);
   ok(tiny.length >= 1 && allDistinct(keysOf(tiny)), `small pool (grade1 shapes) gives ${tiny.length} distinct questions`);
   const deck = Q.createQuestionDeck(small);
   ok(deal(deck, small.length * 10).every(Boolean), 'deck keeps dealing questions for a small pool');
