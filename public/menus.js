@@ -996,4 +996,5 @@
 
   root.MQMenus = api;
   api.init = init;
+  api.renderParentChallenge = renderParentChallenge;   // Playzone reuses the same parent question
 })(window);

@@ -98,6 +98,31 @@
       </div>
       <p class="setup-note">In 1 vs 1, each player has their own answer area. Topics are available from Grade 1.</p>
       <button id="startButton" class="primary-button" type="button">Start Game <span aria-hidden="true">→</span></button>
+      <button id="playzoneButton" class="playzone-entry" type="button"><span class="pz-entry-icon" aria-hidden="true">🎈</span><span><strong>Playzone</strong><small>Fun games, unlocked with screen-time minutes</small></span></button>
+    </section>
+
+    <section id="playzonePanel" class="panel pz-panel hidden">
+      <div id="pzMenuView">
+        <div class="pz-head">
+          <button id="pzBack" class="secondary-button small" type="button">← Back</button>
+          <div class="pz-head-title"><p class="eyebrow">PLAYZONE</p><h2>Pick a game</h2></div>
+          <div class="pz-bank">
+            <span id="pzProfileRow"><select id="pzProfile" aria-label="Whose minutes?"></select></span>
+            <span id="pzBalance" class="status-pill"></span>
+          </div>
+        </div>
+        <p id="pzNotice" class="setting-help hidden" role="status"></p>
+        <div id="pzGames" class="pz-grid"></div>
+        <div id="pzConfirm" class="pz-confirm hidden"></div>
+      </div>
+      <div id="pzStageView" class="hidden">
+        <div class="pz-stage-head">
+          <button id="pzLeave" class="secondary-button small" type="button">← Playzone</button>
+          <h2 id="pzStageTitle"></h2>
+        </div>
+        <p id="pzSaveWarning" class="setting-help error hidden">The minutes were used, but this browser would not save the change, so it may come back when the page is reloaded.</p>
+        <div id="pzHost" class="pz-host"></div>
+      </div>
     </section>
 
     <section id="gamePanel" class="hidden">
@@ -301,6 +326,10 @@
   <script src="store.js"></script>
   <script src="audio.js"></script>
   <script src="menus.js"></script>
+  <script src="playzone.js"></script>
+  <script src="pz-designer.js"></script>
+  <script src="pz-reaction.js"></script>
+  <script src="pz-balloon.js"></script>
   <script src="game.js"></script>
   <script src="pwa.js"></script>
 </body>

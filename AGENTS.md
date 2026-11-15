@@ -10,7 +10,7 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 ## File map
 | Path | Role |
 |---|---|
-| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `report.js`, `store.js`, `audio.js`, `menus.js`, `game.js`, `pwa.js`. |
+| `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `report.js`, `store.js`, `audio.js`, `menus.js`, `playzone.js`, `pz-designer.js`, `pz-reaction.js`, `pz-balloon.js`, `game.js`, `pwa.js`. |
 | `public/questions.js` | **Pure logic, no DOM.** Level/topic definitions and every question generator. `window.MQQuestions` (also `module.exports` for Node tests). |
 | `public/trophies.js` | **Pure logic, no DOM.** Trophy targets (`TARGETS`, the one place to tune them) and the rules that record progress. `window.MQTrophies`. Trophies never change scores, stars, streaks or stickers. |
 | `public/parent.js` | **Pure logic, no DOM.** Parent verification for the Screen-time Bank: one short random quadratic or probability question (typed answer, fractions/decimals accepted), 3 tries then 30 s cooldown, in-memory unlock. `window.MQParent`. A child-resistant barrier, not security. |
@@ -18,6 +18,7 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 | `public/store.js` | **No DOM.** Profiles + settings in `localStorage` (key `mathQuizBattle.v1`). `window.MQStore`. |
 | `public/audio.js` | Optional read-aloud (`speechSynthesis`) and correct/wrong sound effects (Web Audio tones, no audio files). Both are saved settings (`readAloud`, `sound`), **off by default**. Every call is try/catch-safe; speech is cancelled on a new question, Stop Game, Change Settings and page hide. `window.MQAudio`. |
 | `public/menus.js` | Settings window, Profiles window, the "Who is playing?" selects. `window.MQMenus`. |
+| `public/playzone.js`, `public/pz-*.js` | **Playzone** mini-games (Pizza & Cake Designer, Reaction Battle, Balloon Pop) unlocked with Screen-time minutes. `playzone.js` is the shell (menu, cost screen, redemption, stage, `MQPlayzone.register`); each game is one self-contained `pz-*.js`. See `docs/ARCHITECTURE.md` (Playzone). `window.MQPlayzone`. |
 | `public/game.js` | Game flow: setup, rounds, answers, timers, rewards, results, SVG figures. Wires everything together. |
 | `public/pwa.js`, `public/sw.js`, `public/manifest.webmanifest`, `public/icons/`, `public/favicon.svg` | Installable/offline support: service worker registration, "new version" notice, Install section in Settings. See `docs/ARCHITECTURE.md` (Offline and install). |
 | `public/style.css` | All styling: design tokens, palettes, text scale, components, and the phone-landscape layout. |
@@ -45,6 +46,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 14. **Saved data stays upgradable**: keep the key `mathQuizBattle.v1`, keep the `schema` field, add a `migrate()` step instead of discarding old profiles. The backup file format (`app`, `schema`, `profiles`) must stay importable.
 15. **Offline cache list**: when a file is added, renamed or removed in `public/`, update `FILES` in `public/sw.js` **and bump `VERSION`** (otherwise the offline copy can miss the file). `npm run test:pwa` checks every script is listed. The service worker is network-first with `cache: 'no-cache'`; do not change it to cache-first (users would get stale code).
 16. **Screen-time bank (Grade 1–6 only)**: age levels and guests never earn. Only a player's *first* answer to a question is reported (`Store.rewardAnswer` from the first-tap block in `handleAnswer`); retries never count. Rewards are paid per batch (`Store.settleRewards`), grades are never mixed in a batch, and all reward numbers live in `REWARD_DEFAULTS` in `store.js`. Rewards never change score, stars, streaks or stickers. Parent-only actions (`setRewardConfig`, `resetRewardConfig`, `redeem`, backup `applyBackup` and Undo `restoreBackup`) refuse to run unless `MQParent.isUnlocked()`; the check lives in `store.js`, not only in the UI. See `docs/ARCHITECTURE.md`.
+17. **Playzone** spends minutes only through `Store.checkRedeem` / `Store.redeem` (parent-only, one parent question per start, one deduction per start). It never earns minutes, never adds a second balance and never changes the maths reward rules. New games register with `MQPlayzone.register({ id, title, icon, desc, cost, players, mount })`, live in their own `pz-*.js`, and must clean up their timers in `destroy()`.
 
 ## Common tasks
 - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.
