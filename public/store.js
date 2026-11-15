@@ -25,6 +25,8 @@
   const MAX_PROFILES = 8;
   const MAX_HISTORY = 30;
   const NAME_LENGTH = 14;
+  const MAX_PLAY_MS = 6 * 60 * 60 * 1000;   // one Playzone session is never charged for more than 6 hours
+  const MAX_PLAY_LOG = 20;                  // finished Playzone sessions kept per profile (also guards against double charging)
   const PALETTES = ['standard', 'cb'];
   const ON_OFF = ['off', 'on'];                   // read-aloud and sound effects: both off unless chosen
   const TEXT_SIZES = ['normal', 'large', 'xlarge'];
@@ -98,7 +100,8 @@
   }
 
   // One profile's reward bank: totals, unfinished progress per grade, the running session, and history.
-  // Missing or damaged data becomes an empty bank; redeemed can never exceed earned.
+  // Missing or damaged data becomes an empty bank. redeemed may exceed earned: the balance can be negative
+  // (Playzone charges whole minutes after play, and a parent may deduct more than is left).
   function cleanRewards(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const earned = whole(r.earned);
@@ -122,7 +125,7 @@
     const list = (v) => (Array.isArray(v) ? v.slice(0, MAX_REWARD_TX) : []);
     return {
       earned,
-      redeemed: Math.min(whole(r.redeemed), earned),
+      redeemed: whole(r.redeemed),
       pending,
       session,
       earnTx: list(r.earnTx).filter(t => t && isRewardGrade(t.grade)).map(t => ({
@@ -134,13 +137,37 @@
     };
   }
 
-  // Playzone personal bests: fastest valid Reaction Battle time (ms, lower is better) and highest Balloon Pop score.
+  // Playzone data on a profile: personal bests (fastest valid Reaction Battle time in ms, lower is better; highest
+  // Balloon Pop score), the one running usage session (if any), a short log of finished sessions, and the last
+  // Pizza & Cake design (saved automatically when a session ends).
+  const slug = (v, n) => String(v || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, n);
+  const DESIGN_SHAPES = ['round', 'square', 'heart', 'oval'];
+  function cleanDesign(raw) {
+    if (!raw || typeof raw !== 'object' || !['pizza', 'cake'].includes(raw.kind)) return null;
+    const colour = (c) => (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c : null);
+    const outer = colour(raw.outer);
+    const inner = colour(raw.inner);
+    if (!outer || !inner) return null;
+    const items = (Array.isArray(raw.items) ? raw.items : []).slice(0, 60)
+      .filter(i => i && typeof i.type === 'string' && /^[a-z]{2,12}$/.test(i.type) && Number.isFinite(i.x) && Number.isFinite(i.y))
+      .map(i => ({ type: i.type, x: Math.round(i.x * 10) / 10, y: Math.round(i.y * 10) / 10, rot: Number.isFinite(i.rot) ? Math.round(i.rot) : 0 }));
+    return { kind: raw.kind, shape: DESIGN_SHAPES.includes(raw.shape) ? raw.shape : 'round', outer, inner, items };
+  }
   function cleanPlayzone(raw) {
     const p = raw && typeof raw === 'object' ? raw : {};
     const ms = Math.round(Number(p.reactionBest));
+    const s = p.session;
+    const session = s && typeof s === 'object' && slug(s.id, 30)
+      ? { id: slug(s.id, 30), game: slug(s.game, 20), startedAt: whole(s.startedAt), lastSeen: whole(s.lastSeen), usedMs: Math.min(whole(s.usedMs), MAX_PLAY_MS), status: 'active' }
+      : null;
+    const log = (Array.isArray(p.log) ? p.log : []).filter(x => x && typeof x === 'object' && slug(x.id, 30)).slice(0, MAX_PLAY_LOG)
+      .map(x => ({ id: slug(x.id, 30), game: slug(x.game, 20), startedAt: whole(x.startedAt), endedAt: whole(x.endedAt), seconds: whole(x.seconds), minutes: whole(x.minutes), reason: slug(x.reason, 20) }));
     return {
       reactionBest: Number.isFinite(ms) && ms >= 1 && ms <= 60000 ? ms : null,
-      balloonBest: Math.min(whole(p.balloonBest), 1000000)
+      balloonBest: Math.min(whole(p.balloonBest), 1000000),
+      session,
+      log,
+      design: cleanDesign(p.design)
     };
   }
 
@@ -234,7 +261,7 @@
   const IMPORT_DENIED = 'Parent verification is needed before importing or undoing a backup.';
   const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
   const MAX_ADJUST = 600;   // largest single manual adjustment, in minutes
-  // The one place minutes are spent (parent redeem and Playzone).
+  // Parent redeem: spends minutes the bank really has. (Playzone is charged after play by endPlay, and may go negative.)
   function applyRedeem(profile, minutes) {
     const error = api.checkRedeem(profile, minutes);
     if (error) return { error };
@@ -244,6 +271,69 @@
     return { redeemed: minutes, saved: save() };
   }
   const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
+
+  // ---------- Playzone usage (charged by actual time, rounded up) ----------
+  // A game session is charged when it ENDS: Math.ceil(seconds / 60) whole minutes (never fewer than 1, so a session
+  // that has started cannot be refreshed away for free). Nothing is deducted when it starts. Each session is charged
+  // on its own and the balance may become negative. The running session is stored on the profile (profile.playzone.
+  // session) and its played time is counted from a monotonic clock in small steps (heartbeats), so refreshing, closing
+  // the browser or changing the device clock cannot give free time. A session left behind (refresh, crash, restart)
+  // is ended on the next launch (reconcilePlay) at the last heartbeat. The session is cleared and logged in the same
+  // save that charges it, so it can only be charged once.
+  const PLAY_GAP_MS = 15000;          // a longer silence (sleeping device, frozen page) is not counted as playing
+  const live = new Map();             // profile id -> { id, perf }: sessions running in THIS page, with their last clock reading
+  const playMinutes = (seconds) => Math.max(1, Math.ceil(Math.max(0, Number(seconds) || 0) / 60));
+
+  // Another tab (or an earlier load) may already have charged this session: its id is then in the saved log.
+  function settledElsewhere(profile, sessionId) {
+    try {
+      const raw = root.localStorage.getItem(KEY);
+      if (!raw) return false;
+      const saved = (JSON.parse(raw).profiles || []).find(p => p && p.id === profile.id);
+      const pz = saved && saved.playzone;
+      if (!pz) return false;
+      return (Array.isArray(pz.log) ? pz.log : []).some(x => x && x.id === sessionId) || (!!pz.session && pz.session.id !== sessionId);
+    } catch (error) { return false; }
+  }
+
+  function advancePlay(profile, perfNow) {
+    const s = profile.playzone.session;
+    const l = live.get(profile.id);
+    if (!s || !l || l.id !== s.id) return;
+    const gap = Number.isFinite(perfNow) ? perfNow - l.perf : 0;
+    l.perf = Number.isFinite(perfNow) ? perfNow : l.perf;
+    s.usedMs = Math.min(s.usedMs + Math.min(Math.max(gap, 0), PLAY_GAP_MS), MAX_PLAY_MS);
+    s.lastSeen = Math.max(s.lastSeen, Date.now());   // for information only: charging never uses the device clock
+  }
+
+  // Ends the running session exactly once. Returns null when there is nothing to charge.
+  function settlePlay(profile, reason) {
+    const pz = profile && profile.playzone;
+    const s = pz && pz.session;
+    if (!s || !profile.rewards) return null;
+    pz.session = null;
+    live.delete(profile.id);
+    if (pz.log.some(x => x.id === s.id) || settledElsewhere(profile, s.id)) return null;   // never charge twice
+    const seconds = s.usedMs / 1000;
+    const minutes = playMinutes(seconds);
+    profile.rewards.redeemed += minutes;
+    profile.rewards.redeemTx.unshift({ t: Date.now(), minutes });
+    profile.rewards.redeemTx.length = Math.min(profile.rewards.redeemTx.length, MAX_REWARD_TX);
+    pz.log.unshift({ id: s.id, game: s.game, startedAt: s.startedAt, endedAt: Date.now(), seconds: Math.round(seconds), minutes, reason: slug(reason || 'ended', 20) });
+    pz.log.length = Math.min(pz.log.length, MAX_PLAY_LOG);
+    return { minutes, seconds, game: s.game, balance: rewardBalance(profile), saved: save() };
+  }
+
+  // Ends every session left over from an earlier page load (refresh, crash, closed browser) at its last heartbeat.
+  function reconcilePlay() {
+    const results = [];
+    data.profiles.forEach(profile => {
+      const s = profile.playzone && profile.playzone.session;
+      const l = live.get(profile.id);
+      if (s && !(l && l.id === s.id)) { const r = settlePlay(profile, 'interrupted'); if (r) results.push({ profile: profile.id, ...r }); }
+    });
+    return results;
+  }
 
   // Minutes for one batch of completed questions. Rounds down once, at the end, never per question.
   function calcReward(grade, completed, correct, config) {
@@ -408,6 +498,7 @@
       if (!profile || !profile.rewards) return 'Choose a profile first.';
       const balance = rewardBalance(profile);
       if (!Number.isInteger(minutes) || minutes < 1) return 'Type a whole number of minutes (1 or more).';
+      if (balance <= 0) return 'No minutes are available to redeem.';
       if (minutes > balance) return `Only ${balance} minute${balance === 1 ? ' is' : 's are'} available.`;
       return '';
     },
@@ -417,20 +508,62 @@
       if (denied) return denied;
       return applyRedeem(profile, minutes);
     },
-    // Playzone: the child spends minutes on a game. Same bank, checks and history as redeem(), but no parent question.
-    // Only the Playzone shell calls this; it can never add minutes.
-    redeemForPlay(profile, minutes) {
-      return applyRedeem(profile, minutes);
+    // ----- Playzone usage (see the block above). perfNow is a monotonic clock reading in ms (performance.now()). -----
+    playMinutes,
+    // A new game may only start while the balance is above zero. Nothing is deducted here; time is charged by endPlay.
+    startPlay(profile, game, perfNow) {
+      if (!profile || !profile.rewards || !profile.playzone) return { error: 'Choose a profile first.' };
+      const pz = profile.playzone;
+      if (pz.session) {
+        const l = live.get(profile.id);
+        if (l && l.id === pz.session.id) return { error: 'A game is already running.', running: true };   // overlapping sessions are refused
+        settlePlay(profile, 'interrupted');                                                             // left over from an earlier page: charge it first
+      }
+      if (rewardBalance(profile) <= 0) return { error: 'The Screen-time Bank must be above 0 minutes before another game can start.', empty: true };
+      const id = newId();
+      const now = Date.now();
+      pz.session = { id, game: slug(game, 20), startedAt: now, lastSeen: now, usedMs: 0, status: 'active' };
+      live.set(profile.id, { id, perf: Number.isFinite(perfNow) ? perfNow : 0 });
+      return { id, saved: save() };
     },
-    // Parent-only manual correction of the same bank: +minutes raise `earned`, -minutes raise `redeemed`.
+    // Heartbeat: counts the time since the last reading and saves it. { ended: true } if another tab already charged it.
+    tickPlay(profile, perfNow) {
+      const s = profile && profile.playzone && profile.playzone.session;
+      if (!s) return { active: false };
+      if (settledElsewhere(profile, s.id)) { profile.playzone.session = null; live.delete(profile.id); return { active: false, ended: true }; }
+      advancePlay(profile, perfNow);
+      return { active: true, seconds: s.usedMs / 1000, saved: save() };
+    },
+    // Seconds played so far in the running session (no saving).
+    playSeconds(profile, perfNow) {
+      const s = profile && profile.playzone && profile.playzone.session;
+      const l = s && live.get(profile.id);
+      if (!s) return 0;
+      const gap = l && l.id === s.id && Number.isFinite(perfNow) ? Math.min(Math.max(perfNow - l.perf, 0), PLAY_GAP_MS) : 0;
+      return (s.usedMs + gap) / 1000;
+    },
+    activePlay: (profile) => !!(profile && profile.playzone && profile.playzone.session),
+    // Ends the session and charges its actual usage, rounded up to whole minutes. Safe to call twice: the second call charges nothing.
+    endPlay(profile, perfNow, reason) {
+      if (!profile || !profile.playzone || !profile.playzone.session) return null;
+      advancePlay(profile, perfNow);
+      return settlePlay(profile, reason || 'ended');
+    },
+    reconcilePlay,
+    // Keeps the latest Pizza & Cake design on the profile (see cleanDesign).
+    saveDesign(profile, design) {
+      if (!profile || !profile.playzone) return false;
+      profile.playzone.design = cleanDesign(design);
+      return save();
+    },
+    // Parent-only manual correction of the same bank: +minutes raise `earned`, -minutes raise `redeemed`. The balance may go negative.
     // Needs the separate hard verification (MQParent.hard), not the normal parent check.
     adjustBalance(profile, delta) {
       const hard = root.MQParent && root.MQParent.hard;
       if (!hard || !hard.isUnlocked()) return { denied: true, error: 'Parent verification is needed first.', saved: false };
       if (!profile || !profile.rewards) return { error: 'Choose a profile first.' };
       if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_ADJUST) return { error: `Type a whole number of minutes from 1 to ${MAX_ADJUST}.` };
-      const before = rewardBalance(profile);
-      if (delta < 0 && -delta > before) return { error: `Only ${before} minute${before === 1 ? ' is' : 's are'} available to deduct.` };
+      const before = rewardBalance(profile);   // a deduction may take the balance below zero
       if (delta > 0) profile.rewards.earned += delta;
       else profile.rewards.redeemed += -delta;
       return { before, after: rewardBalance(profile), saved: save() };
@@ -598,9 +731,10 @@
     },
 
     // Test helper: replace everything with fresh data.
-    _reset() { data = defaults(); }
+    _reset() { data = defaults(); live.clear(); }
   };
 
+  reconcilePlay();   // end any Playzone session left behind by a refresh, crash or closed browser
   root.MQStore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

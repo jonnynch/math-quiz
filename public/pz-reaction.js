@@ -79,6 +79,12 @@
       });
     }
 
+    function paintBlocked(problem) {
+      let note = game.querySelector('.pz-block-note');
+      if (!note) { note = el('p', 'setting-help error pz-block-note'); note.setAttribute('role', 'alert'); game.append(note); }
+      note.textContent = problem;
+    }
+
     function showFormat() {
       phase = 'format';
       clearTimers();
@@ -97,7 +103,10 @@
       paint('Choose how many rounds', ['', '']);
     }
 
+    // A match is one usage session: it starts here (needs a positive balance) and is charged when the match ends.
     function startMatch() {
+      const problem = ctx && ctx.begin ? ctx.begin() : '';
+      if (problem) { paintBlocked(problem); return; }
       who.classList.add('hidden');
       wins = [0, 0];
       formatRow.classList.add('hidden');
@@ -133,6 +142,7 @@
       if (wins[winner] >= target) {
         phase = 'matchover';
         paint(`${reason}🏆 ${name} wins the match!`, ['', '']);
+        if (ctx && ctx.end) ctx.end('match');     // the match is over: charge the actual time now
         showAfter();
       } else {
         phase = 'roundover';
@@ -233,7 +243,6 @@
     title: 'Reaction Battle',
     icon: '⚡',
     desc: 'Who taps first when GO appears? Do not tap too early!',
-    cost: 1,
     players: 2,
     mount
   });

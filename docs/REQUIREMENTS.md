@@ -35,3 +35,9 @@ Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + 
 
 ## Ideas not done (from the owner's suggestion list)
 Read-aloud / sound effects for young children, automatic level-up, review of missed questions / mistake history, avoiding repeated questions within a game, keyboard shortcuts for laptops, wake lock, parent CSV export, focus trapping in windows, GitHub Actions CI + lockfile, security headers, race-to-N / best-of-N for 1 vs 1.
+
+
+## Playzone usage tracking and Screen-time page adjustment
+- Playzone personal bests (Reaction Battle best ms, lower is better; Balloon Pop best score) are also listed in each player's Profile Details ("Not played yet" when empty).
+- Games are charged by actual time: `Math.ceil(seconds / 60)` whole minutes per session (at least 1), charged when the session ends, never up front. The balance may be negative (also after a parent deduction); a balance of 0 or less only blocks starting a NEW game.
+- Parent minute adjustment moved from Playzone to the Screen-time page; it still needs the hard quadratic question.

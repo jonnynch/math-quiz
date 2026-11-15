@@ -153,7 +153,17 @@
       objects = [];
     }
 
+    // A new game needs a positive Screen-time balance. The usage session starts here and is charged when the game ends.
+    function blocked(problem) {
+      const target = over.classList.contains('hidden') ? intro : over;
+      let note = target.querySelector('.pz-block-note');
+      if (!note) { note = el('p', 'setting-help error pz-block-note'); note.setAttribute('role', 'alert'); target.append(note); }
+      note.textContent = problem;
+    }
+
     function start() {
+      const problem = ctx && ctx.begin ? ctx.begin() : '';
+      if (problem) { blocked(problem); return; }
       timers.forEach(clearTimeout); timers.clear();
       intro.classList.add('hidden');
       over.classList.add('hidden');
@@ -286,6 +296,7 @@
       clearObjects();
       let record = null;
       if (ctx && player) record = ctx.record(player, 'balloon', score);
+      if (ctx && ctx.end) ctx.end('over');                  // the session ends with the game: actual time is charged now
       hud();
       over.innerHTML = '';
       over.classList.remove('hidden');
@@ -328,7 +339,6 @@
     title: 'Balloon Pop',
     icon: '🎈',
     desc: 'Pop balloons, dodge the grey ✖ objects, and survive as long as you can!',
-    cost: 1,
     players: 1,
     mount,
     difficulty,

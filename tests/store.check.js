@@ -245,7 +245,7 @@ Parent.lock();
     { id: 'c1', name: 'Bad', rewards: { earned: 5, redeemed: 99, pending: { 3: { completed: -4 }, 9: { completed: 5 } }, earnTx: 'x', session: { grade: 99 } } },
     { id: 'c2', name: 'Junk', rewards: 'junk' }] }));
   const [b1, b2] = bad.profiles;
-  ok(b1.rewards.redeemed === 5 && R2.rewardBalance(b1) === 0 && !Object.keys(b1.rewards.pending).length && !b1.rewards.session && b1.rewards.earnTx.length === 0 && b2.rewards.earned === 0, 'corrupted reward data is repaired safely');
+  ok(b1.rewards.redeemed === 99 && R2.rewardBalance(b1) === -94 && !Object.keys(b1.rewards.pending).length && !b1.rewards.session && b1.rewards.earnTx.length === 0 && b2.rewards.earned === 0, 'corrupted reward data is repaired safely (a balance below zero is allowed, so redeemed is no longer clamped)');
   ok(bad.settings.rewards.base === 0.1 && bad.settings.rewards.minBatch === 20 && bad.settings.rewards.grades.length === 6, 'corrupted reward settings fall back to defaults');
 
   const set = R2.setRewardConfig({ base: 0.5, minBatch: 5, grades: [1, 1, 1, 1, 1, 2] });
@@ -388,16 +388,89 @@ Parent.lock();
   ok(S2.addProfile('Neo', '🐸').profile.lastSetup === null, 'a new profile has no saved setup, so the Mixed All Questions default applies');
 }
 
-// --- Playzone: spending without a parent, parent-only adjustment, personal bests
+// --- Playzone: usage-based charging, negative balances, parent-only adjustment, personal bests
 {
   let { S, mem } = freshStore();
   const p = S.addProfile('Zed', '🦊').profile;
   p.rewards.earned = 10; S.save();
   Parent.lock(); Parent.hard.lock();
-  const r = S.redeemForPlay(p, 3);
-  ok(r.redeemed === 3 && p.rewards.redeemed === 3 && p.rewards.earned === 10 && p.rewards.redeemTx.length === 1, 'redeemForPlay spends from the same bank with no parent check');
-  ok(S.redeemForPlay(p, 8).error && p.rewards.redeemed === 3, 'redeemForPlay refuses more than the balance');
-  ok(S.redeemForPlay(p, 0).error && S.redeemForPlay(p, 1.5).error && S.redeemForPlay(p, -2).error && S.redeemForPlay(null, 1).error, 'redeemForPlay refuses 0, fractions, negatives and no profile');
+  const T = 1000000;   // fake monotonic clock (ms)
+  // rounding rule: Math.ceil(seconds / 60), never fewer than 1 minute
+  const exp = { 0.5: 1, 1: 1, 10: 1, 30: 1, 59: 1, 60: 1, 61: 2, 90: 2, 120: 2, 121: 3, 180: 3 };
+  ok(Object.entries(exp).every(([sec, min]) => S.playMinutes(Number(sec)) === min), 'playMinutes: 1,10,30,59,60 s -> 1 min; 61,90,120 s -> 2 min; 121,180 s -> 3 min');
+  // The shell saves a heartbeat every 5 s; the same cadence here. Returns the charge result.
+  const beat = (target, upTo) => { for (let t = 5; t < upTo; t += 5) S.tickPlay(target, T + t * 1000); };
+  const run = (target, seconds, game) => { const st = S.startPlay(target, game || 'balloon', T); if (st.error) return st; beat(target, seconds); return S.endPlay(target, T + seconds * 1000, 'ended'); };
+  const charge = (seconds, bal) => {   // plays one session of `seconds` and returns the minutes charged
+    p.rewards.earned = bal; p.rewards.redeemed = 0;
+    const before = bal;
+    const end = run(p, seconds);
+    return { minutes: end.minutes, balanceBefore: before, balanceAfter: S.rewardBalance(p) };
+  };
+  [[1, 1], [10, 1], [59, 1], [60, 1], [61, 2], [90, 2], [120, 2], [121, 3]].forEach(([sec, min]) => {
+    const r = charge(sec, 10);
+    ok(r.minutes === min && r.balanceBefore === 10 && r.balanceAfter === 10 - min, `a ${sec}-second session charges ${min} min (start deducts nothing, end deducts ${min})`);
+  });
+  p.rewards.earned = 10; p.rewards.redeemed = 0;
+  const txBefore = p.rewards.redeemTx.length;
+  ok(S.startPlay(p, 'designer', T).saved === true && S.rewardBalance(p) === 10 && p.rewards.redeemTx.length === txBefore, 'starting a session deducts nothing');
+  ok(S.startPlay(p, 'balloon', T).running === true && p.playzone.session.game === 'designer', 'a second start while one session runs is refused (no overlapping sessions)');
+  ok(JSON.parse(mem['mathQuizBattle.v1']).profiles[0].playzone.session.status === 'active', 'the running session (start time, status) is saved');
+  beat(p, 61); const first = S.endPlay(p, T + 61000, 'ended');
+  ok(first.minutes === 2 && S.rewardBalance(p) === 8 && p.playzone.session === null && p.playzone.log[0].minutes === 2 && p.playzone.log[0].game === 'designer', 'ending charges the rounded-up minutes once and logs the session');
+  ok(S.endPlay(p, T + 999000, 'ended') === null && S.rewardBalance(p) === 8, 'ending again charges nothing (no double charge)');
+  // separate sessions are rounded independently: 10 s + 10 s = 2 min, not ceil(20/60) = 1
+  p.rewards.earned = 10; p.rewards.redeemed = 0;
+  run(p, 10, 'reaction'); run(p, 10, 'reaction');
+  ok(p.rewards.redeemed === 2, 'two 10-second sessions are charged 1 min each (rounded independently)');
+  // balance rules for starting
+  p.rewards.earned = 1; p.rewards.redeemed = 0;
+  ok(!S.startPlay(p, 'reaction', T).error, 'a balance above 0 allows a new game');
+  beat(p, 70); const long = S.endPlay(p, T + 70000);
+  ok(long.minutes === 2 && S.rewardBalance(p) === -1 && long.balance === -1, 'a session may finish with a negative balance: 1 min - 70 s = -1 min (not capped at 0)');
+  ok(S.startPlay(p, 'reaction', T).empty === true && p.playzone.session === null, 'a negative balance blocks a new game');
+  p.rewards.earned = 3; p.rewards.redeemed = 3;
+  ok(S.startPlay(p, 'reaction', T).empty === true && p.playzone.session === null, 'a balance of exactly 0 blocks a new game');
+  ok(S.playMinutes(NaN) === 1 && S.endPlay(p, T) === null, 'a bad value still counts as the minimum charge; no session means no charge');
+  // the balance is saved negative and survives a reload
+  const neg = freshStore(mem).S.getProfiles()[0];
+  ok(S.rewardBalance(neg) === 0 || neg.rewards.redeemed >= 0, 'saved data reloads');
+  // gaps (sleeping device) and clock changes are not free or charged
+  p.rewards.earned = 10; p.rewards.redeemed = 0;
+  S.startPlay(p, 'balloon', T);
+  S.tickPlay(p, T + 5000); S.tickPlay(p, T + 3600000);   // 1 hour of silence counts as at most 15 s
+  ok(S.playSeconds(p, T + 3600000) === 20, 'a long silence is capped (only 5 s + 15 s counted)');
+  S.endPlay(p, T + 3600000);
+  // interrupted sessions: refresh / restart reconcile at the last heartbeat, exactly once
+  p.rewards.earned = 10; p.rewards.redeemed = 0; S.save();
+  S.startPlay(p, 'balloon', T); S.tickPlay(p, T + 5000); S.tickPlay(p, T + 10000); S.tickPlay(p, T + 15000);   // 15 s played, then the page closes
+  ok(JSON.parse(mem['mathQuizBattle.v1']).profiles[0].playzone.session.usedMs === 15000, 'heartbeats persist the played time');
+  const reload = freshStore(mem);
+  const rp = reload.S.getProfiles()[0];
+  ok(rp.playzone.session === null && reload.S.rewardBalance(rp) === 9 && rp.playzone.log[0].reason === 'interrupted' && rp.playzone.log[0].minutes === 1, 'a refresh/restart ends the leftover session at its last heartbeat and charges it once');
+  const reload2 = freshStore(mem).S.getProfiles()[0];
+  ok(reload2.rewards.redeemed === rp.rewards.redeemed && reload2.playzone.session === null, 'reloading again does not charge it again');
+  ok(reload.S.reconcilePlay().length === 0, 'reconcilePlay with nothing left over does nothing');
+  // a session that started and was refreshed immediately still costs the minimum (no free usage)
+  rp.rewards.earned = 10; rp.rewards.redeemed = 0; reload.S.save();
+  reload.S.startPlay(rp, 'balloon', T);
+  const quick = freshStore(mem).S.getProfiles()[0];
+  ok(quick.rewards.redeemed === 1, 'start then instant refresh is still charged 1 minute');
+  // a session already charged by another tab is not charged again
+  const tabA = freshStore(mem); const pa = tabA.S.getProfiles()[0];
+  pa.rewards.earned = 20; pa.rewards.redeemed = 0; tabA.S.save();
+  tabA.S.startPlay(pa, 'balloon', T);
+  const tabB = freshStore(mem);    // a second tab loads and settles the leftover session
+  const pb = tabB.S.getProfiles()[0];
+  ok(pb.rewards.redeemed === 1 && pb.playzone.session === null, 'another tab loading settles the leftover session once');
+  tabA.S.endPlay(pa, T + 30000);
+  ok(JSON.parse(mem['mathQuizBattle.v1']).profiles[0].playzone.log.filter(x => x.game === 'balloon').length >= 1, 'the first tab ending later does not add a second charge (checked on the saved bank below)');
+  const savedAfter = JSON.parse(mem['mathQuizBattle.v1']).profiles[0];
+  ok(savedAfter.rewards.redeemed === 1, 'the saved bank was charged exactly once across two tabs');
+
+  // parent-only redeem and adjustment
+  p.playzone.session = null;   // (this store's copy was left running by the reload tests above; other stores already settled it)
+  p.rewards.earned = 10; p.rewards.redeemed = 3; S.save();
   ok(S.redeem(p, 1).denied === true && p.rewards.redeemed === 3, 'the parent redeem still needs parent verification');
   ok(S.adjustBalance(p, 5).denied === true && p.rewards.earned === 10, 'adjustBalance is denied while locked');
   Parent.submit(solveParent(Parent.current().text));
@@ -408,10 +481,14 @@ Parent.lock();
   ok(add.before === 7 && add.after === 12 && p.rewards.earned === 15 && p.rewards.redeemed === 3 && add.saved === true, 'adjustBalance adds minutes to the same bank (before/after reported)');
   const sub = S.adjustBalance(p, -4);
   ok(sub.before === 12 && sub.after === 8 && p.rewards.redeemed === 7, 'adjustBalance deducts minutes');
-  ok(S.adjustBalance(p, -9).error && S.adjustBalance(p, 0).error && S.adjustBalance(p, 2.5).error && S.adjustBalance(p, 601).error && S.adjustBalance(null, 1).error && p.rewards.redeemed === 7 && p.rewards.earned === 15, 'adjustBalance refuses overdrafts, 0, fractions, huge amounts and no profile');
-  ok(S.adjustBalance(p, -8).after === 0 && p.rewards.redeemed <= p.rewards.earned, 'adjustBalance can bring the balance to exactly 0 but not below');
+  ok(S.adjustBalance(p, 0).error && S.adjustBalance(p, 2.5).error && S.adjustBalance(p, 601).error && S.adjustBalance(null, 1).error && p.rewards.redeemed === 7 && p.rewards.earned === 15, 'adjustBalance refuses 0, fractions, huge amounts and no profile');
+  const neg2 = S.adjustBalance(p, -13);
+  ok(neg2.before === 8 && neg2.after === -5 && p.rewards.redeemed === 20 && !neg2.error, 'a manual deduction may make the balance negative (8 - 13 = -5)');
+  ok(S.adjustBalance(p, 5).after === 0 && S.adjustBalance(p, 4).after === 4, 'adding time brings a negative balance back to zero and then positive');
   const back = freshStore(mem).S.getProfiles()[0];
-  ok(back.rewards.earned === 15 && back.rewards.redeemed === 15, 'adjustments survive a reload');
+  ok(back.rewards.earned === 24 && back.rewards.redeemed === 20, 'adjustments (and a negative balance) survive a reload');
+  p.rewards.redeemed = 40; S.save();
+  ok(freshStore(mem).S.getProfiles()[0].rewards.redeemed === 40 && S.checkRedeem(p, 1) === 'No minutes are available to redeem.', 'a negative balance reloads as negative; the parent redeem says there is nothing to redeem');
   Parent.hard.lock();
 
   const q = S.addProfile('Quin', '🐱').profile;
@@ -428,8 +505,11 @@ Parent.lock();
   const again = freshStore(mem).S.getProfiles();
   const q2 = again.find(x => x.name === 'Quin');
   ok(q2.playzone.reactionBest === 250 && q2.playzone.balloonBest === 9, 'Playzone records survive a reload');
+  const design = { kind: 'cake', shape: 'heart', outer: '#f3d9a4', inner: '#ffb3d1', items: [{ type: 'cherry', x: 120.44, y: 200, rot: 5 }, { type: '<b>', x: 1, y: 1, rot: 0 }] };
+  ok(S.saveDesign(q, design) === true && q.playzone.design.items.length === 1 && q.playzone.design.shape === 'heart' && freshStore(mem).S.getProfiles().find(x => x.name === 'Quin').playzone.design.items[0].type === 'cherry', 'a design is saved on the profile, cleaned, and survives a reload');
+  ok(S.saveDesign(q, { kind: 'bad' }) && q.playzone.design === null, 'an invalid design is dropped');
   const junk = freshStore({ 'mathQuizBattle.v1': JSON.stringify({ schema: 2, profiles: [{ id: 'j', name: 'J', playzone: { reactionBest: 'x', balloonBest: -5 } }, { id: 'k', name: 'K' }] }) }).S.getProfiles();
-  ok(junk.every(x => x.playzone.reactionBest === null && x.playzone.balloonBest === 0), 'damaged or missing Playzone data becomes empty records');
+  ok(junk.every(x => x.playzone.reactionBest === null && x.playzone.balloonBest === 0 && x.playzone.session === null && x.playzone.log.length === 0 && x.playzone.design === null), 'damaged or missing Playzone data becomes empty records');
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');

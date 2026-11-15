@@ -1,7 +1,8 @@
-// Playzone parent tool: manually add or deduct Screen-time Bank minutes. Separate from game redemption (which never
-// asks a parent). Needs the hard quadratic question (MQParent.hard) every time the screen is opened; the unlocked
-// state lives in memory only, so a refresh or a direct visit cannot skip it. Changes the existing bank through
-// Store.adjustBalance (one balance, existing storage).
+// Parent tool on the Screen-time page: manually add or deduct minutes of the chosen profile's bank. Needs the hard
+// quadratic question (MQParent.hard) every time; the unlocked state lives in memory only and is cleared whenever the
+// Screen-time window opens, closes or switches profile, so a refresh or a direct visit cannot skip it. Changes the
+// existing bank through Store.adjustBalance (one balance, existing storage). A deduction may make the balance
+// negative. Playzone has no parent controls.
 (() => {
   'use strict';
 
@@ -18,40 +19,40 @@
     return node;
   }
 
-  const box = () => $('pzAdjust');
+  const box = () => $('bankAdjust');
   let stopChallenge = () => {};
 
-  function show() {
-    hard.lock();                                   // always a fresh question
-    $('pzGames').classList.add('hidden');
-    $('pzConfirm').classList.add('hidden');
-    $('pzNotice').classList.add('hidden');
-    box().classList.remove('hidden');
-    askQuestion();
-  }
-
-  function leave() {
+  // Back to the closed, locked state (called by the Screen-time window on open, close and profile change).
+  function reset() {
     stopChallenge();
     stopChallenge = () => {};
     hard.lock();
     box().innerHTML = '';
-    root.MQPlayzone.menu();
+    box().classList.add('hidden');
+    $('bankAdjustEntry').classList.toggle('hidden', !Menus.bankProfile());
+  }
+
+  function show() {
+    hard.lock();                                   // always a fresh question
+    $('bankAdjustEntry').classList.add('hidden');
+    box().classList.remove('hidden');
+    askQuestion();
   }
 
   function askQuestion() {
     const host = box();
     host.innerHTML = '';
-    host.append(el('h3', '', '🔒 Parent: adjust Screen-time Bank'));
+    host.append(el('h3', '', '🔒 Parent: adjust minutes'));
     const challenge = el('div', 'bank-parent');
     host.append(challenge);
     const back = el('button', 'secondary-button small', '← Back');
     back.type = 'button';
-    back.id = 'pzAdjBack';
-    back.addEventListener('click', leave);
+    back.id = 'bankAdjBack';
+    back.addEventListener('click', reset);
     host.append(back);
     stopChallenge();
     stopChallenge = Menus.renderParentChallenge(challenge, {
-      prefix: 'pzAdj',
+      prefix: 'bankAdj',
       parent: hard,
       help: 'Parents only. Solve this quadratic equation to adjust the minutes by hand.',
       invalidText: 'Type both answers separated by a comma, such as 2, -1/2.',
@@ -65,26 +66,18 @@
     const host = box();
     host.innerHTML = '';
     host.append(el('h3', '', '👪 Adjust Screen-time Bank'));
-    const list = (Store.getProfiles() || []).filter(p => p && p.rewards);
-    if (!list.length) {
-      host.append(el('p', 'setting-help', 'Make a profile first (👤 Profiles).'));
-    }
-    const select = document.createElement('select');
-    select.id = 'pzAdjProfile';
-    select.setAttribute('aria-label', 'Profile');
-    list.forEach(p => { const o = el('option', '', `${p.avatar || ''} ${p.name}`.trim()); o.value = p.id; select.append(o); });
-    const profile = () => Store.getProfile(select.value);
+    const profile = () => Menus.bankProfile();
+    if (!profile()) { host.append(el('p', 'setting-help', 'Make a profile first (👤 Profiles).')); }
     const balance = el('p', 'pz-balance-line');
-    balance.id = 'pzAdjBalance';
+    balance.id = 'bankAdjBalance';
     const refresh = () => {
       const p = profile();
-      balance.textContent = p ? `Current balance: ${Math.max(0, p.rewards.earned - p.rewards.redeemed)} min` : '';
+      balance.textContent = p ? `${p.name}: current balance ${Store.rewardBalance(p)} min` : '';
     };
-    select.addEventListener('change', () => { refresh(); clearPending(); });
 
     const amount = document.createElement('input');
     amount.type = 'number';
-    amount.id = 'pzAdjAmount';
+    amount.id = 'bankAdjAmount';
     amount.min = '1';
     amount.max = '600';
     amount.step = '1';
@@ -102,14 +95,14 @@
     const row = el('div', 'pz-actions');
     const add = el('button', 'primary-button compact', '➕ Add');
     add.type = 'button';
-    add.id = 'pzAdjAdd';
+    add.id = 'bankAdjAdd';
     const deduct = el('button', 'secondary-button', '➖ Deduct');
     deduct.type = 'button';
-    deduct.id = 'pzAdjDeduct';
+    deduct.id = 'bankAdjDeduct';
     row.append(add, deduct);
     const confirmRow = el('div', 'pz-actions hidden');
     const message = el('p', 'setting-help');
-    message.id = 'pzAdjMessage';
+    message.id = 'bankAdjMessage';
     message.setAttribute('role', 'status');
 
     // Two taps: choose Add/Deduct, then Confirm. The confirm button works once, so a double tap cannot apply twice.
@@ -124,7 +117,7 @@
       pendingDelta = sign * n;
       const confirm = el('button', 'primary-button compact', `Confirm ${sign > 0 ? '+' : '−'}${n} min`);
       confirm.type = 'button';
-      confirm.id = 'pzAdjConfirm';
+      confirm.id = 'bankAdjConfirm';
       const cancel = el('button', 'secondary-button', 'Cancel');
       cancel.type = 'button';
       cancel.addEventListener('click', clearPending);
@@ -138,6 +131,7 @@
         if (result.denied) { askQuestion(); return; }
         if (result.error) { message.textContent = result.error; message.classList.add('error'); return; }
         refresh();
+        Menus.refreshBank();
         message.textContent = `Before: ${result.before} min → After: ${result.after} min.${result.saved === false ? ' (This browser could not save the change.)' : ''}`;
         message.classList.add('good');
       });
@@ -149,11 +143,13 @@
 
     const done = el('button', 'secondary-button small', '🔒 Lock and go back');
     done.type = 'button';
-    done.id = 'pzAdjDone';
-    done.addEventListener('click', leave);
-    host.append(select, balance, el('p', 'pz-group-title', 'Minutes'), amount, quick, row, confirmRow, message, done);
+    done.id = 'bankAdjDone';
+    done.addEventListener('click', reset);
+    host.append(balance, el('p', 'pz-group-title', 'Minutes'), amount, quick, row, confirmRow, message, done);
     refresh();
   }
 
-  $('pzParentButton').addEventListener('click', show);
+  $('bankAdjustButton').addEventListener('click', show);
+  Menus.adjustReset = reset;
+  reset();
 })();

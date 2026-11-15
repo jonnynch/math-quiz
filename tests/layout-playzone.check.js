@@ -112,24 +112,26 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
       if(!res.b.includes('Player 2')||res.w!==1) problems.push(`${tag} reaction: GO tap by Player 2 did not win cleanly (${res.b}, winners ${res.w})`);
     }
     await leave();
-    // parent adjustment: hard question, then controls
-    await page.click('#pzParentButton');
-    await overflow(tag,'parent question');
-    const hq=await evalp(()=>document.getElementById('pzAdjChallenge').textContent);
-    await page.type('#pzAdjAnswer',solveHard(hq));
-    await page.click('#pzAdjust button.primary-button');
-    await page.waitForSelector('#pzAdjAmount',{timeout:3000});
-    await overflow(tag,'parent controls');
-    if(W===1024||W===844) await page.screenshot({path:`${OUT}/parent_${tag}.png`});
-    await page.click('#pzAdjAdd'); await page.click('#pzAdjConfirm');
-    const msg=await evalp(()=>document.getElementById('pzAdjMessage').textContent);
-    if(!/Before: 26 min → After: 31 min/.test(msg)) problems.push(`${tag} parent adjust message unexpected: ${msg}`);
-    await page.click('#pzAdjDone');
+    // parent adjustment now lives on the Screen-time page: back to the main menu, open Screen time, hard question, controls
     await page.click('#pzBack');
     const back=await evalp(()=>!document.getElementById('setupPanel').classList.contains('hidden'));
     if(!back) problems.push(`${tag} Back did not return to the main menu`);
+    await page.click('#bankButton');
+    await page.click('#bankAdjustButton');
+    await overflow(tag,'parent question');
+    const hq=await evalp(()=>document.getElementById('bankAdjChallenge').textContent);
+    await page.type('#bankAdjAnswer',solveHard(hq));
+    await page.click('#bankAdjust button.primary-button');
+    await page.waitForSelector('#bankAdjAmount',{timeout:3000});
+    await overflow(tag,'parent controls');
+    if(W===1024||W===844) await page.screenshot({path:`${OUT}/parent_${tag}.png`});
+    await page.click('#bankAdjAdd'); await page.click('#bankAdjConfirm');
+    const msg=await evalp(()=>document.getElementById('bankAdjMessage').textContent);
+    const m=msg.match(/Before: (-?\d+) min → After: (-?\d+) min/);
+    if(!m||Number(m[2])!==Number(m[1])+5) problems.push(`${tag} parent adjust message unexpected: ${msg}`);
+    await page.click('#bankClose');
     const balance=await evalp(()=>{const d=JSON.parse(localStorage.getItem('mathQuizBattle.v1'));return d.profiles[0].rewards.redeemed;});
-    if(balance!==4) problems.push(`${tag} expected 4 min redeemed (2+1+1), got ${balance}`);
+    if(!(balance>=1&&balance<=4)) problems.push(`${tag} expected 1-4 min charged for the games played (actual usage, at least 1 per started session), got ${balance}`);
   }
   errors.forEach(e=>problems.push('page error: '+e));
   console.log('problems',problems.length,'| screenshots in',OUT); problems.forEach(p=>console.log(' ',p));

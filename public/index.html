@@ -109,19 +109,18 @@
           <div class="pz-bank">
             <span id="pzProfileRow"><select id="pzProfile" aria-label="Whose minutes?"></select></span>
             <span id="pzBalance" class="status-pill"></span>
-            <button id="pzParentButton" class="secondary-button small" type="button">🔒 Parent</button>
           </div>
         </div>
         <p id="pzNotice" class="setting-help hidden" role="status"></p>
         <div id="pzGames" class="pz-grid"></div>
         <div id="pzConfirm" class="pz-confirm hidden"></div>
-        <div id="pzAdjust" class="pz-adjust hidden"></div>
       </div>
       <div id="pzStageView" class="hidden">
         <div class="pz-stage-head">
           <button id="pzLeave" class="secondary-button small" type="button">← Playzone</button>
           <h2 id="pzStageTitle"></h2>
         </div>
+        <p id="pzUsage" class="setting-help pz-usage hidden" role="status"></p>
         <p id="pzSaveWarning" class="setting-help error hidden">The minutes were used, but this browser would not save the change, so it may come back when the page is reloaded.</p>
         <div id="pzHost" class="pz-host"></div>
       </div>
@@ -223,6 +222,10 @@
         <select id="bankProfile"></select>
       </div>
       <div id="bankBody"></div>
+      <div id="bankAdjustEntry" class="bank-adjust-entry hidden">
+        <button id="bankAdjustButton" class="secondary-button small" type="button">🔒 Parent: adjust minutes</button>
+      </div>
+      <div id="bankAdjust" class="bank-adjust hidden"></div>
       <details id="bankSettings" class="bank-settings hidden">
         <summary>Parent settings</summary>
         <div id="bankSettingsBody"></div>
@@ -329,7 +332,7 @@
   <script src="audio.js"></script>
   <script src="menus.js"></script>
   <script src="playzone.js"></script>
-  <script src="pz-adjust.js"></script>
+  <script src="bank-adjust.js"></script>
   <script src="pz-designer.js"></script>
   <script src="pz-reaction.js"></script>
   <script src="pz-balloon.js"></script>

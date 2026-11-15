@@ -4,7 +4,7 @@ const dir=require('path').join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
 const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;
-['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','playzone.js','pz-adjust.js','pz-designer.js','pz-reaction.js','pz-balloon.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
+['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','playzone.js','bank-adjust.js','pz-designer.js','pz-reaction.js','pz-balloon.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -33,11 +33,11 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok(cards().length===3,'exactly three game cards are shown');
   const txt=cards().map(c=>c.textContent);
   ok(txt[0].includes('Pizza & Cake Designer')&&txt[1].includes('Reaction Battle')&&txt[2].includes('Balloon Pop'),'cards show the three titles');
-  ok(txt.every(t=>/⏱ \d+ min/.test(t)),'every card shows its cost');
+  ok(txt.every(t=>t.includes('Pay as you play')),'every card says minutes are used as you play (no advertised cost)');
   ok(txt[0].includes('1 player')&&txt[1].includes('2 players')&&txt[2].includes('1 player'),'cards show one-player / two-player');
   ok(cards().every(c=>c.querySelector('.pz-icon')&&c.querySelector('.pz-desc').textContent.length>5),'cards have an icon and a description');
-  ok(!w.MQPlayzone.register({id:'x',cost:1,mount(){}})===false&&cards().length===4,'a new game can be registered and appears');
-  ok(!w.MQPlayzone.register({id:'bad',cost:0,mount(){}})&&!w.MQPlayzone.register({id:'designer',cost:1,mount(){}}),'invalid cost and duplicate ids are refused');
+  ok(w.MQPlayzone.register({id:'x',mount(){}})===true&&cards().length===4,'a new game can be registered and appears (games have no fixed cost)');
+  ok(!w.MQPlayzone.register({id:'bad'})&&!w.MQPlayzone.register({id:'designer',mount(){}}),'a game without mount() and duplicate ids are refused');
   click($('pzBack'));
   ok(!hidden('setupPanel')&&hidden('playzonePanel'),'Back returns to the main menu');
   ok(store().profiles===undefined||store().profiles.length===0,'opening/closing Playzone saved nothing');
@@ -50,35 +50,40 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   const profile=w.MQStore.getProfiles()[0];
   w.MQPlayzone.open(); // reopen to refresh
   ok($('pzBalance').textContent.includes('0 min'),'balance shows 0 min');
-  click(card('designer')); ok($('pzPlay').disabled&&$('pzConfirm').textContent.includes('Not enough minutes'),'zero balance: start disabled with a message');
+  click(card('designer')); ok($('pzPlay').disabled&&$('pzConfirm').textContent.includes('above 0 minutes'),'zero balance: start disabled with a clear message');
   click($('pzPlay')); ok(profile.rewards.redeemed===0&&hidden('pzStageView'),'tapping a disabled start does nothing');
   click($('pzCancel'));
+
+  // ---- a deterministic clock for the usage tests. Heartbeats are fed through the page-hide event, as the browser would.
+  let T=1000; w.performance.now=()=>T;
+  const elapse=(sec)=>{ let left=sec*1000; while(left>0){ const step=Math.min(5000,left); T+=step; left-=step; w.dispatchEvent(new w.Event('pagehide')); } };
+  const balance=()=>w.MQStore.rewardBalance(profile);
 
   // ---- balance of 3 min (test setup writes the bank directly)
   profile.rewards.earned=3; w.MQStore.save();
   w.MQPlayzone.open();
   ok($('pzBalance').textContent.includes('3 min'),'balance shows 3 min');
-  const costs=Object.fromEntries(cards().map(c=>[c.dataset.game,+c.textContent.match(/⏱ (\d+) min/)[1]]));
-  ok(costs.designer===2&&costs.reaction===1&&costs.balloon===1,'costs are 2 / 1 / 1 minutes');
+  ok(cards().every(c=>!/⏱ \d+ min/.test(c.textContent)),'cards show no fixed advertised cost');
   click(card('designer'));
-  ok($('pzConfirm').textContent.includes('costs 2 min')&&$('pzConfirm').textContent.includes('has 3 min'),'cost and balance are shown before starting');
-  ok(!$('pzPlay').disabled&&hidden('pzStageView'),'start is enabled but nothing has started or been charged yet');
+  ok($('pzConfirm').textContent.includes('has 3 min')&&!/costs \d+ min/.test($('pzConfirm').textContent),'the start screen shows the balance and no fixed cost');
+  ok(!$('pzPlay').disabled&&hidden('pzStageView')&&profile.rewards.redeemed===0,'start is enabled but nothing has started or been charged yet');
   click($('pzPlay')); click($('pzPlay'));
   ok(d.querySelectorAll('#pzChallenge,#pzAnswer,.parent-challenge').length===0,'no parent question appears when starting a game');
   ok(!hidden('pzStageView')&&hidden('pzMenuView'),'tapping Play starts the game straight away');
-  ok(profile.rewards.redeemed===2&&profile.rewards.redeemTx.length===1&&profile.rewards.redeemTx[0].minutes===2,'exactly 2 minutes deducted once, even with repeated taps');
+  ok(profile.rewards.redeemed===0&&profile.rewards.redeemTx.length===0,'starting the game deducts nothing');
   const parentOnly=w.MQStore.redeem(profile,1);
-  ok(parentOnly.denied&&profile.rewards.redeemed===2,'the existing parent-only Store.redeem still needs parent verification');
-  ok(store().profiles[0].rewards.redeemed===2,'the deduction is saved in the existing profile storage');
+  ok(parentOnly.denied&&profile.rewards.redeemed===0,'the existing parent-only Store.redeem still needs parent verification');
   ok(profile.rewards.earned===3,'earned minutes are unchanged (no credits for playing)');
   ok(d.querySelector('#pzHost .pz-choose')&&d.querySelectorAll('.pz-pick-pizza,.pz-pick-cake').length===2,'Pizza & Cake Designer starts on the choose screen');
 
   // ---- Pizza & Cake Designer
   click(d.querySelector('.pz-pick-pizza'));
   const inst=w.MQPlayzone.current();
+  ok(!!profile.playzone.session&&profile.playzone.session.game==='designer'&&profile.playzone.session.status==='active'&&profile.playzone.session.startedAt>0&&profile.rewards.redeemed===0&&!!$('pzUsage').textContent,'choosing Pizza starts the session: start time and status are stored, still nothing deducted');
   const svg=d.querySelector('#pzHost svg.pz-canvas');
   svg.getBoundingClientRect=()=>({left:0,top:0,width:400,height:400,right:400,bottom:400});   // 1 client px = 1 artwork unit
   const decoBtn=t=>d.querySelector(`.pz-deco[data-deco="${t}"]`);
+  const decoBtn2=decoBtn;
   const nodes=()=>svg.querySelectorAll('.pz-item');
   ok(d.querySelectorAll('.pz-deco').length>=8&&['cheese','pepperoni','mushroom','olive','tomato'].every(t=>decoBtn(t)),'pizza: cheese, pepperoni, mushrooms, olives, tomatoes and more toppings are offered');
   ok(d.querySelectorAll('.pz-shapes button').length>=3,'pizza: several bases are offered');
@@ -130,26 +135,50 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok(inst._items().length===3&&inst._artwork().includes('#ffb300'),'cake: can be decorated and the artwork includes the candle');
   click($('pzAgain'));
 
-  // ---- leaving the stage keeps the balance and returns to Playzone
+  // ---- designer: auto-save, leaving early (10 s -> 1 min), the 2-minute limit, Resume and Start again
+  await sleep(50);
+  ok(!!profile.playzone.design&&profile.playzone.design.kind==='cake'&&profile.playzone.design.items.length===3,'designer: the design is saved automatically (the cake with 3 decorations)');
+  elapse(10);
   click($('pzLeave'));
+  ok(profile.rewards.redeemed===1&&balance()===2&&!profile.playzone.session&&profile.playzone.log[0].seconds===10,'designer: leaving after 10 s saves the design and charges 1 minute (rounded up), once');
+  ok(profile.playzone.design.items.length===3,'designer: leaving kept the saved design');
   ok(!hidden('pzMenuView')&&hidden('pzStageView')&&$('pzHost').innerHTML===''&&!d.body.classList.contains('pz-stage'),'← Playzone returns to the menu and clears the game');
-  ok($('pzBalance').textContent.includes('1 min')&&profile.rewards.redeemed===2,'balance is now 1 min and leaving did not charge again');
+  ok($('pzBalance').textContent.includes('2 min')&&$('pzNotice').textContent.includes('Used 1 min'),'the menu shows the new balance and what was used');
+  click(card('designer')); click($('pzPlay'));
+  ok(profile.rewards.redeemed===1&&!!$('pzResumeLast'),'designer: starting again deducts nothing and offers the saved design');
+  click($('pzResumeLast'));
+  const inst2=w.MQPlayzone.current();
+  ok(inst2._items().length===3&&!!profile.playzone.session&&!!d.querySelector('.pz-design-clock'),'designer: Resume brings the saved design back in a NEW session with a visible time left');
+  elapse(90); click($('pzDone'));
+  ok(profile.rewards.redeemed===3&&balance()===0&&!profile.playzone.session&&inst2._editable()===false,'designer: 90 s is charged 2 min; Done ends the session and stops editing');
+  const itemsBefore=inst2._items().length;
+  click(decoBtn2('cherry')); ptr(decoBtn2('cherry'),'pointerdown',500,500); ptr(w,'pointerup',500,500); click($('pzClear'));
+  ok(inst2._items().length===itemsBefore&&d.querySelector('.pz-designer').classList.contains('locked'),'designer: no editing outside an active paid session');
+  ok(!!$('pzSave')&&!$('pzSave').disabled&&inst2._artwork().includes('<svg'),'designer: PNG export is still available after the session');
+  click($('pzResume')); click($('pzRestart'));
+  ok(profile.rewards.redeemed===3&&!profile.playzone.session&&d.querySelector('.pz-ended-note').textContent.includes('above 0 minutes'),'designer: with a balance of 0, Resume and Start again cannot start a new session');
+  profile.rewards.earned+=10; w.MQStore.save();        // test setup: a parent adds time
+  click($('pzResume'));
+  ok(!!profile.playzone.session&&profile.rewards.redeemed===3&&inst2._editable()===true,'designer: Resume starts another new paid session (nothing charged yet, not another fixed 2 min)');
+  elapse(120); await sleep(400);
+  ok(profile.rewards.redeemed===5&&!profile.playzone.session&&inst2._editable()===false&&d.querySelector('.pz-ended h3').textContent.includes("Time's up"),'designer: the 2-minute maximum ends the session; exactly 2 min charged');
+  click($('pzRestart'));
+  ok(!!profile.playzone.session&&!!d.querySelector('.pz-choose')&&profile.rewards.redeemed===5,'designer: Start again begins a new session at the choose screen');
+  elapse(61); click($('pzLeave'));
+  ok(profile.rewards.redeemed===7&&balance()===6&&profile.playzone.log.length>=4,'designer: the new session is charged for its own 61 s = 2 min');
+  w.MQPlayzone.open();
 
-  // ---- insufficient balance for the 2-min game, but 1-min games are fine
-  ok(card('designer').textContent.includes('🔒')&&!card('balloon').textContent.includes('🔒'),'the cost chip shows a lock only on games that cannot be afforded');
-  click(card('designer')); ok($('pzPlay').disabled&&$('pzConfirm').textContent.includes('Not enough minutes'),'1 min is not enough for the 2-min game: start is disabled');
-  click($('pzPlay')); ok(hidden('pzStageView')&&profile.rewards.redeemed===2,'insufficient balance: nothing starts and nothing is charged');
-  click($('pzCancel'));
-
-  // ---- Balloon Pop through the real flow (1 min, no parent question)
+  // ---- Balloon Pop through the real flow (usage-based, no parent question)
+  profile.rewards.earned=profile.rewards.redeemed+5; w.MQStore.save(); w.MQPlayzone.open();
+  const R0=profile.rewards.redeemed;
   click(card('balloon')); click($('pzPlay'));
-  ok(profile.rewards.redeemed===3&&!hidden('pzStageView')&&!d.querySelector('#pzChallenge'),'Balloon Pop: 1 min deducted once, no parent question');
+  ok(profile.rewards.redeemed===R0&&!hidden('pzStageView')&&!d.querySelector('#pzChallenge'),'Balloon Pop: nothing deducted at start, no parent question');
   ok(!!$('pzBalloonStart')&&d.querySelector('.pz-rules').textContent.includes('lives')&&d.querySelector('.pz-rules').textContent.includes('✖'),'Balloon Pop: the rules and lives are explained before starting');
   click($('pzBalloonStart'));
   const bal=w.MQPlayzone.current(); const BG=w.MQPlayzone.game('balloon'); const st=()=>bal._state();
   ok(st().running&&st().lives===5&&d.querySelectorAll('.pz-lives').length===1&&!d.querySelector('.pz-time'),'Balloon Pop: starts with 5 lives and there is no timer');
   ok(d.querySelector('.pz-lives').textContent.split('❤️').length===6,'Balloon Pop: remaining lives are shown as hearts');
-  click($('pzLeave')); ok(hidden('pzStageView'),'Balloon Pop: leaving stops the game');
+  elapse(30); click($('pzLeave')); ok(hidden('pzStageView')&&profile.rewards.redeemed===R0+1,'Balloon Pop: leaving early ends the session and charges the actual 30 s as 1 min');
 
   // difficulty: one config, gradual progress
   const dif=BG.difficulty;
@@ -253,7 +282,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
 
   // ---- Reaction Battle personal bests (fake clock so every time is exact)
   const kid=profile; const sis2=w.MQStore.getProfiles().find(p=>p.name==='Sis');
-  let T=1000; w.performance.now=()=>T;
+  T=1000;
   const rh2=d.createElement('div'); d.body.append(rh2);
   const rctx={profiles:()=>w.MQStore.getProfiles(),defaults:[kid.id,sis2.id],record:(p,k,v)=>w.MQStore.recordPlayzone(p,k,v)};
   const rg=w.MQPlayzone.game('reaction').mount(rh2,{delay:[30,40],pause:60,minValid:0,ctx:rctx});
@@ -281,38 +310,145 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   const guestG=w.MQPlayzone.game('reaction').mount(rh2,{ctx:{profiles:()=>w.MQStore.getProfiles(),defaults:[null,null],record:rctx.record}});
   ok(rh2.querySelectorAll('.pz-best').length===2&&![...rh2.querySelectorAll('.pz-best')].some(b=>b.textContent),'Records: guests show no record'); guestG.destroy();
 
-  // ---- Parent adjustment (hard quadratic question, separate from game redemption)
+  T=1000; w.performance.now=()=>T;   // the clock was restored to the real one by the Reaction records test above
+  // ---- Balance rules through the real flow: positive allows, zero/negative block, an active game always finishes
+  const R1=()=>{ profile.rewards.earned=profile.rewards.redeemed+1; w.MQStore.save(); };   // test setup: balance of exactly 1 min
+  R1(); w.MQPlayzone.open(); click(card('balloon'));
+  ok(!$('pzPlay').disabled,'a balance above 0 allows a new game');
+  click($('pzPlay')); click($('pzBalloonStart'));
+  ok(profile.rewards.redeemed===profile.rewards.earned-1,'starting the game with 1 min deducted nothing');
+  elapse(70);
+  ok(w.MQPlayzone.current()._state().running&&!hidden('pzStageView')&&balance()===1,'an active game is not stopped at 70 s even though its minute is used up; charged only at the end');
+  click($('pzLeave'));
+  ok(balance()===-1&&$('pzBalance').textContent.includes('-1 min'),'the 70-second session is charged 2 min and the balance becomes -1 (negative allowed)');
+  ok($('pzNotice').textContent.includes('Used 2 min')&&$('pzNotice').textContent.includes('above 0 minutes'),'the child is told what was used and why the next game is blocked');
+  click(card('balloon'));
+  ok($('pzPlay').disabled&&$('pzConfirm').textContent.includes('above 0 minutes'),'a negative balance blocks a new game with a clear message');
+  click($('pzPlay')); ok(hidden('pzStageView')&&!profile.playzone.session,'tapping the disabled Play button starts nothing');
+  click($('pzCancel'));
+  profile.rewards.earned=profile.rewards.redeemed; w.MQStore.save(); w.MQPlayzone.open(); click(card('reaction'));
+  ok($('pzPlay').disabled&&$('pzConfirm').textContent.includes('above 0 minutes'),'a balance of exactly 0 blocks a new game');
+  click($('pzCancel')); click($('pzBack'));
+  click($('bankButton'));
+  ok(!hidden('bankModal'),'the Screen-time page still opens with a zero or negative balance');
+  click($('bankClose'));
+  // game over charges the actual time (shell + Balloon Pop), and Play again needs a positive balance
+  profile.rewards.earned=profile.rewards.redeemed+3; w.MQStore.save(); w.MQPlayzone.open();
+  click(card('balloon')); click($('pzPlay')); click($('pzBalloonStart'));
+  const bg=w.MQPlayzone.current(); const Rg=profile.rewards.redeemed;
+  elapse(65); [1,2,3,4,5].forEach(()=>ptr(bg._spawn({kind:'hazard'}).el,'pointerdown'));
+  ok(!bg._state().running&&profile.rewards.redeemed===Rg+2&&!profile.playzone.session&&$('pzUsage').textContent.includes('Used 2 min'),'Balloon Pop: game over ends the session and charges 65 s as 2 min');
+  click($('pzLeave')); ok(profile.rewards.redeemed===Rg+2,'leaving after game over does not charge again');
+  profile.rewards.earned=profile.rewards.redeemed; w.MQStore.save(); w.MQPlayzone.open(); // balance 0
+  profile.rewards.earned=profile.rewards.redeemed+1; w.MQStore.save(); w.MQPlayzone.open();
+  click(card('balloon')); click($('pzPlay')); click($('pzBalloonStart')); elapse(5);
+  const bg2=w.MQPlayzone.current(); [1,2,3,4,5].forEach(()=>ptr(bg2._spawn({kind:'hazard'}).el,'pointerdown'));
+  ok(balance()===0&&!bg2._state().running,'Balloon Pop: a 5 s game with 1 min left ends with balance 0');
+  click($('pzBalloonAgain'));
+  ok(!bg2._state().running&&!!d.querySelector('.pz-block-note')&&d.querySelector('.pz-block-note').textContent.includes('above 0 minutes')&&!profile.playzone.session,'Balloon Pop: Play again is blocked at balance 0 with a message');
+  click($('pzLeave'));
+
+  // ---- shell + game contract with a stub context (begin at the real start, end at the real end)
+  {
+    const log=[]; let refuse='';
+    const sctx=()=>({profiles:()=>w.MQStore.getProfiles(),defaults:[profile.id,null],record:(p,k,v)=>w.MQStore.recordPlayzone(p,k,v),begin:()=>{log.push('begin'); return refuse;},end:(r)=>log.push('end:'+r),seconds:()=>0});
+    const rhs=d.createElement('div'); d.body.append(rhs);
+    const rgs=w.MQPlayzone.game('reaction').mount(rhs,{delay:[30,40],pause:60,minValid:0,ctx:sctx()});
+    ok(log.length===0,'Reaction Battle: no session just from opening the game');
+    refuse='The Screen-time Bank must be above 0 minutes before another game can start.';
+    click(rhs.querySelector('[data-bestof="3"]'));
+    ok(log.join()==='begin'&&rhs.querySelector('.pz-block-note').textContent.includes('above 0 minutes')&&rhs.querySelector('.pz-reaction').dataset.phase==='format','Reaction Battle: a refused start keeps the format screen and shows the message');
+    refuse=''; click(rhs.querySelector('[data-bestof="3"]'));
+    ok(log.join()==='begin,begin'&&rhs.querySelector('.pz-reaction').dataset.phase==='ready','Reaction Battle: the session starts when the match starts');
+    const sd=[...rhs.querySelectorAll('.pz-side')];
+    for(let r=0;r<2;r++){ ptr(sd[0],'pointerdown'); ptr(sd[1],'pointerdown'); await sleep(80); ptr(sd[1],'pointerdown'); await sleep(900); }
+    await sleep(100);
+    ok(rhs.querySelector('.pz-reaction').dataset.phase==='matchover'&&log.slice(-1)[0]==='end:match','Reaction Battle: the session ends when the match is over');
+    click(rhs.querySelector('#pzRematch'));
+    ok(log.slice(-1)[0]==='begin'&&rhs.querySelector('.pz-reaction').dataset.phase==='ready','Reaction Battle: Rematch begins a new session');
+    rgs.destroy(); rhs.remove();
+  }
+
+  // ---- Profile Details show each player's Playzone personal bests
+  {
+    const kidP=w.MQStore.getProfiles().find(p=>p.name==='Kid'); const sisP=w.MQStore.getProfiles().find(p=>p.name==='Sis');
+    w.MQStore.addProfile('Neo','🐸'); const neoP=w.MQStore.getProfiles().find(p=>p.name==='Neo');
+    kidP.playzone.reactionBest=300; kidP.playzone.balloonBest=17; sisP.playzone.reactionBest=250; sisP.playzone.balloonBest=0; w.MQStore.save();
+    const detailsOf=(name)=>{
+      click($('profilesButton'));
+      let card=[...d.querySelectorAll('.profile-card')].find(c=>c.textContent.includes(name));
+      let btn=[...card.querySelectorAll('button')].find(b=>b.textContent==='Details'||b.textContent==='Hide');
+      if(btn.textContent==='Hide'){ click(btn); card=[...d.querySelectorAll('.profile-card')].find(c=>c.textContent.includes(name)); btn=[...card.querySelectorAll('button')].find(b=>b.textContent==='Details'); }
+      click(btn);
+      card=[...d.querySelectorAll('.profile-card')].find(c=>c.textContent.includes(name));
+      const text=card.querySelector('.profile-details').textContent;
+      click($('profilesClose'));
+      return text;
+    };
+    const kd=detailsOf('Kid'); const sd2=detailsOf('Sis'); const nd=detailsOf('Neo');
+    ok(kd.includes('Reaction Battle · best reaction time: 300 ms (lower is better)')&&kd.includes('Balloon Pop · personal best score: 17'),'Profile Details: Player 1 (Kid) shows the Reaction Battle best time with "lower is better" and the Balloon Pop personal best');
+    ok(sd2.includes('best reaction time: 250 ms')&&!sd2.includes('300 ms')&&!sd2.includes('score: 17')&&sd2.includes('personal best score: Not played yet'),'Profile Details: Player 2 (Sis) has her own records and no leakage from Kid');
+    ok(!kd.includes('250 ms'),'Profile Details: Kid does not show Sis\'s time');
+    ok(nd.includes('best reaction time: Not played yet')&&nd.includes('personal best score: Not played yet'),'Profile Details: a player who has not played shows "Not played yet" for both games');
+    w.MQStore.recordPlayzone(neoP,'reaction',410); w.MQStore.recordPlayzone(neoP,'balloon',9);
+    const nd2=detailsOf('Neo');
+    ok(nd2.includes('410 ms')&&nd2.includes('score: 9'),'Profile Details: a new record shows up automatically the next time Details are opened');
+    w.MQStore.recordPlayzone(neoP,'reaction',500); w.MQStore.recordPlayzone(neoP,'balloon',3);
+    ok(detailsOf('Neo').includes('410 ms')&&detailsOf('Neo').includes('score: 9'),'Profile Details: a worse result does not replace the record');
+    const saved=store().profiles; const sv=(n)=>saved.find(p=>p.name===n).playzone;
+    ok(sv('Kid').reactionBest===300&&sv('Kid').balloonBest===17&&sv('Sis').reactionBest===250&&sv('Neo').reactionBest===410&&sv('Neo').balloonBest===9,'Profile Details: the records are stored in the existing profile storage (survive refresh and restart)');
+    w.MQStore.deleteProfile(neoP.id);
+    w.MQMenus.refreshProfileSelects();
+  }
+  // the Playzone menu still shows its own personal bests
+  w.MQPlayzone.open(); click(card('reaction')); click($('pzPlay'));
+  ok(true,'Playzone: Reaction Battle opens again after the changes'); click($('pzLeave'));
+
+  // ---- Parent adjustment lives on the Screen-time page (hard quadratic question), not in Playzone
   w.MQPlayzone.open();
-  ok(!$('pzParentButton').classList.contains('hidden')&&$('pzParentButton').textContent.includes('Parent'),'Parent: a clearly marked parent entry point exists');
-  ok(!$('pzAdjAmount')&&w.MQStore.adjustBalance(profile,5).denied,'Parent: no controls and no adjustment before verification');
-  click($('pzParentButton'));
-  ok(!hidden('pzAdjust')&&!!$('pzAdjChallenge')&&!$('pzAdjAmount')&&/x²/.test($('pzAdjChallenge').textContent),'Parent: a quadratic question is shown instead of the controls');
-  const before0=profile.rewards.earned-profile.rewards.redeemed;
-  $('pzAdjAnswer').value='1, 1'; click($('pzAdjust').querySelector('button.primary-button'));
-  ok(!$('pzAdjAmount')&&profile.rewards.earned-profile.rewards.redeemed===before0,'Parent: a wrong answer does not unlock the controls');
+  ok(!$('pzParentButton')&&!$('pzAdjust')&&!d.querySelector('#playzonePanel [id^="bankAdj"],#playzonePanel [id^="pzAdj"]'),'Playzone has no parent adjustment controls or entry point');
+  w.MQPlayzone.close();
+  const bankPick=()=>{ $('bankProfile').value=profile.id; $('bankProfile').dispatchEvent(new w.Event('change')); };
+  const unlockBtn=()=>$('bankAdjust').querySelector('button.primary-button');
+  click($('bankButton')); bankPick();
+  const before0=balance();
+  ok(!hidden('bankModal')&&!$('bankAdjustEntry').classList.contains('hidden')&&$('bankAdjustButton').textContent.includes('Parent'),'Screen-time page: a clearly marked parent entry point exists');
+  ok(!$('bankAdjAmount')&&w.MQStore.adjustBalance(profile,5).denied,'Parent: no controls and no adjustment before verification');
+  click($('bankAdjustButton'));
+  ok(!hidden('bankAdjust')&&!!$('bankAdjChallenge')&&!$('bankAdjAmount')&&/x²/.test($('bankAdjChallenge').textContent),'Parent: a quadratic question is shown instead of the controls');
+  $('bankAdjAnswer').value='1, 1'; click(unlockBtn());
+  ok(!$('bankAdjAmount')&&balance()===before0,'Parent: a wrong answer does not unlock the controls');
   const easyQ=w.MQParent.current().text; w.MQParent.submit(solveParent(easyQ));
   ok(w.MQParent.isUnlocked()&&w.MQStore.adjustBalance(profile,5).denied,'Parent: the normal (easy) parent unlock does not allow adjustments'); w.MQParent.lock();
-  const q=$('pzAdjChallenge').textContent;
-  $('pzAdjAnswer').value=rootsOf(q).slice().reverse().join(', '); click($('pzAdjust').querySelector('button.primary-button'));
-  ok(!!$('pzAdjAmount')&&$('pzAdjBalance').textContent.includes(`${before0} min`),'Parent: correct roots (any order) unlock the controls and show the balance');
-  $('pzAdjAmount').value='10'; click($('pzAdjAdd'));
-  ok(profile.rewards.earned-profile.rewards.redeemed===before0&&!!$('pzAdjConfirm'),'Parent: Add asks for confirmation before changing anything');
-  const cf=$('pzAdjConfirm'); click(cf); click(cf);
-  ok(profile.rewards.earned-profile.rewards.redeemed===before0+10,'Parent: +10 minutes added exactly once (double tap)');
-  ok($('pzAdjMessage').textContent.includes(`Before: ${before0} min → After: ${before0+10} min`),'Parent: balance before and after are shown');
-  $('pzAdjAmount').value='4'; click($('pzAdjDeduct')); click($('pzAdjConfirm'));
-  ok(profile.rewards.earned-profile.rewards.redeemed===before0+6,'Parent: −4 minutes deducted from the same bank');
-  $('pzAdjAmount').value='999'; click($('pzAdjDeduct')); ok(profile.rewards.earned-profile.rewards.redeemed===before0+6&&!$('pzAdjConfirm'),'Parent: an invalid amount is refused');
-  $('pzAdjAmount').value='100'; click($('pzAdjDeduct')); click($('pzAdjConfirm'));
-  ok(profile.rewards.earned-profile.rewards.redeemed===before0+6&&$('pzAdjMessage').textContent.includes('available'),'Parent: cannot deduct more than the balance');
-  $('pzAdjAmount').value='2.5'; click($('pzAdjAdd')); ok(!$('pzAdjConfirm'),'Parent: a non-whole amount is refused');
-  ok(store().profiles.find(p=>p.id===profile.id).rewards.earned===profile.rewards.earned&&store().profiles.find(p=>p.id===profile.id).rewards.redeemed===profile.rewards.redeemed,'Parent: adjustments are saved in the existing storage');
-  click($('pzAdjDone'));
-  ok(!w.MQParent.hard.isUnlocked()&&!hidden('pzGames')&&hidden('pzAdjust')&&$('pzBalance').textContent.includes(`${before0+6} min`),'Parent: Lock and go back relocks and shows the new balance');
+  const q=$('bankAdjChallenge').textContent;
+  $('bankAdjAnswer').value=rootsOf(q).slice().reverse().join(', '); click(unlockBtn());
+  ok(!!$('bankAdjAmount')&&$('bankAdjBalance').textContent.includes(`${before0} min`),'Parent: correct roots (any order) unlock the controls and show the current balance');
+  $('bankAdjAmount').value='10'; click($('bankAdjAdd'));
+  ok(balance()===before0&&!!$('bankAdjConfirm'),'Parent: Add asks for confirmation before changing anything');
+  const cf=$('bankAdjConfirm'); click(cf); click(cf);
+  ok(balance()===before0+10,'Parent: +10 minutes added exactly once (double tap)');
+  ok($('bankAdjMessage').textContent.includes(`Before: ${before0} min → After: ${before0+10} min`)&&$('bankAdjBalance').textContent.includes(`${before0+10} min`),'Parent: balance before and after are shown and the page updates');
+  $('bankAdjAmount').value='4'; click($('bankAdjDeduct')); click($('bankAdjConfirm'));
+  ok(balance()===before0+6,'Parent: -4 minutes deducted from the same bank');
+  $('bankAdjAmount').value='999'; click($('bankAdjDeduct')); ok(balance()===before0+6&&!$('bankAdjConfirm'),'Parent: an invalid amount is refused');
+  $('bankAdjAmount').value='2.5'; click($('bankAdjAdd')); ok(!$('bankAdjConfirm'),'Parent: a non-whole amount is refused');
+  $('bankAdjAmount').value=String(before0+6+8); click($('bankAdjDeduct')); click($('bankAdjConfirm'));
+  ok(balance()===-8&&$('bankAdjMessage').textContent.includes('After: -8 min'),'Parent: a manual deduction larger than the balance makes it negative (-8)');
+  ok(store().profiles.find(p=>p.id===profile.id).rewards.redeemed-store().profiles.find(p=>p.id===profile.id).rewards.earned===8,'Parent: the negative balance is saved in the existing storage');
+  $('bankAdjAmount').value='8'; click($('bankAdjAdd')); click($('bankAdjConfirm'));
+  ok(balance()===0,'Parent: adding time brings the negative balance back to 0');
+  $('bankAdjAmount').value='5'; click($('bankAdjAdd')); click($('bankAdjConfirm'));
+  ok(balance()===5,'Parent: and on to a positive balance');
+  click($('bankAdjDone'));
+  ok(!w.MQParent.hard.isUnlocked()&&hidden('bankAdjust')&&!$('bankAdjAmount'),'Parent: Lock and go back relocks the adjustment');
   ok(w.MQStore.adjustBalance(profile,5).denied,'Parent: adjustments are refused again after locking');
-  click($('pzParentButton')); ok(!$('pzAdjAmount')&&!!$('pzAdjChallenge'),'Parent: opening the screen again asks a new question');
-  click($('pzAdjBack'));
-  click(card('balloon')); click($('pzPlay')); ok(!hidden('pzStageView')&&!d.querySelector('#pzAdjChallenge'),'Playzone redemption still needs no parent question'); click($('pzLeave'));
+  click($('bankAdjustButton')); ok(!$('bankAdjAmount')&&!!$('bankAdjChallenge'),'Parent: opening it again asks a new question');
+  $('bankAdjAnswer').value=rootsOf($('bankAdjChallenge').textContent).join(', '); click(unlockBtn()); ok(!!$('bankAdjAmount'),'Parent: unlocked again');
+  click($('bankClose')); click($('bankButton')); bankPick();
+  ok(!$('bankAdjAmount')&&hidden('bankAdjust')&&w.MQStore.adjustBalance(profile,5).denied,'Parent: closing and reopening the Screen-time page (like a refresh) does not keep it unlocked');
+  click($('bankClose'));
+  w.MQPlayzone.open(); ok($('pzBalance').textContent.includes('5 min'),'the Playzone balance shows the adjusted bank');
+  click(card('balloon')); click($('pzPlay')); ok(!hidden('pzStageView')&&!d.querySelector('#bankAdjChallenge'),'Playzone start still needs no parent question'); click($('pzLeave'));
 
   // ---- the only storage Playzone touches is the existing profile key
   ok(Object.keys(w.localStorage).length===1&&w.localStorage.key(0)==='mathQuizBattle.v1','Playzone adds no new localStorage keys');

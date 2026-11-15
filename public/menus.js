@@ -189,6 +189,17 @@
     });
     box.append(book);
 
+    // Playzone personal bests: the same saved records the games use (profile.playzone), shown for this profile only.
+    box.append(element('p', 'detail-title', 'Playzone records'));
+    const pz = profile.playzone || {};
+    const records = element('ul', 'detail-list pz-records');
+    const reaction = element('li', '', pz.reactionBest ? `⚡ Reaction Battle · best reaction time: ${pz.reactionBest} ms (lower is better)` : '⚡ Reaction Battle · best reaction time: Not played yet');
+    reaction.dataset.record = 'reaction';
+    const balloon = element('li', '', pz.balloonBest ? `🎈 Balloon Pop · personal best score: ${pz.balloonBest}` : '🎈 Balloon Pop · personal best score: Not played yet');
+    balloon.dataset.record = 'balloon';
+    records.append(reaction, balloon);
+    box.append(records);
+
     const bests = Object.entries(profile.bests).sort((a, b) => b[1] - a[1]).slice(0, 5);
     if (bests.length) {
       box.append(element('p', 'detail-title', 'Best timed scores'));
@@ -547,6 +558,7 @@
   function closeBank() {
     stopCooldownTimer();
     Parent.lock();
+    if (api.adjustReset) api.adjustReset();   // the by-hand adjustment (bank-adjust.js) locks again too
   }
 
   // Called when a parent-only action is refused because the bank is locked.
@@ -655,7 +667,7 @@
     input.type = 'number';
     input.id = 'redeemMinutes';
     input.min = '1';
-    input.max = String(balance);
+    input.max = String(Math.max(0, balance));
     input.step = '1';
     input.setAttribute('inputmode', 'numeric');
     input.setAttribute('aria-label', 'Minutes to redeem');
@@ -791,12 +803,14 @@
     renderBank();
     renderBankSettings();
     syncParentControls();
+    if (api.adjustReset) api.adjustReset();   // now that the profile is known, show the closed parent-adjust entry
   }
 
   function initBank() {
     $('bankProfile').addEventListener('change', () => {
       bankId = $('bankProfile').value || null;
       bankNotice('', '');
+      if (api.adjustReset) api.adjustReset();   // a different profile: the adjustment must be unlocked again
       renderBank();
     });
   }
@@ -997,5 +1011,7 @@
 
   root.MQMenus = api;
   api.init = init;
-  api.renderParentChallenge = renderParentChallenge;   // Playzone reuses the same parent question
+  api.renderParentChallenge = renderParentChallenge;   // bank-adjust.js reuses the same parent question
+  api.bankProfile = () => Store.getProfile(bankId);    // the profile shown in the Screen-time window
+  api.refreshBank = () => renderBank();
 })(window);

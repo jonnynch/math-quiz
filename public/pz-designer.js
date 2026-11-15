@@ -1,6 +1,9 @@
 // Playzone game 1: Pizza & Cake Designer (creative, no score). Everything is drawn as local SVG; "Save Image"
 // turns the finished artwork (only the creation, no buttons) into a PNG with a canvas. No server, no libraries.
 // Tap a decoration to add it, or drag it onto the canvas. Drag a placed decoration to move it; tap it, then Remove.
+// Each design runs in a paid session of at most two minutes (the shell charges the ACTUAL time, rounded up to whole
+// minutes). The design is saved automatically; when the session ends (time up, Done, or leaving) editing stops, the
+// design stays saved, and Resume / Start again each begin a NEW session. Saving the picture (PNG) always works.
 (() => {
   'use strict';
 
@@ -94,7 +97,12 @@
   }
 
   // ---------- game ----------
-  function mount(host) {
+  function mount(host, options) {
+    const ctx = (options && options.ctx) || null;                 // the shell's usage session + saved design (absent in some tests)
+    const maxMs = (options && options.maxMs) || 120000;           // two-minute maximum per session
+    let editable = true;                                          // false once the session has ended
+    let clockTimer = null;
+    let saveTimer = null;
     let state = null;                        // { kind, shape, outer, inner, items[], selected }
     let nextId = 1;
     let drag = null;
@@ -111,8 +119,91 @@
       if (saveUrl) { try { URL.revokeObjectURL(saveUrl); } catch (error) { /* ignore */ } saveUrl = null; }
     }
 
+    // ----- helpers for the paid session -----
+    const snapshot = () => ({ kind: state.kind, shape: state.shape, outer: state.outer, inner: state.inner, items: state.items.map(({ type, x, y, rot }) => ({ type, x, y, rot })) });
+    function saveNow() {
+      clearTimeout(saveTimer);
+      if (ctx && ctx.saveDesign && state && state.touched && editable) ctx.saveDesign(snapshot());   // an untouched blank design never replaces the saved one
+    }
+    function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
+    const pageHide = () => saveNow();
+    root.addEventListener('pagehide', pageHide);
+    function leftText() {
+      const left = Math.max(0, Math.ceil((maxMs - ctx.seconds() * 1000) / 1000));
+      return `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left`;
+    }
+    function tickClock() {
+      if (!ctx || !editable) return;
+      if (ctx.seconds() * 1000 >= maxMs) { endSession('timeup'); return; }
+      const node = host.querySelector('.pz-design-clock');
+      if (node) node.textContent = leftText();
+    }
+    function startClock() { if (!ctx || clockTimer) return; clockTimer = setInterval(tickClock, 250); }
+    function stopClock() { clearInterval(clockTimer); clockTimer = null; }
+    // Starts (or confirms) the paid session. Returns '' or the reason it cannot start (bank not above 0).
+    function beginSession() {
+      if (!ctx || !ctx.begin) { editable = true; return ''; }
+      const problem = ctx.begin();
+      if (!problem) { editable = true; startClock(); }
+      return problem;
+    }
+    // Ends the session: the design is saved first, editing stops, and the shell charges the actual usage.
+    function endSession(reason) {
+      if (!ctx || !editable) return;
+      saveNow();
+      editable = false;
+      stopClock();
+      stopDragListeners();
+      drag = null;
+      if (ctx.end) ctx.end(reason);
+      showEnded(reason);
+    }
+    function showEnded(reason) {
+      const layout = host.querySelector('.pz-designer');
+      if (layout) layout.classList.add('locked');
+      host.querySelector('.pz-ended')?.remove();
+      const box = el('div', 'pz-ended');
+      box.append(el('h3', '', reason === 'timeup' ? "⏰ Time's up!" : '✅ All done!'),
+        el('p', 'pz-save-text', state ? 'Your design was saved. You can still save the picture.' : 'Nothing to save this time.'));
+      const row = el('div', 'pz-actions');
+      const resume = el('button', 'primary-button compact', '▶ Resume my design');
+      resume.type = 'button';
+      resume.id = 'pzResume';
+      resume.addEventListener('click', resumeDesign);
+      const again = el('button', 'secondary-button', '🔄 Start again');
+      again.type = 'button';
+      again.id = 'pzRestart';
+      again.addEventListener('click', restartDesign);
+      if (ctx && ctx.design && ctx.design()) row.append(resume);
+      row.append(again);
+      box.append(row, el('p', 'setting-help pz-ended-note hidden'));
+      host.append(box);
+    }
+    function blocked(problem) {
+      const note = host.querySelector('.pz-ended-note, .pz-choose-note');
+      if (note) { note.textContent = problem; note.classList.remove('hidden'); note.classList.add('error'); }
+    }
+    // Resume and Start again each begin a NEW session (charged for its own actual usage, never a fixed amount).
+    function resumeDesign() {
+      const saved = ctx && ctx.design ? ctx.design() : null;
+      if (!saved) return;
+      const problem = beginSession();
+      if (problem) { blocked(problem); return; }
+      const k = KINDS[saved.kind];
+      state = { kind: saved.kind, shape: saved.shape, outer: saved.outer, inner: saved.inner, selected: null,
+        items: saved.items.filter(i => k.decos.some(d => d[0] === i.type)).map(i => ({ id: nextId++, ...i })) };
+      buildDesigner();
+      redraw();
+    }
+    function restartDesign() {
+      const problem = beginSession();
+      if (problem) { blocked(problem); return; }
+      showChoose();
+    }
+
     // ----- choose pizza or cake -----
     function showChoose() {
+      saveNow();                                  // a design left behind by "Start again" is kept
       stopDragListeners();
       freeSaveUrl();
       drag = null;
@@ -130,10 +221,20 @@
         row.append(b);
       });
       box.append(row);
+      if (ctx && ctx.design && ctx.design()) {
+        const resume = el('button', 'secondary-button', '▶ Resume my last design');
+        resume.type = 'button';
+        resume.id = 'pzResumeLast';
+        resume.addEventListener('click', resumeDesign);
+        box.append(resume);
+      }
+      box.append(el('p', 'setting-help pz-choose-note hidden'));
       host.append(box);
     }
 
     function startDesign(kind) {
+      const problem = beginSession();
+      if (problem) { blocked(problem); return; }
       const k = KINDS[kind];
       state = { kind, shape: 'round', outer: k.outer[0][1], inner: k.inner[0][1], items: [], selected: null };
       buildDesigner();
@@ -153,7 +254,7 @@
         b.dataset.colour = colour;
         b.setAttribute('aria-label', `${title}: ${name}`);
         b.title = name;
-        b.addEventListener('click', () => { state[key] = colour; redraw(); });
+        b.addEventListener('click', () => { if (!editable) return; state.touched = true; state[key] = colour; redraw(); });
         row.append(b);
       });
       wrap.append(row);
@@ -182,7 +283,7 @@
         const b = el('button', 'secondary-button small', s.label);
         b.type = 'button';
         b.dataset.shape = s.id;
-        b.addEventListener('click', () => { state.shape = s.id; redraw(); });
+        b.addEventListener('click', () => { if (!editable) return; state.touched = true; state.shape = s.id; redraw(); });
         shapeRow.append(b);
       });
       shapes.append(shapeRow);
@@ -213,10 +314,12 @@
         return b;
       };
       panelParts.remove = mk('pzRemove', '🗑 Remove', 'secondary-button small', removeSelected);
-      mk('pzClear', 'Clear', 'secondary-button small', () => { state.items = []; state.selected = null; redraw(); });
-      mk('pzAgain', 'Start again', 'secondary-button small', showChoose);
+      mk('pzClear', 'Clear', 'secondary-button small', () => { if (!editable) return; state.touched = true; state.items = []; state.selected = null; redraw(); });
+      mk('pzAgain', 'Start again', 'secondary-button small', () => { if (editable) showChoose(); });
+      if (ctx) mk('pzDone', '✅ Done', 'secondary-button small', () => endSession('done'));
       mk('pzSave', '💾 Save Image', 'primary-button compact', saveImage);
 
+      if (ctx) { const clockEl = el('p', 'pz-design-clock', leftText()); clockEl.setAttribute('aria-live', 'off'); panel.append(clockEl); }
       panel.append(shapes, swatchRow(k.outerLabel, k.outer, 'outer'), swatchRow(k.innerLabel, k.inner, 'inner'), decos, actions);
       layout.append(stage, panel);
       host.append(layout);
@@ -235,12 +338,15 @@
         b.textContent = on ? '✓' : '';
       }));
       panelParts.shape.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.shape === state.shape));
-      panelParts.remove.disabled = state.selected == null;
+      panelParts.remove.disabled = state.selected == null || !editable;
+      saveSoon();
     }
 
     // ----- items -----
     const find = (id) => state.items.find(it => it.id === id);
     function addItem(type) {
+      if (!editable || !state) return null;
+      state.touched = true;
       const it = { id: nextId++, type, x: S / 2 + rand(-70, 70), y: S / 2 + rand(-70, 70), rot: type === 'candle' ? 0 : Math.round(rand(-25, 25)) };
       state.items.push(it);
       state.selected = it.id;
@@ -248,7 +354,8 @@
       return it;
     }
     function removeSelected() {
-      if (state.selected == null) return;
+      if (!editable || state.selected == null) return;
+      state.touched = true;
       state.items = state.items.filter(it => it.id !== state.selected);
       state.selected = null;
       redraw();
@@ -264,6 +371,7 @@
 
     // ----- dragging (placed items and new ones from the panel) -----
     function beginDrag(item, event, fromPanel) {
+      state.touched = true;
       const p = toSvg(event);
       drag = { id: item.id, pid: event.pointerId, fromPanel, sx: event.clientX, sy: event.clientY, moved: false, ox: item.x - p.x, oy: item.y - p.y };
       root.addEventListener('pointermove', onMove);
@@ -272,12 +380,13 @@
     }
     function onPanelDown(event, type) {
       event.preventDefault();
-      if (drag) return;
-      beginDrag(addItem(type), event, true);
+      if (drag || !editable) return;
+      const added = addItem(type);
+      if (added) beginDrag(added, event, true);
     }
     function onCanvasDown(event) {
       event.preventDefault();
-      if (drag) return;
+      if (drag || !editable) return;
       const node = event.target.closest ? event.target.closest('.pz-item') : null;
       const item = node ? find(Number(node.dataset.id)) : null;
       if (!item) { state.selected = null; redraw(); return; }
@@ -362,10 +471,11 @@
     showChoose();
 
     return {
-      destroy() { alive = false; stopDragListeners(); freeSaveUrl(); },
+      destroy() { saveNow(); alive = false; stopClock(); clearTimeout(saveTimer); root.removeEventListener('pagehide', pageHide); stopDragListeners(); freeSaveUrl(); },
       // Read-only helpers for the automated tests.
       _artwork: () => (state ? artworkSvg(state, 1024) : ''),
-      _items: () => (state ? state.items.map(it => ({ ...it })) : [])
+      _items: () => (state ? state.items.map(it => ({ ...it })) : []),
+      _editable: () => editable
     };
   }
 
@@ -374,7 +484,6 @@
     title: 'Pizza & Cake Designer',
     icon: '🍕🎂',
     desc: 'Design your own pizza or cake and save the picture!',
-    cost: 2,
     players: 1,
     mount
   });
