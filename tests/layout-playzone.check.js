@@ -89,7 +89,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     if(b0.w<60||b0.h<60) problems.push(`${tag} balloon too small to tap (${Math.round(b0.w)}x${Math.round(b0.h)})`);
     await page.mouse.click(b1.x,b1.y);
     const score=await evalp(()=>document.querySelector('.pz-score').textContent);
-    if(!/🎈 1\b/.test(score)) problems.push(`${tag} tapping a balloon did not score (${score})`);
+    if(!/⭐ 1\b/.test(score)) problems.push(`${tag} tapping a balloon did not score (${score})`);
     if(W===1024) await page.screenshot({path:`${OUT}/balloon_${tag}.png`});
     await leave();
 

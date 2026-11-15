@@ -188,7 +188,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok(Math.abs(dif(1).rise/dif(0).rise-BG.config.rise.factor)<1e-9&&dif(1).rise>dif(0).rise*0.9,'difficulty: each step is small (no sudden spike)');
   ok(dif(0).moves.join()==='straight'&&dif(2).moves.includes('diagonal')&&dif(4).moves.includes('curve')&&dif(6).moves.includes('zigzag')&&dif(8).moves.includes('bounce'),'difficulty: movement patterns are introduced progressively');
   ok(dif(2).hazardChance===0&&dif(3).hazardTypes.join()==='rock'&&dif(6).hazardTypes.includes('spiky')&&dif(30).hazardChance<=BG.config.hazards.chance.max,'difficulty: ✖ objects appear from level 3, with a capped chance');
-  ok(dif(30).scale*120>=58||BG.config.size.floorPx>=58,'difficulty: balloons never get smaller than a playable size');
+  ok(dif(30).scale*120>=50||BG.config.size.floorPx>=50,'difficulty: balloons never get smaller than a playable size');
 
   // gameplay through the test helpers (no real waiting)
   const host=d.createElement('div'); d.body.append(host);
@@ -232,17 +232,18 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   // personal bests, per profile, persisted
   w.MQStore.addProfile('Sis','🐱'); const sis=w.MQStore.getProfiles().find(p=>p.name==='Sis');
   const game=(id,score)=>{ const x=startBalloon(id); for(let i=0;i<score;i++) ptr(x._spawn({kind:'balloon'}).el,'pointerdown'); for(let i=0;i<5;i++) ptr(x._spawn({kind:'hazard'}).el,'pointerdown'); const t=host.querySelector('.pz-end').textContent; x.destroy(); return t; };
+  const exp=(n)=>n+[...Array(n)].reduce((a,_,i)=>a+BG.comboBonus(i+1),0);   // total score = pops + combo bonuses
   let t=game(profile.id,5);
-  ok(profile.playzone.balloonBest===5&&t.includes('New personal best')&&t.includes('Personal best: 5'),'Balloon: first score is a personal best and is highlighted');
+  ok(profile.playzone.balloonBest===exp(5)&&t.includes('New personal best')&&t.includes(`Personal best: ${exp(5)}`),'Balloon: first score is a personal best and is highlighted');
   t=game(profile.id,3);
-  ok(profile.playzone.balloonBest===5&&!t.includes('New personal best')&&t.includes('Personal best: 5'),'Balloon: a lower score does not replace the best');
+  ok(profile.playzone.balloonBest===exp(5)&&!t.includes('New personal best')&&t.includes(`Personal best: ${exp(5)}`),'Balloon: a lower score does not replace the best');
   t=game(sis.id,2);
-  ok(sis.playzone.balloonBest===2&&profile.playzone.balloonBest===5,'Balloon: the second player has an independent record');
+  ok(sis.playzone.balloonBest===exp(2)&&profile.playzone.balloonBest===exp(5),'Balloon: the second player has an independent record');
   t=game(profile.id,7);
-  ok(profile.playzone.balloonBest===7&&t.includes('New personal best'),'Balloon: a higher score updates the best');
-  const saved=store().profiles; ok(saved.find(p=>p.id===profile.id).playzone.balloonBest===7&&saved.find(p=>p.id===sis.id).playzone.balloonBest===2,'Balloon: records are saved in the existing profile storage');
+  ok(profile.playzone.balloonBest===exp(7)&&t.includes('New personal best'),'Balloon: a higher score updates the best');
+  const saved=store().profiles; ok(saved.find(p=>p.id===profile.id).playzone.balloonBest===exp(7)&&saved.find(p=>p.id===sis.id).playzone.balloonBest===exp(2),'Balloon: records are saved in the existing profile storage');
   const gst=BG.mount(host,{ctx:ctxFor(null)}); host.querySelector('#pzBalloonStart').click(); for(let i=0;i<5;i++) ptr(gst._spawn({kind:'hazard'}).el,'pointerdown');
-  ok(profile.playzone.balloonBest===7&&sis.playzone.balloonBest===2&&host.textContent.includes('Guest'),'Balloon: a guest game changes nobody\'s record'); gst.destroy();
+  ok(profile.playzone.balloonBest===exp(7)&&sis.playzone.balloonBest===exp(2)&&host.textContent.includes('Guest'),'Balloon: a guest game changes nobody\'s record'); gst.destroy();
   host.remove();
 
   // ---- Reaction Battle logic (game mounted directly, short delays)

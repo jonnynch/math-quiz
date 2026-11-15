@@ -707,3 +707,26 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
 .pz-design-clock { font-weight: 800; margin: 0 0 6px; text-align: center; }
 .pz-designer.locked .pz-panel button:not(#pzSave), .pz-designer.locked .pz-canvas-wrap { pointer-events: none; opacity: .55; }
 .pz-ended { margin: 10px auto 0; max-width: 520px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+
+/* Balloon Pop: level, combo and environments (the sky changes with the level; see CONFIG.environments) */
+.pz-level { padding: 2px 12px; border-radius: 999px; background: #e0e7ff; color: #1e3a8a; }
+.pz-combo { color: #b45309; transition: transform .25s; }
+.pz-combo.pulse { transform: scale(1.18); }
+.pz-sky { transition: background .8s; }
+.pz-sky::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.pz-balloon, .pz-hazard { z-index: 1; }
+.pz-lightning { position: absolute; inset: 0; z-index: 2; background: #fff; opacity: 0; pointer-events: none; transition: opacity .12s; }
+.pz-lightning.on { opacity: .3; }
+.pz-sky[data-env="windy"] { background: linear-gradient(#9fd2ff, #e6f6ff); }
+.pz-sky[data-env="windy"]::before { background: repeating-linear-gradient(8deg, transparent 0 46px, rgba(255, 255, 255, .55) 46px 48px); }
+.pz-sky[data-env="cloudy"] { background: linear-gradient(#a9bdd2, #e3ebf3); }
+.pz-sky[data-env="cloudy"]::before { background: radial-gradient(ellipse 90px 34px at 20% 25%, rgba(255, 255, 255, .85), transparent 70%), radial-gradient(ellipse 120px 40px at 70% 45%, rgba(255, 255, 255, .8), transparent 70%), radial-gradient(ellipse 100px 36px at 40% 75%, rgba(255, 255, 255, .75), transparent 70%); background-size: 200% 100%; animation: pz-drift 40s linear infinite; }
+.pz-sky[data-env="stormy"] { background: linear-gradient(#5b6b82, #b8c4d4); }
+.pz-sky[data-env="stormy"]::before { background: repeating-linear-gradient(105deg, transparent 0 34px, rgba(255, 255, 255, .18) 34px 36px); }
+.pz-sky[data-env="night"] { background: linear-gradient(#111c3d, #2c4a8a); }
+.pz-sky[data-env="night"]::before { background: radial-gradient(circle at 15% 20%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 55% 12%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 80% 35%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 35% 60%, #fff 0 1.5px, transparent 2px), radial-gradient(circle at 90% 75%, #fff 0 1.5px, transparent 2px); }
+.pz-sky[data-env="night"] .pz-balloon { box-shadow: 0 0 0 2px rgba(255, 255, 255, .55); }
+.pz-sky[data-env="night"] .pz-hazard { border-color: #fde68a; box-shadow: 0 0 0 2px #1e293b; }
+.pz-sky[data-env="night"] .pz-hazard.spiky { background: #e2e8f0; color: #0f172a; }
+@keyframes pz-drift { from { background-position: 0 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .pz-sky[data-env="cloudy"]::before { animation: none; } .pz-sky { transition: none; } }

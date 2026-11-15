@@ -27,6 +27,53 @@
     { id: 'gold', icon: '🥇', name: 'Gold Mastery', field: 'best', describe: (n) => `Get ${n} correct answers in a row.` }
   ];
   const LEVELS = Object.keys(TARGETS);
+
+  // ---------- Balloon Pop trophies (same profile.trophies object, key `balloon`) ----------
+  // Each one is measured by a best-ever value kept on the profile: `level` = highest level reached, `combo` = longest
+  // combo in one game, `pops` = most balloons popped in one game. Saved profiles only; guests never collect them.
+  const BALLOON_KEY = 'balloon';
+  const BALLOON_TROPHIES = [
+    { id: 'level10', icon: '🥉', name: 'Sky Climber', field: 'level', target: 10, describe: (n) => `Reach Level ${n} in Balloon Pop.` },
+    { id: 'level20', icon: '🥈', name: 'Cloud Hopper', field: 'level', target: 20, describe: (n) => `Reach Level ${n} in Balloon Pop.` },
+    { id: 'level30', icon: '🥇', name: 'Storm Chaser', field: 'level', target: 30, describe: (n) => `Reach Level ${n} in Balloon Pop.` },
+    { id: 'level50', icon: '🏅', name: 'Night Flyer', field: 'level', target: 50, describe: (n) => `Reach Level ${n} in Balloon Pop.` },
+    { id: 'level100', icon: '🏆', name: 'Balloon Legend', field: 'level', target: 100, describe: (n) => `Reach Level ${n} in Balloon Pop.` },
+    { id: 'combo5', icon: '🔥', name: 'Combo Starter', field: 'combo', target: 5, describe: (n) => `Pop ${n} balloons in a row.` },
+    { id: 'combo10', icon: '🔥', name: 'Combo Master', field: 'combo', target: 10, describe: (n) => `Pop ${n} balloons in a row.` },
+    { id: 'combo20', icon: '🔥', name: 'Combo Champion', field: 'combo', target: 20, describe: (n) => `Pop ${n} balloons in a row.` },
+    { id: 'pops50', icon: '🎈', name: 'Balloon Popper', field: 'pops', target: 50, describe: (n) => `Pop ${n} balloons in one game.` },
+    { id: 'pops100', icon: '🎈', name: 'Balloon Expert', field: 'pops', target: 100, describe: (n) => `Pop ${n} balloons in one game.` }
+  ];
+  const BALLOON_FIELDS = ['level', 'combo', 'pops'];
+
+  function cleanBalloon(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const out = { level: count(r.level), combo: count(r.combo), pops: count(r.pops), unlocked: [] };
+    const ids = Array.isArray(r.unlocked) ? r.unlocked : [];
+    out.unlocked = BALLOON_TROPHIES.map(t => t.id).filter(id => ids.includes(id));
+    return out;
+  }
+
+  // Keeps the best values and returns the trophies newly unlocked by them. A trophy is only ever awarded once.
+  function recordBalloon(profile, stats) {
+    if (!profile || !stats) return [];
+    if (!profile.trophies || typeof profile.trophies !== 'object') profile.trophies = {};
+    const p = profile.trophies[BALLOON_KEY] = cleanBalloon(profile.trophies[BALLOON_KEY]);
+    BALLOON_FIELDS.forEach(f => { p[f] = Math.max(p[f], count(stats[f])); });
+    const won = [];
+    BALLOON_TROPHIES.forEach(t => {
+      if (!p.unlocked.includes(t.id) && p[t.field] >= t.target) { p.unlocked.push(t.id); won.push(t); }
+    });
+    return won;
+  }
+
+  function balloonProgress(profile) {
+    const p = cleanBalloon(profile && profile.trophies && profile.trophies[BALLOON_KEY]);
+    return BALLOON_TROPHIES.map(t => {
+      const unlocked = p.unlocked.includes(t.id);
+      return { tier: t, target: t.target, value: unlocked ? t.target : Math.min(p[t.field], t.target), unlocked, description: t.describe(t.target) };
+    });
+  }
   const MAX_COUNT = 1000000;
 
   const count = (v) => (Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), MAX_COUNT) : 0);
@@ -55,6 +102,7 @@
     const out = {};
     if (!raw || typeof raw !== 'object') return out;
     LEVELS.forEach(level => { if (raw[level] && typeof raw[level] === 'object') out[level] = cleanProgress(raw[level]); });
+    if (raw[BALLOON_KEY] && typeof raw[BALLOON_KEY] === 'object') out[BALLOON_KEY] = cleanBalloon(raw[BALLOON_KEY]);
     return out;
   }
 
@@ -101,10 +149,11 @@
   }
 
   function unlockedCount(profile) {
-    return LEVELS.reduce((sum, level) => sum + progressFor(profile, level).filter(t => t.unlocked).length, 0);
+    return LEVELS.reduce((sum, level) => sum + progressFor(profile, level).filter(t => t.unlocked).length, 0)
+      + balloonProgress(profile).filter(t => t.unlocked).length;
   }
 
-  const api = { TARGETS, TIERS, LEVELS, emptyProgress, cleanProgress, cleanAll, record, resetStreak, progressFor, unlockedCount };
+  const api = { BALLOON_TROPHIES, recordBalloon, balloonProgress, TARGETS, TIERS, LEVELS, emptyProgress, cleanProgress, cleanAll, record, resetStreak, progressFor, unlockedCount };
   root.MQTrophies = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -229,6 +229,7 @@
       profiles: () => profiles(),
       defaults: [bank ? bank.id : null, p2 && p2.id !== (bank && bank.id) && saved.some(p => p.id === p2.id) ? p2.id : null],
       record: (profile, kind, value) => Store.recordPlayzone(profile, kind, value),
+      trophies: (profile, stats) => { const won = root.MQTrophies ? root.MQTrophies.recordBalloon(profile, stats) : []; if (won.length) Store.save(); return won; },   // saved profiles only
       begin: () => beginSession(),                // '' when a session is running, otherwise the reason it could not start
       end: (reason) => finishSession(reason),     // charges the actual usage now
       active: () => (running ? Store.activePlay(running.profile) : false),

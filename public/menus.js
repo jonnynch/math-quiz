@@ -266,6 +266,25 @@
   }
 
   // ---------- achievements window ----------
+  function trophyCard(t) {
+    const card = element('div', `trophy-card ${t.unlocked ? 'unlocked' : 'locked'}`);
+    const icon = element('span', 'trophy-icon', t.tier.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    const bar = element('div', 'trophy-bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', String(t.target));
+    bar.setAttribute('aria-valuenow', String(t.value));
+    bar.setAttribute('aria-label', t.tier.name);
+    const fill = element('span');
+    fill.style.width = `${Math.round((t.value / t.target) * 100)}%`;
+    bar.append(fill);
+    card.append(icon, element('strong', 'trophy-name', t.tier.name), element('span', 'trophy-desc', t.description), bar,
+      element('span', 'trophy-progress', `${t.value} / ${t.target}`),
+      element('span', 'trophy-state', t.unlocked ? '✓ Unlocked' : '🔒 Locked'));
+    return card;
+  }
+
   function renderAchievements() {
     const list = $('achievementsList');
     list.innerHTML = '';
@@ -277,7 +296,7 @@
       return;
     }
     const profile = Store.getProfile($('achievementsProfile').value) || profiles[0];
-    const total = Trophies.LEVELS.length * Trophies.TIERS.length;
+    const total = Trophies.LEVELS.length * Trophies.TIERS.length + Trophies.BALLOON_TROPHIES.length;
     $('achievementsSummary').textContent = `🏆 ${Trophies.unlockedCount(profile)} / ${total} trophies collected`;
     Trophies.LEVELS.forEach(level => {
       const trophies = Trophies.progressFor(profile, level);
@@ -286,27 +305,19 @@
       head.append(element('h3', '', Q.difficultyLabel(level)),
         element('span', 'trophy-level-count', `${trophies.filter(t => t.unlocked).length} / ${trophies.length}`));
       const grid = element('div', 'trophy-grid');
-      trophies.forEach(t => {
-        const card = element('div', `trophy-card ${t.unlocked ? 'unlocked' : 'locked'}`);
-        const icon = element('span', 'trophy-icon', t.tier.icon);
-        icon.setAttribute('aria-hidden', 'true');
-        const bar = element('div', 'trophy-bar');
-        bar.setAttribute('role', 'progressbar');
-        bar.setAttribute('aria-valuemin', '0');
-        bar.setAttribute('aria-valuemax', String(t.target));
-        bar.setAttribute('aria-valuenow', String(t.value));
-        bar.setAttribute('aria-label', t.tier.name);
-        const fill = element('span');
-        fill.style.width = `${Math.round((t.value / t.target) * 100)}%`;
-        bar.append(fill);
-        card.append(icon, element('strong', 'trophy-name', t.tier.name), element('span', 'trophy-desc', t.description), bar,
-          element('span', 'trophy-progress', `${t.value} / ${t.target}`),
-          element('span', 'trophy-state', t.unlocked ? '✓ Unlocked' : '🔒 Locked'));
-        grid.append(card);
-      });
+      trophies.forEach(t => grid.append(trophyCard(t)));
       section.append(head, grid);
       list.append(section);
     });
+    // Balloon Pop trophies (same page, same cards; kept per profile, so each player has their own)
+    const balloon = Trophies.balloonProgress(profile);
+    const bs = element('section', 'trophy-level trophy-balloon');
+    const bh = element('div', 'trophy-level-head');
+    bh.append(element('h3', '', '🎈 Balloon Pop'), element('span', 'trophy-level-count', `${balloon.filter(t => t.unlocked).length} / ${balloon.length}`));
+    const bg = element('div', 'trophy-grid');
+    balloon.forEach(t => bg.append(trophyCard(t)));
+    bs.append(bh, bg);
+    list.append(bs);
   }
 
   // Opens on Player 1's profile when one is chosen, otherwise the first profile.

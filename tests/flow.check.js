@@ -133,9 +133,9 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok($('finalScores').textContent.includes('New trophies')&&mia().trophies.grade3.unlocked.includes('gold')&&mia().trophies.grade3.best===3,'gold unlocked by consecutive correct answers across games; result card lists new trophies');
   ok(mia().trophies.grade3.completed===3&&mia().trophies.grade3.correct===3&&mia().totals.correct===store().profiles[0].totals.correct,'trophy counters did not change the normal score totals');
   click($('achievementsButton')); change($('achievementsProfile'),mia().id);
-  ok(!$('achievementsModal').classList.contains('hidden')&&d.querySelectorAll('.trophy-card').length===30,'Achievements window shows 3 trophies for each of the 10 levels');
-  ok(d.querySelectorAll('.trophy-card:not(.locked)').length===3&&d.querySelectorAll('.trophy-card.locked').length===27,'only the 3 unlocked trophies are shown as unlocked');
-  ok([...d.querySelectorAll('.trophy-progress')].some(n=>/^\d+ \/ \d+$/.test(n.textContent))&&$('achievementsSummary').textContent.includes('3 / 30'),'progress is shown as numbers and the summary counts trophies');
+  ok(!$('achievementsModal').classList.contains('hidden')&&d.querySelectorAll('.trophy-level:not(.trophy-balloon) .trophy-card').length===30&&d.querySelectorAll('.trophy-balloon .trophy-card').length===10,'Achievements window shows 3 trophies for each of the 10 levels, plus the 10 Balloon Pop trophies');
+  ok(d.querySelectorAll('.trophy-card:not(.locked)').length===3&&d.querySelectorAll('.trophy-card.locked').length===37,'only the 3 unlocked trophies are shown as unlocked');
+  ok([...d.querySelectorAll('.trophy-progress')].some(n=>/^\d+ \/ \d+$/.test(n.textContent))&&$('achievementsSummary').textContent.includes('3 / 40'),'progress is shown as numbers and the summary counts trophies');
   change($('achievementsProfile'),store().profiles[1].id);
   ok(d.querySelectorAll('.trophy-card:not(.locked)').length===0,'the other profile has no trophies');
   click($('achievementsClose')); ok($('achievementsModal').classList.contains('hidden'),'Achievements window closes');

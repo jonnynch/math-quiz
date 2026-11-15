@@ -41,3 +41,6 @@ Read-aloud / sound effects for young children, automatic level-up, review of mis
 - Playzone personal bests (Reaction Battle best ms, lower is better; Balloon Pop best score) are also listed in each player's Profile Details ("Not played yet" when empty).
 - Games are charged by actual time: `Math.ceil(seconds / 60)` whole minutes per session (at least 1), charged when the session ends, never up front. The balance may be negative (also after a parent deduction); a balance of 0 or less only blocks starting a NEW game.
 - Parent minute adjustment moved from Playzone to the Screen-time page; it still needs the hard quadratic question.
+
+## Balloon Pop progression
+- Endless levels (no cap, 4 pops per level), combo bonus points (score only), changing skies at levels 8/15/25/40 with real gameplay effects, and ten Balloon Pop trophies in the existing trophy system. No special balloons or power-ups. Screen-time charging is unchanged.
