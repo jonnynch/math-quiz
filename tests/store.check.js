@@ -1,7 +1,7 @@
 // Unit checks for store.js: saving, schema, backup export/import/undo, validation, save failures. No browser needed.
 const path = require('path');
 const Parent = require(path.join(__dirname, '..', 'public', 'parent.js')); // sets globalThis.MQParent, which store.js checks
-const { solveParent } = require('./parent-solver');
+const { solveParent, solveHard } = require('./parent-solver');
 const unlockParent = () => Parent.submit(solveParent(Parent.current().text));
 let failures = 0;
 const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!cond) failures++; };
@@ -386,6 +386,50 @@ Parent.lock();
   const back = S2.parseBackup(S2.exportText()).profiles[0];
   ok(back.lastSetup.topic === 'mixed' && back.lastSetup.difficulty === 'grade2', 'export then import keeps the saved question type');
   ok(S2.addProfile('Neo', '🐸').profile.lastSetup === null, 'a new profile has no saved setup, so the Mixed All Questions default applies');
+}
+
+// --- Playzone: spending without a parent, parent-only adjustment, personal bests
+{
+  let { S, mem } = freshStore();
+  const p = S.addProfile('Zed', '🦊').profile;
+  p.rewards.earned = 10; S.save();
+  Parent.lock(); Parent.hard.lock();
+  const r = S.redeemForPlay(p, 3);
+  ok(r.redeemed === 3 && p.rewards.redeemed === 3 && p.rewards.earned === 10 && p.rewards.redeemTx.length === 1, 'redeemForPlay spends from the same bank with no parent check');
+  ok(S.redeemForPlay(p, 8).error && p.rewards.redeemed === 3, 'redeemForPlay refuses more than the balance');
+  ok(S.redeemForPlay(p, 0).error && S.redeemForPlay(p, 1.5).error && S.redeemForPlay(p, -2).error && S.redeemForPlay(null, 1).error, 'redeemForPlay refuses 0, fractions, negatives and no profile');
+  ok(S.redeem(p, 1).denied === true && p.rewards.redeemed === 3, 'the parent redeem still needs parent verification');
+  ok(S.adjustBalance(p, 5).denied === true && p.rewards.earned === 10, 'adjustBalance is denied while locked');
+  Parent.submit(solveParent(Parent.current().text));
+  ok(Parent.isUnlocked() && S.adjustBalance(p, 5).denied === true, 'the normal parent unlock does not allow adjustment');
+  Parent.lock();
+  ok(Parent.hard.submit(solveHard(Parent.hard.current().text)).ok === true, 'hard unlock works through the public API');
+  const add = S.adjustBalance(p, 5);
+  ok(add.before === 7 && add.after === 12 && p.rewards.earned === 15 && p.rewards.redeemed === 3 && add.saved === true, 'adjustBalance adds minutes to the same bank (before/after reported)');
+  const sub = S.adjustBalance(p, -4);
+  ok(sub.before === 12 && sub.after === 8 && p.rewards.redeemed === 7, 'adjustBalance deducts minutes');
+  ok(S.adjustBalance(p, -9).error && S.adjustBalance(p, 0).error && S.adjustBalance(p, 2.5).error && S.adjustBalance(p, 601).error && S.adjustBalance(null, 1).error && p.rewards.redeemed === 7 && p.rewards.earned === 15, 'adjustBalance refuses overdrafts, 0, fractions, huge amounts and no profile');
+  ok(S.adjustBalance(p, -8).after === 0 && p.rewards.redeemed <= p.rewards.earned, 'adjustBalance can bring the balance to exactly 0 but not below');
+  const back = freshStore(mem).S.getProfiles()[0];
+  ok(back.rewards.earned === 15 && back.rewards.redeemed === 15, 'adjustments survive a reload');
+  Parent.hard.lock();
+
+  const q = S.addProfile('Quin', '🐱').profile;
+  ok(q.playzone.reactionBest === null && q.playzone.balloonBest === 0, 'a new profile starts with no Playzone records');
+  let rr = S.recordPlayzone(q, 'reaction', 312.4);
+  ok(rr.isNew && rr.first && rr.best === 312 && q.playzone.reactionBest === 312, 'first valid reaction time becomes the best (rounded to ms)');
+  rr = S.recordPlayzone(q, 'reaction', 400);
+  ok(!rr.isNew && q.playzone.reactionBest === 312, 'a slower reaction does not replace the best');
+  rr = S.recordPlayzone(q, 'reaction', 250);
+  ok(rr.isNew && !rr.first && q.playzone.reactionBest === 250, 'a faster reaction replaces the best');
+  ok(!S.recordPlayzone(q, 'reaction', 0).isNew && !S.recordPlayzone(q, 'reaction', NaN).isNew && !S.recordPlayzone(q, 'reaction', 999999).isNew && q.playzone.reactionBest === 250, 'impossible times are ignored');
+  ok(S.recordPlayzone(q, 'balloon', 6).isNew && !S.recordPlayzone(q, 'balloon', 4).isNew && !S.recordPlayzone(q, 'balloon', 6).isNew && S.recordPlayzone(q, 'balloon', 9).best === 9 && !S.recordPlayzone(q, 'balloon', 0).isNew, 'balloon best only goes up (ties and zero are not records)');
+  ok(p.playzone.reactionBest === null && p.playzone.balloonBest === 0, 'records belong to one profile only');
+  const again = freshStore(mem).S.getProfiles();
+  const q2 = again.find(x => x.name === 'Quin');
+  ok(q2.playzone.reactionBest === 250 && q2.playzone.balloonBest === 9, 'Playzone records survive a reload');
+  const junk = freshStore({ 'mathQuizBattle.v1': JSON.stringify({ schema: 2, profiles: [{ id: 'j', name: 'J', playzone: { reactionBest: 'x', balloonBest: -5 } }, { id: 'k', name: 'K' }] }) }).S.getProfiles();
+  ok(junk.every(x => x.playzone.reactionBest === null && x.playzone.balloonBest === 0), 'damaged or missing Playzone data becomes empty records');
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');

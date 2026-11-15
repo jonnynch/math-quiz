@@ -561,6 +561,7 @@
   // (new question) after a wrong answer and when a cooldown ends, and calls opts.onUnlocked() on success.
   // Returns a function that stops its cooldown timer.
   function renderParentChallenge(host, opts) {
+    const Parent = opts.parent || root.MQParent;   // default: the normal parent check
     let timer = null;
     let notice = '';
     const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
@@ -600,7 +601,7 @@
       const submit = () => {
         const result = Parent.submit(input.value);
         if (result.ok) { stop(); opts.onUnlocked(); return; }
-        if (result.reason === 'invalid') { show('Please type a number or a fraction such as 1/2.'); return; }
+        if (result.reason === 'invalid') { show(opts.invalidText || 'Please type a number or a fraction such as 1/2.'); return; }
         if (opts.onWrong) opts.onWrong();
         notice = result.reason === 'cooldown'
           ? ''

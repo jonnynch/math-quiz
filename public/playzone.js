@@ -1,8 +1,8 @@
 // Playzone: fun mini-games unlocked with Screen-time Bank minutes. This file is the shared shell only:
 // the menu, the profile/balance line, the cost screen, redemption and the stage that hosts one game.
 // Each game lives in its own file (pz-*.js) and registers itself with MQPlayzone.register(); a game never
-// touches the bank. Redemption goes through the existing Store.checkRedeem / Store.redeem, which are
-// parent-only, so every start asks the same parent question as the Screen-time window. Playing never earns minutes.
+// touches the bank. Starting a game spends minutes from the existing bank with Store.redeemForPlay (child taps Play,
+// no parent question; one deduction per start). Playing never earns minutes. Manual adjustment is parent-only (pz-adjust.js).
 (() => {
   'use strict';
 
@@ -17,7 +17,6 @@
   let pending = null;               // { game, profile } while the cost screen is open
   let running = null;               // { game, instance } while a game is on the stage
   let redeeming = false;            // blocks a second deduction from repeated taps
-  let stopChallenge = () => {};     // stops the parent-question cooldown timer
 
   function el(tag, cls, text) {
     const node = document.createElement(tag);
@@ -68,9 +67,8 @@
   }
 
   function renderMenu() {
-    stopChallenge();
-    stopChallenge = () => {};
     pending = null;
+    $('pzAdjust').classList.add('hidden');
     refreshProfileSelect();
     const profile = currentProfile();
     const balance = balanceOf(profile);
@@ -117,7 +115,7 @@
         : 'Games need a saved profile with minutes.'));
     }
     const actions = el('div', 'pz-actions');
-    const play = el('button', 'primary-button compact', `Ask a parent to play (${mins(game.cost)})`);
+    const play = el('button', 'primary-button compact', `Play (${mins(game.cost)})`);
     play.type = 'button';
     play.id = 'pzPlay';
     play.disabled = !enough;
@@ -127,46 +125,31 @@
     cancel.addEventListener('click', renderMenu);
     actions.append(play, cancel);
     box.append(actions);
-    const host = el('div', 'bank-parent pz-parent hidden');
-    host.id = 'pzParent';
-    box.append(host);
-
     play.addEventListener('click', () => {
       if (!enough || redeeming) return;
-      play.disabled = true;                // one tap is enough; the parent question takes over
-      Parent.lock();                       // every start needs a fresh verification
-      host.classList.remove('hidden');
-      stopChallenge();
-      stopChallenge = Menus.renderParentChallenge(host, {
-        prefix: 'pz',
-        help: `A parent needs to unlock ${mins(game.cost)} of screen time for this game. Answer this quick question.`,
-        onUnlocked: redeemAndStart
-      });
+      play.disabled = true;                // one tap is enough
+      spendAndStart();
     });
   }
 
-  // The only place minutes are spent. Runs once per verification: `redeeming` blocks re-entry and the lock is
-  // always released afterwards, so a second tap or a second call cannot deduct again.
-  function redeemAndStart() {
+  // The only place Playzone spends minutes. `redeeming` blocks re-entry and the button disables on the first tap, so
+  // repeated taps cannot deduct twice. The balance is re-checked here against the live profile.
+  function spendAndStart() {
     if (redeeming || !pending) return;
     redeeming = true;
-    const { game, profile } = pending;
+    const { game } = pending;
     try {
-      const problem = Store.checkRedeem(profile, game.cost);
-      if (problem) { renderMenu(); notice(problem, 'error'); return; }
-      const result = Store.redeem(profile, game.cost);
-      if (result.denied || result.error) { renderMenu(); notice(result.error || 'Parent verification is needed first.', 'error'); return; }
+      const profile = currentProfile();
+      const result = Store.redeemForPlay(profile, game.cost);
+      if (result.error) { renderMenu(); notice(result.error, 'error'); return; }
       startGame(game, result.saved === false);
     } finally {
-      Parent.lock();
       redeeming = false;
     }
   }
 
   // ---------- stage ----------
   function startGame(game, saveFailed) {
-    stopChallenge();
-    stopChallenge = () => {};
     pending = null;
     $('pzMenuView').classList.add('hidden');
     $('pzStageView').classList.remove('hidden');
@@ -176,8 +159,20 @@
     const host = $('pzHost');
     host.innerHTML = '';
     let instance = null;
-    try { instance = game.mount(host, {}); } catch (error) { host.textContent = 'Sorry, this game could not start.'; }
+    try { instance = game.mount(host, { ctx: makeCtx() }); } catch (error) { host.textContent = 'Sorry, this game could not start.'; }
     running = { game, instance };
+  }
+
+  // What a game may use: the saved profiles (to pick who plays) and a way to keep a personal best. Never the bank.
+  function makeCtx() {
+    const bank = currentProfile();
+    const p2 = Menus.selectedProfile(2);
+    const saved = profiles();
+    return {
+      profiles: () => profiles(),
+      defaults: [bank ? bank.id : null, p2 && p2.id !== (bank && bank.id) && saved.some(p => p.id === p2.id) ? p2.id : null],
+      record: (profile, kind, value) => Store.recordPlayzone(profile, kind, value)
+    };
   }
 
   function endGame() {
@@ -201,16 +196,15 @@
     $('setupPanel').classList.add('hidden');
     $('playzonePanel').classList.remove('hidden');
     $('gameStatus').textContent = 'Playzone';
+    if (Parent.hard) Parent.hard.lock();
     endGame();
     renderMenu();
   }
 
   function close() {
     endGame();
-    stopChallenge();
-    stopChallenge = () => {};
     pending = null;
-    Parent.lock();
+    if (Parent.hard) Parent.hard.lock();
     $('playzonePanel').classList.add('hidden');
     $('setupPanel').classList.remove('hidden');
     $('gameStatus').textContent = 'Ready to play';
@@ -221,5 +215,5 @@
   $('pzLeave').addEventListener('click', leaveStage);
   $('pzProfile').addEventListener('change', () => { profileId = $('pzProfile').value; renderMenu(); });
 
-  root.MQPlayzone = { register, open, close, games: () => games.map(g => g.id), game: (id) => games.find(g => g.id === id) || null, current: () => (running ? running.instance : null), balanceOf };
+  root.MQPlayzone = { register, open, close, games: () => games.map(g => g.id), game: (id) => games.find(g => g.id === id) || null, current: () => (running ? running.instance : null), balanceOf, menu: () => renderMenu() };
 })();

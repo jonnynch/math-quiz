@@ -4,7 +4,7 @@ const dir=require('path').join(__dirname,'..','public')+'/';
 const html=fs.readFileSync(dir+'index.html','utf8').replace(/<script src="[^"]+"><\/script>/g,'');
 const dom=new JSDOM(html,{url:'http://localhost/',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window;
-['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','playzone.js','pz-designer.js','pz-reaction.js','pz-balloon.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
+['questions.js','trophies.js','parent.js','report.js','store.js','audio.js','menus.js','playzone.js','pz-adjust.js','pz-designer.js','pz-reaction.js','pz-balloon.js','game.js'].forEach(f=>w.eval(fs.readFileSync(dir+f,'utf8')));
 const d=w.document;
 const $=id=>d.getElementById(id);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -15,9 +15,12 @@ const {solveParent}=require('./parent-solver');
 const hidden=id=>$(id).classList.contains('hidden');
 const cards=()=>[...d.querySelectorAll('#pzGames .pz-card')];
 const card=id=>d.querySelector(`#pzGames .pz-card[data-game="${id}"]`);
-const unlockViaUi=()=>{ // the real parent question in the Playzone cost screen
-  const q=$('pzChallenge').textContent; $('pzAnswer').value=solveParent(q);
-  click($('pzParent').querySelector('button.primary-button'));
+const gcd=(a,b)=>b?gcd(b,a%b):Math.abs(a);
+const rootsOf=(text)=>{ // solves the parent's quadratic from its text: "Solve 2x² - 7x + 3 = 0. ..."
+  const m=text.match(/^(?:Solve|Find the roots of) (\d*)x²(?: ([+-]) (\d*)x)?(?: ([+-]) (\d+))? = 0/); if(!m) throw new Error('bad question '+text);
+  const A=m[1]?+m[1]:1, B=m[2]?(m[2]==='-'?-1:1)*(m[3]?+m[3]:1):0, C=m[4]?(m[4]==='-'?-1:1)*+m[5]:0;
+  const D=B*B-4*A*C, r=Math.round(Math.sqrt(D)); if(r*r!==D) throw new Error('not rational');
+  return [(-B+r),(-B-r)].map(n=>{const g=gcd(n,2*A);const nn=n/g,dd=2*A/g;return dd===1?String(nn):`${nn}/${dd}`;});
 };
 const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
 
@@ -61,20 +64,11 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok($('pzConfirm').textContent.includes('costs 2 min')&&$('pzConfirm').textContent.includes('has 3 min'),'cost and balance are shown before starting');
   ok(!$('pzPlay').disabled&&hidden('pzStageView'),'start is enabled but nothing has started or been charged yet');
   click($('pzPlay')); click($('pzPlay'));
-  ok($('pzPlay').disabled,'the start button is disabled after one tap');
-  ok(d.querySelectorAll('#pzChallenge').length===1,'repeated taps show only one parent question');
-  ok(profile.rewards.redeemed===0,'nothing is deducted before the parent answers');
-  // wrong answer: nothing deducted
-  $('pzAnswer').value='999999'; click($('pzParent').querySelector('button.primary-button'));
-  ok(profile.rewards.redeemed===0&&hidden('pzStageView'),'a wrong parent answer deducts nothing and does not start');
-  const unlockBtn=()=>$('pzParent').querySelector('button.primary-button');
-  const oldUnlock=unlockBtn();
-  unlockViaUi();
-  ok(!hidden('pzStageView')&&hidden('pzMenuView'),'correct parent answer starts the game');
-  ok(profile.rewards.redeemed===2&&profile.rewards.redeemTx.length===1&&profile.rewards.redeemTx[0].minutes===2,'exactly 2 minutes were deducted once');
-  ok(!w.MQParent.isUnlocked(),'the parent lock is released again after redeeming');
-  click(oldUnlock); click(oldUnlock);
-  ok(profile.rewards.redeemed===2&&profile.rewards.redeemTx.length===1,'tapping the old unlock button again does not deduct again');
+  ok(d.querySelectorAll('#pzChallenge,#pzAnswer,.parent-challenge').length===0,'no parent question appears when starting a game');
+  ok(!hidden('pzStageView')&&hidden('pzMenuView'),'tapping Play starts the game straight away');
+  ok(profile.rewards.redeemed===2&&profile.rewards.redeemTx.length===1&&profile.rewards.redeemTx[0].minutes===2,'exactly 2 minutes deducted once, even with repeated taps');
+  const parentOnly=w.MQStore.redeem(profile,1);
+  ok(parentOnly.denied&&profile.rewards.redeemed===2,'the existing parent-only Store.redeem still needs parent verification');
   ok(store().profiles[0].rewards.redeemed===2,'the deduction is saved in the existing profile storage');
   ok(profile.rewards.earned===3,'earned minutes are unchanged (no credits for playing)');
   ok(d.querySelector('#pzHost .pz-choose')&&d.querySelectorAll('.pz-pick-pizza,.pz-pick-cake').length===2,'Pizza & Cake Designer starts on the choose screen');
@@ -147,29 +141,79 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   click($('pzPlay')); ok(hidden('pzStageView')&&profile.rewards.redeemed===2,'insufficient balance: nothing starts and nothing is charged');
   click($('pzCancel'));
 
-  // ---- Balloon Pop through the real flow (1 min)
-  click(card('balloon')); click($('pzPlay')); unlockViaUi();
-  ok(profile.rewards.redeemed===3&&!hidden('pzStageView'),'Balloon Pop: 1 min deducted once and the game starts');
-  ok(d.querySelectorAll('.pz-balloon').length>=1&&/0/.test(d.querySelector('.pz-score').textContent),'Balloon Pop: a balloon appears at the start, score 0');
-  const b1=d.querySelector('.pz-balloon');
-  ok(/^#[0-9a-f]{6}$/i.test(b1.style.getPropertyValue('--c'))&&b1.style.left.endsWith('%')&&parseFloat(b1.style.animationDuration)>=4,'balloons have a colour, a random position and a rising animation');
-  ptr(b1,'pointerdown'); ptr(b1,'pointerdown');
-  ok(/1/.test(d.querySelector('.pz-score').textContent)&&!/2/.test(d.querySelector('.pz-score').textContent),'popping a balloon scores once, even if tapped twice');
-  await sleep(1700);
-  ok(d.querySelectorAll('.pz-balloon:not(.popped)').length>=2,'more balloons keep appearing');
-  click($('pzLeave'));
-  ok(hidden('pzStageView')&&!!w.MQPlayzone,'Balloon Pop: leaving stops the game');
-  const balloon=w.MQPlayzone.game('balloon');
+  // ---- Balloon Pop through the real flow (1 min, no parent question)
+  click(card('balloon')); click($('pzPlay'));
+  ok(profile.rewards.redeemed===3&&!hidden('pzStageView')&&!d.querySelector('#pzChallenge'),'Balloon Pop: 1 min deducted once, no parent question');
+  ok(!!$('pzBalloonStart')&&d.querySelector('.pz-rules').textContent.includes('lives')&&d.querySelector('.pz-rules').textContent.includes('✖'),'Balloon Pop: the rules and lives are explained before starting');
+  click($('pzBalloonStart'));
+  const bal=w.MQPlayzone.current(); const BG=w.MQPlayzone.game('balloon'); const st=()=>bal._state();
+  ok(st().running&&st().lives===5&&d.querySelectorAll('.pz-lives').length===1&&!d.querySelector('.pz-time'),'Balloon Pop: starts with 5 lives and there is no timer');
+  ok(d.querySelector('.pz-lives').textContent.split('❤️').length===6,'Balloon Pop: remaining lives are shown as hearts');
+  click($('pzLeave')); ok(hidden('pzStageView'),'Balloon Pop: leaving stops the game');
+
+  // difficulty: one config, gradual progress
+  const dif=BG.difficulty;
+  const lv=[0,2,4,6,8,12,20,30].map(dif);
+  ok(lv.every((x,i)=>i===0||(x.rise<=lv[i-1].rise&&x.scale<=lv[i-1].scale&&x.spawn<=lv[i-1].spawn)),'difficulty: objects get faster, smaller and more frequent as the level rises');
+  ok(lv[0].rise>lv[7].rise*1.5&&lv[0].scale===1&&lv[7].scale<0.75,'difficulty: clearly faster and smaller at level 30 than at level 0');
+  ok(Math.abs(dif(1).rise/dif(0).rise-BG.config.rise.factor)<1e-9&&dif(1).rise>dif(0).rise*0.9,'difficulty: each step is small (no sudden spike)');
+  ok(dif(0).moves.join()==='straight'&&dif(2).moves.includes('diagonal')&&dif(4).moves.includes('curve')&&dif(6).moves.includes('zigzag')&&dif(8).moves.includes('bounce'),'difficulty: movement patterns are introduced progressively');
+  ok(dif(2).hazardChance===0&&dif(3).hazardTypes.join()==='rock'&&dif(6).hazardTypes.includes('spiky')&&dif(30).hazardChance<=BG.config.hazards.chance.max,'difficulty: ✖ objects appear from level 3, with a capped chance');
+  ok(dif(30).scale*120>=58||BG.config.size.floorPx>=58,'difficulty: balloons never get smaller than a playable size');
+
+  // gameplay through the test helpers (no real waiting)
   const host=d.createElement('div'); d.body.append(host);
-  const bi=balloon.mount(host,{duration:2});
-  ptr(host.querySelector('.pz-balloon'),'pointerdown'); await sleep(900); ptr(host.querySelector('.pz-balloon:not(.popped)'),'pointerdown');
-  ok(/2/.test(host.querySelector('.pz-score').textContent),'Balloon Pop: each pop adds one to the score');
-  await sleep(1300);
-  ok(!host.querySelector('.pz-over').classList.contains('hidden')&&host.querySelector('.pz-over-text').textContent.includes('2 balloons')&&host.querySelectorAll('.pz-balloon').length===0,'Balloon Pop: the game ends on time and shows the final score');
-  click(host.querySelector('.pz-over .primary-button'));
-  ok(host.querySelector('.pz-over').classList.contains('hidden')&&/0/.test(host.querySelector('.pz-score').textContent)&&host.querySelectorAll('.pz-balloon').length===1,'Balloon Pop: Play again restarts with score 0');
-  bi.destroy(); const n=host.querySelectorAll('.pz-balloon').length; await sleep(900);
-  ok(host.querySelectorAll('.pz-balloon').length<=n,'Balloon Pop: no new balloons after the game is destroyed');
+  const ctxFor=(id)=>({profiles:()=>w.MQStore.getProfiles(),defaults:[id,null],record:(p,k,v)=>w.MQStore.recordPlayzone(p,k,v)});
+  const startBalloon=(id,auto)=>{ const g=BG.mount(host,{ctx:ctxFor(id),autoSpawn:auto===true}); host.querySelector('#pzBalloonStart').click(); return g; };
+  let g=startBalloon(profile.id,true);
+  const s0=g._spawn({kind:'balloon',move:'straight'}); const y0=s0.y;
+  ok(!!s0.el.style.getPropertyValue('--c')&&s0.size>=58,'Balloon: a coloured balloon of playable size appears');
+  g._step(0.5); ok(g._state().objects[0].y<y0,'Balloon: objects move up');
+  // popping everything for 40 simulated seconds never ends the game (no time limit)
+  for(let i=0;i<800;i++){ g._step(0.05); [...host.querySelectorAll('.pz-balloon:not(.popped)')].forEach(b=>ptr(b,'pointerdown')); }
+  ok(g._state().running&&g._state().lives===5&&g._state().score>20,'Balloon: no time limit — still running after 40 s of play');
+  ok(g._state().level>=5,'Balloon: the level rose with the score');
+  g.destroy();
+  // movement patterns
+  g=startBalloon(profile.id); g._setScore(40);
+  const W=600;
+  const run=(move,n)=>{ const o=g._spawn({kind:'balloon',move}); const xs=[o.x]; for(let i=0;i<n;i++){ g._step(0.05); xs.push(o.x); } return {o,xs}; };
+  const dg=run('diagonal',20); ok(Math.abs(dg.xs[20]-dg.xs[0])>5||dg.o.x<=0||dg.o.x>=W-dg.o.size,'Balloon: diagonal movement changes x');
+  const cv=run('curve',40); ok(Math.max(...cv.xs)-Math.min(...cv.xs)>20,'Balloon: curved path sways side to side');
+  const zz=run('zigzag',60); let turns=0; for(let i=2;i<zz.xs.length;i++){ if((zz.xs[i]-zz.xs[i-1])*(zz.xs[i-1]-zz.xs[i-2])<0) turns++; } ok(turns>=1&&Math.max(...zz.xs)-Math.min(...zz.xs)>20,'Balloon: zig-zag path turns back and forth');
+  const bn=run('bounce',200); ok(Math.min(...bn.xs)>=0&&Math.max(...bn.xs)<=W-bn.o.size+0.01,'Balloon: bouncing objects stay inside the sky');
+  const sp=[1,2,3,4,5,6].map(()=>g._spawn({kind:'balloon'}).vy); ok(new Set(sp.map(Math.round)).size>1,'Balloon: objects move at different speeds');
+  // hazards and penalties
+  g.destroy(); g=startBalloon(profile.id);
+  const h1=g._spawn({kind:'hazard',type:'rock'});
+  ok(h1.el.classList.contains('pz-hazard')&&!h1.el.classList.contains('pz-balloon')&&h1.el.textContent==='✖','Balloon: a ✖ object looks different from a balloon');
+  ptr(h1.el,'pointerdown'); ptr(h1.el,'pointerdown');
+  ok(g._state().lives===4&&g._state().score===0,'Balloon: tapping a ✖ object costs exactly one life and scores nothing');
+  const miss=g._spawn({kind:'balloon',move:'straight'}); for(let i=0;i<400&&g._state().lives===4;i++) g._step(0.05);
+  ok(g._state().lives===3&&!g._state().objects.includes(miss),'Balloon: a balloon that floats off the top costs one life');
+  const haz=g._spawn({kind:'hazard',type:'spiky'}); for(let i=0;i<400&&g._state().objects.some(o=>o.hazard);i++) g._step(0.05);
+  ok(g._state().lives===3,'Balloon: a ✖ object leaving the top costs nothing');
+  ok(g._state().running,'Balloon: the game continues while lives remain');
+  [1,2,3].forEach(()=>ptr(g._spawn({kind:'hazard'}).el,'pointerdown'));
+  ok(!g._state().running&&g._state().lives===0&&!host.querySelector('.pz-end').classList.contains('hidden'),'Balloon: the game ends when all lives are lost');
+  ok(host.textContent.includes('Game over')&&host.querySelector('.pz-over-text').textContent.includes('0 balloons'),'Balloon: the final score is shown');
+  click(host.querySelector('#pzBalloonAgain')); ok(g._state().running&&g._state().lives===5&&g._state().score===0,'Balloon: Play again restarts with full lives');
+  g.destroy();
+
+  // personal bests, per profile, persisted
+  w.MQStore.addProfile('Sis','🐱'); const sis=w.MQStore.getProfiles().find(p=>p.name==='Sis');
+  const game=(id,score)=>{ const x=startBalloon(id); for(let i=0;i<score;i++) ptr(x._spawn({kind:'balloon'}).el,'pointerdown'); for(let i=0;i<5;i++) ptr(x._spawn({kind:'hazard'}).el,'pointerdown'); const t=host.querySelector('.pz-end').textContent; x.destroy(); return t; };
+  let t=game(profile.id,5);
+  ok(profile.playzone.balloonBest===5&&t.includes('New personal best')&&t.includes('Personal best: 5'),'Balloon: first score is a personal best and is highlighted');
+  t=game(profile.id,3);
+  ok(profile.playzone.balloonBest===5&&!t.includes('New personal best')&&t.includes('Personal best: 5'),'Balloon: a lower score does not replace the best');
+  t=game(sis.id,2);
+  ok(sis.playzone.balloonBest===2&&profile.playzone.balloonBest===5,'Balloon: the second player has an independent record');
+  t=game(profile.id,7);
+  ok(profile.playzone.balloonBest===7&&t.includes('New personal best'),'Balloon: a higher score updates the best');
+  const saved=store().profiles; ok(saved.find(p=>p.id===profile.id).playzone.balloonBest===7&&saved.find(p=>p.id===sis.id).playzone.balloonBest===2,'Balloon: records are saved in the existing profile storage');
+  const gst=BG.mount(host,{ctx:ctxFor(null)}); host.querySelector('#pzBalloonStart').click(); for(let i=0;i<5;i++) ptr(gst._spawn({kind:'hazard'}).el,'pointerdown');
+  ok(profile.playzone.balloonBest===7&&sis.playzone.balloonBest===2&&host.textContent.includes('Guest'),'Balloon: a guest game changes nobody\'s record'); gst.destroy();
   host.remove();
 
   // ---- Reaction Battle logic (game mounted directly, short delays)
@@ -206,6 +250,69 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   ok(banner().includes('Player 2 wins the match')&&phase()==='matchover','Reaction: best of 5 ends after 3 wins');
   ptr(sides[0],'pointerdown'); ptr(sides[1],'pointerdown'); ok(phase()==='matchover','Reaction: taps after the match ends are ignored');
   ri.destroy(); rh.remove();
+
+  // ---- Reaction Battle personal bests (fake clock so every time is exact)
+  const kid=profile; const sis2=w.MQStore.getProfiles().find(p=>p.name==='Sis');
+  let T=1000; w.performance.now=()=>T;
+  const rh2=d.createElement('div'); d.body.append(rh2);
+  const rctx={profiles:()=>w.MQStore.getProfiles(),defaults:[kid.id,sis2.id],record:(p,k,v)=>w.MQStore.recordPlayzone(p,k,v)};
+  const rg=w.MQPlayzone.game('reaction').mount(rh2,{delay:[30,40],pause:60,minValid:0,ctx:rctx});
+  const S2=[...rh2.querySelectorAll('.pz-side')]; const ph=()=>rh2.querySelector('.pz-reaction').dataset.phase;
+  const time=(i)=>S2[i].querySelector('.pz-side-time').textContent;
+  ok(rh2.querySelectorAll('.pz-who select').length===2&&S2[0].textContent.includes('Kid')&&S2[1].textContent.includes('Sis'),'Records: each side uses a saved profile (Player 1 Kid, Player 2 Sis)');
+  click(rh2.querySelector('[data-bestof="5"]'));
+  const round=async(first,tFirst,second,tSecond,{falseBy}={})=>{
+    ptr(S2[0],'pointerdown'); ptr(S2[1],'pointerdown');
+    if(falseBy!==undefined){ ptr(S2[falseBy],'pointerdown'); return; }
+    await sleep(120); T+=tFirst; ptr(S2[first],'pointerdown'); T+=tSecond-tFirst; ptr(S2[second],'pointerdown');
+  };
+  await round(0,300,1,500);
+  ok(kid.playzone.reactionBest===300&&sis2.playzone.reactionBest===500,'Records: both players\' valid times are recorded separately (300 ms / 500 ms)');
+  ok(time(0).includes('New personal best')&&S2[0].classList.contains('pb')&&S2[0].textContent.includes('Best: 300 ms'),'Records: a new personal best is highlighted and shown');
+  await sleep(100); T+=1;
+  await round(1,250,0,400);
+  ok(kid.playzone.reactionBest===300&&sis2.playzone.reactionBest===250,'Records: a faster time updates the best, a slower time does not');
+  ok(!time(0).includes('New personal best')&&time(1).includes('New personal best'),'Records: only the improved player is highlighted');
+  await sleep(100);
+  await round(0,0,0,0,{falseBy:0});
+  ok(kid.playzone.reactionBest===300&&sis2.playzone.reactionBest===250&&time(0).includes('False start'),'Records: a false start never counts as a record');
+  ok(JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')).profiles.map(p=>p.playzone.reactionBest).filter(x=>x).sort().join()==='250,300','Records: saved in the existing profile storage');
+  rg.destroy(); rh2.remove(); w.performance.now=()=>Date.now()%1e9;
+  const guestG=w.MQPlayzone.game('reaction').mount(rh2,{ctx:{profiles:()=>w.MQStore.getProfiles(),defaults:[null,null],record:rctx.record}});
+  ok(rh2.querySelectorAll('.pz-best').length===2&&![...rh2.querySelectorAll('.pz-best')].some(b=>b.textContent),'Records: guests show no record'); guestG.destroy();
+
+  // ---- Parent adjustment (hard quadratic question, separate from game redemption)
+  w.MQPlayzone.open();
+  ok(!$('pzParentButton').classList.contains('hidden')&&$('pzParentButton').textContent.includes('Parent'),'Parent: a clearly marked parent entry point exists');
+  ok(!$('pzAdjAmount')&&w.MQStore.adjustBalance(profile,5).denied,'Parent: no controls and no adjustment before verification');
+  click($('pzParentButton'));
+  ok(!hidden('pzAdjust')&&!!$('pzAdjChallenge')&&!$('pzAdjAmount')&&/x²/.test($('pzAdjChallenge').textContent),'Parent: a quadratic question is shown instead of the controls');
+  const before0=profile.rewards.earned-profile.rewards.redeemed;
+  $('pzAdjAnswer').value='1, 1'; click($('pzAdjust').querySelector('button.primary-button'));
+  ok(!$('pzAdjAmount')&&profile.rewards.earned-profile.rewards.redeemed===before0,'Parent: a wrong answer does not unlock the controls');
+  const easyQ=w.MQParent.current().text; w.MQParent.submit(solveParent(easyQ));
+  ok(w.MQParent.isUnlocked()&&w.MQStore.adjustBalance(profile,5).denied,'Parent: the normal (easy) parent unlock does not allow adjustments'); w.MQParent.lock();
+  const q=$('pzAdjChallenge').textContent;
+  $('pzAdjAnswer').value=rootsOf(q).slice().reverse().join(', '); click($('pzAdjust').querySelector('button.primary-button'));
+  ok(!!$('pzAdjAmount')&&$('pzAdjBalance').textContent.includes(`${before0} min`),'Parent: correct roots (any order) unlock the controls and show the balance');
+  $('pzAdjAmount').value='10'; click($('pzAdjAdd'));
+  ok(profile.rewards.earned-profile.rewards.redeemed===before0&&!!$('pzAdjConfirm'),'Parent: Add asks for confirmation before changing anything');
+  const cf=$('pzAdjConfirm'); click(cf); click(cf);
+  ok(profile.rewards.earned-profile.rewards.redeemed===before0+10,'Parent: +10 minutes added exactly once (double tap)');
+  ok($('pzAdjMessage').textContent.includes(`Before: ${before0} min → After: ${before0+10} min`),'Parent: balance before and after are shown');
+  $('pzAdjAmount').value='4'; click($('pzAdjDeduct')); click($('pzAdjConfirm'));
+  ok(profile.rewards.earned-profile.rewards.redeemed===before0+6,'Parent: −4 minutes deducted from the same bank');
+  $('pzAdjAmount').value='999'; click($('pzAdjDeduct')); ok(profile.rewards.earned-profile.rewards.redeemed===before0+6&&!$('pzAdjConfirm'),'Parent: an invalid amount is refused');
+  $('pzAdjAmount').value='100'; click($('pzAdjDeduct')); click($('pzAdjConfirm'));
+  ok(profile.rewards.earned-profile.rewards.redeemed===before0+6&&$('pzAdjMessage').textContent.includes('available'),'Parent: cannot deduct more than the balance');
+  $('pzAdjAmount').value='2.5'; click($('pzAdjAdd')); ok(!$('pzAdjConfirm'),'Parent: a non-whole amount is refused');
+  ok(store().profiles.find(p=>p.id===profile.id).rewards.earned===profile.rewards.earned&&store().profiles.find(p=>p.id===profile.id).rewards.redeemed===profile.rewards.redeemed,'Parent: adjustments are saved in the existing storage');
+  click($('pzAdjDone'));
+  ok(!w.MQParent.hard.isUnlocked()&&!hidden('pzGames')&&hidden('pzAdjust')&&$('pzBalance').textContent.includes(`${before0+6} min`),'Parent: Lock and go back relocks and shows the new balance');
+  ok(w.MQStore.adjustBalance(profile,5).denied,'Parent: adjustments are refused again after locking');
+  click($('pzParentButton')); ok(!$('pzAdjAmount')&&!!$('pzAdjChallenge'),'Parent: opening the screen again asks a new question');
+  click($('pzAdjBack'));
+  click(card('balloon')); click($('pzPlay')); ok(!hidden('pzStageView')&&!d.querySelector('#pzAdjChallenge'),'Playzone redemption still needs no parent question'); click($('pzLeave'));
 
   // ---- the only storage Playzone touches is the existing profile key
   ok(Object.keys(w.localStorage).length===1&&w.localStorage.key(0)==='mathQuizBattle.v1','Playzone adds no new localStorage keys');

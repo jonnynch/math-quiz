@@ -7,7 +7,7 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
 // localStorage must never be touched: the unlocked state and the answer are not stored permanently.
 Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('localStorage used'); } });
 
-const { solveParent } = require('./parent-solver');
+const { solveParent, solveHard } = require('./parent-solver');
 
 function lcg(seed) { let s = seed; return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296; }
 function memStorage() { const m = {}; return { m, getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; }
@@ -147,6 +147,49 @@ const wrongOf = (s) => '0';
   ok(!fresh.isUnlocked(), 'a new page load starts locked');
   const broken = P.create({ rng: lcg(5), now: () => 0, storage: { getItem() { throw new Error('x'); }, setItem() { throw new Error('x'); } } });
   ok(broken.submit(wrongOf(broken)).reason === 'wrong' && broken.submit(answerOf(broken)).ok === true, 'works when sessionStorage is unavailable');
+}
+
+// --- the harder quadratic question used for manual bank adjustments
+{
+  let bad = 0; let multi = 0;
+  const seen = new Set();
+  for (let seed = 1; seed <= 300; seed++) {
+    const c = P.generateHardChallenge(lcg(seed));
+    seen.add(c.text);
+    const [r1, r2] = c.answer.roots;
+    const m = c.text.match(/^(?:Solve|Find the roots of) (\d*)x²(?: ([+-]) (\d*)x)?(?: ([+-]) (\d+))? = 0/);
+    const A = m[1] ? +m[1] : 1; const B = m[2] ? (m[2] === '-' ? -1 : 1) * (m[3] ? +m[3] : 1) : 0; const C = m[4] ? (m[4] === '-' ? -1 : 1) * +m[5] : 0;
+    // both stated roots must satisfy A x² + B x + C = 0 exactly, and be different
+    const zero = (r) => A * r.num * r.num + B * r.num * r.den + C * r.den * r.den === 0;
+    if (!zero(r1) || !zero(r2) || P.sameValue(r1, r2) || c.kind !== 'roots') bad++;
+    if (A > 1) multi++;
+  }
+  ok(bad === 0, 'hard questions: both answers are exact roots of the printed equation and differ (300 samples)');
+  ok(seen.size > 50 && multi > 30, 'hard questions: many different equations, including a leading coefficient above 1');
+  const h = P.create({ rng: lcg(21), now: () => 0, storage: null, generate: P.generateHardChallenge });
+  const q = h.current().text;
+  ok(/x²/.test(q) && /Solve|Find the roots/.test(q) && !h.isUnlocked(), 'hard instance asks a quadratic and starts locked');
+  ok(h.submit('').reason === 'invalid' && h.submit('3').reason === 'invalid' && h.submit('1,2,3').reason === 'invalid' && h.submit('a, b').reason === 'invalid', 'hard: not exactly two numbers is invalid (no try used)');
+  ok(h.attemptsLeft() === 3, 'hard: invalid input does not use a try');
+  const wrong = h.submit('100, 200');
+  ok(wrong.ok === false && wrong.reason === 'wrong' && !h.isUnlocked(), 'hard: wrong roots do not unlock');
+  const q2 = h.current().text;
+  ok(q2 !== q, 'hard: a wrong answer gives a new question');
+  const [a1, a2] = solveHard(q2).split(', ');
+  ok(h.submit(`${a1}, 100`).ok === false, 'hard: one correct root is not enough');
+  const q3 = h.current().text;
+  const [b1, b2] = solveHard(q3).split(', ');
+  ok(h.submit(`x = ${b2}; ${b1}`).ok === true && h.isUnlocked(), 'hard: both roots in the other order (with "x =") unlock');
+  h.lock(); ok(!h.isUnlocked(), 'hard: lock() locks again');
+  const h2 = P.create({ rng: lcg(3), now: () => 0, storage: null, generate: P.generateHardChallenge });
+  const d = h2.current().text; const [c1, c2] = solveHard(d).split(', ');
+  const dec = (s) => (s.includes('/') ? String(Number(s.split('/')[0]) / Number(s.split('/')[1])) : s);
+  ok([dec(c1), dec(c2)].every(v => Number.isFinite(Number(v))) && h2.submit(`${dec(c1)}, ${dec(c2)}`).ok === true || h2.submit(`${c1}, ${c2}`).ok === true, 'hard: fractions or exact decimals are accepted');
+  const easy = P.create({ rng: lcg(4), now: () => 0, storage: null });
+  const hard = P.create({ rng: lcg(4), now: () => 0, storage: null, generate: P.generateHardChallenge });
+  easy.submit(solveParent(easy.current().text));
+  ok(easy.isUnlocked() && !hard.isUnlocked() && P.hard.isUnlocked() === false, 'hard instance is separate: unlocking the normal check does not unlock it');
+  ok(P.parseRoots('-3, 1/2').length === 2 && P.parseRoots('−3, 1/2')[0].num === -3 && P.parseRoots('3') === null, 'parseRoots reads negatives and fractions');
 }
 
 console.log(failures ? `\n${failures} FAILED` : '\nAll parent verification checks passed');

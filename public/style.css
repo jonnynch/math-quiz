@@ -641,14 +641,26 @@ body.pz-stage .app { padding-top: max(10px, env(safe-area-inset-top)); }
 
 /* Balloon Pop */
 .pz-balloon-game { position: relative; display: grid; gap: 10px; }
-.pz-bar { display: flex; justify-content: space-between; font-size: 1.5rem; color: var(--navy); }
+.pz-bar { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 1.4rem; color: var(--navy); }
 .pz-sky { position: relative; overflow: hidden; height: clamp(200px, calc(var(--app-h) - 200px), 640px); border-radius: 22px; background: linear-gradient(#bfe3ff, #eef8ff); touch-action: none; }
-.pz-balloon { position: absolute; bottom: -150px; width: clamp(72px, 11vmin, 120px); aspect-ratio: 4 / 5; border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%; background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .6), transparent 36%), var(--c); animation: pz-rise linear forwards; touch-action: none; cursor: pointer; }
-.pz-balloon::before { content: ''; position: absolute; inset: -10px; }
-.pz-balloon::after { content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 34px; background: #64748b; }
-.pz-balloon.popped { opacity: 0; scale: 1.6; transition: opacity .2s, scale .2s; animation-play-state: paused; pointer-events: none; }
-@keyframes pz-rise { from { transform: translate(0, 0); } to { transform: translate(var(--drift, 0), var(--rise, -600px)); } }
-.pz-over { position: absolute; left: 10%; right: 10%; top: 22%; z-index: 2; padding: 22px; text-align: center; background: #fff; border-radius: 22px; box-shadow: 0 12px 40px rgba(23, 37, 84, .25); }
+.pz-balloon, .pz-hazard { position: absolute; left: 0; top: 0; touch-action: none; cursor: pointer; will-change: transform; }
+.pz-balloon { border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%; background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, .6), transparent 36%), var(--c); }
+.pz-balloon::before, .pz-hazard::before { content: ''; position: absolute; inset: -10px; }
+.pz-balloon::after { content: ''; position: absolute; left: 50%; top: 100%; width: 2px; height: 30px; background: #64748b; }
+/* Grey ✖ objects: never a balloon colour, never round with a string, always with the ✖ mark (not colour alone). */
+.pz-hazard { display: grid; place-items: center; background: #475569; color: #fff; font-weight: 900; line-height: 1; border: 4px solid #1e293b; }
+.pz-hazard.rock { border-radius: 18%; }
+.pz-hazard.spiky { border: 0; background: #334155; clip-path: polygon(50% 0, 62% 22%, 85% 12%, 78% 36%, 100% 50%, 78% 64%, 85% 88%, 62% 78%, 50% 100%, 38% 78%, 15% 88%, 22% 64%, 0 50%, 22% 36%, 15% 12%, 38% 22%); }
+.pz-balloon.popped, .pz-hazard.popped { opacity: 0; scale: 1.5; transition: opacity .2s, scale .2s; pointer-events: none; }
+.pz-sky.hurt { box-shadow: inset 0 0 0 6px #ef4444; }
+.pz-flash { position: absolute; left: 50%; top: 14px; z-index: 3; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: #fff; color: var(--navy); font-weight: 900; font-size: 1.2rem; box-shadow: 0 4px 14px rgba(23, 37, 84, .25); pointer-events: none; }
+.pz-flash.hurt { background: #fee2e2; color: #991b1b; }
+.pz-flash.up { background: #dcfce7; color: #166534; }
+.pz-flash.warn { background: #fef3c7; color: #92400e; }
+.pz-rules { margin: 8px 0 14px; padding: 0; list-style: none; text-align: left; font-size: 1.05rem; font-weight: 700; line-height: 1.6; }
+.pz-pb, .pz-side.pb .pz-side-time { color: #b45309; font-weight: 900; }
+.pz-pb { font-size: 1.3rem; margin: 6px 0; }
+.pz-over { position: absolute; left: 10%; right: 10%; top: 12%; z-index: 2; padding: 22px; text-align: center; background: #fff; border-radius: 22px; box-shadow: 0 12px 40px rgba(23, 37, 84, .25); }
 .pz-over h3 { font-size: 1.6rem; margin-bottom: 8px; }
 .pz-over-text { font-size: 1.2rem; font-weight: 800; }
 
@@ -679,3 +691,12 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
   .pz-designer { grid-template-columns: 1fr; }
   .pz-canvas { width: 100%; }
 }
+
+/* Playzone: personal bests, player pickers, parent adjustment */
+.pz-who { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pz-who select { min-height: 44px; width: 100%; }
+.pz-best { min-height: 1.2rem; font-size: 1rem; font-weight: 800; color: var(--muted); }
+.pz-side.pb { box-shadow: inset 0 14px 0 var(--pc), 0 0 0 6px #f59e0b; }
+.pz-adjust { max-width: 520px; margin: 10px auto 0; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.pz-adjust input[type="number"], .pz-adjust select { min-height: 48px; font-size: 1.1rem; text-align: center; max-width: 100%; }
+.pz-adjust .bank-parent { width: 100%; text-align: left; }

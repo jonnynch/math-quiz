@@ -2,7 +2,7 @@
 // designer, balloons rising, Reaction Battle GO detection. Env: CHROME_PATH (optional, see docs/TESTING.md).
 const chromium=require('@sparticuz/chromium').default||require('@sparticuz/chromium');
 const puppeteer=require('puppeteer-core');
-const {solveParent}=require('./parent-solver');
+const {solveHard}=require('./parent-solver');
 const launch=async()=>puppeteer.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH,args:['--no-sandbox'],headless:true}:{executablePath:await chromium.executablePath(),args:[...chromium.args,'--no-sandbox'],headless:'shell'});
 const url=require('url').pathToFileURL(require('path').join(__dirname,'..','public','index.html')).href;
 const OUT=require('fs').mkdtempSync(require('path').join(require('os').tmpdir(),'mq-pz-'));
@@ -20,13 +20,11 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const evalp=(fn,...a)=>page.evaluate(fn,...a);
   const overflow=async(tag,label)=>{const x=await evalp(()=>document.documentElement.scrollWidth-innerWidth);if(x>1)problems.push(`${tag} ${label}: horizontal overflow ${x}px`);};
   const fits=async(tag,label)=>{const r=await evalp(()=>document.documentElement.scrollHeight-innerHeight);if(r>1)problems.push(`${tag} ${label}: needs vertical scrolling (${r}px)`);};
-  const redeemStart=async(id)=>{ // real taps: game card, start button, parent question
+  const redeemStart=async(id)=>{ // real taps: game card, then Play (no parent question)
     await page.click(`#pzGames .pz-card[data-game="${id}"]`);
     await page.click('#pzPlay');
-    const q=await evalp(()=>document.getElementById('pzChallenge').textContent);
-    await page.type('#pzAnswer',solveParent(q));
-    await page.click('#pzParent button.primary-button');
     await page.waitForSelector('#pzStageView:not(.hidden)',{timeout:3000});
+    if(await evalp(()=>!!document.getElementById('pzChallenge'))) problems.push('a parent question appeared when starting a game');
   };
   const leave=async()=>{ await page.click('#pzLeave'); await page.waitForSelector('#pzMenuView:not(.hidden)'); };
   for(const [W,H] of VPS){
@@ -80,7 +78,8 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     await leave();
 
     // ---- Balloon Pop
-    await redeemStart('balloon'); await overflow(tag,'balloon');
+    await redeemStart('balloon'); await overflow(tag,'balloon intro');
+    await page.click('#pzBalloonStart'); await overflow(tag,'balloon');
     const visible=()=>{const s=document.querySelector('.pz-sky').getBoundingClientRect();return [...document.querySelectorAll('.pz-balloon:not(.popped)')].find(b=>{const r=b.getBoundingClientRect();return r.top>s.top+10&&r.bottom<s.bottom-10;});};
     await page.waitForFunction(`(${visible.toString()})()`,{timeout:8000});
     const b0=await evalp((fn)=>{const b=eval(`(${fn})()`);b.dataset.track='1';const r=b.getBoundingClientRect();return {top:r.top,w:r.width,h:r.height};},visible.toString());
@@ -90,7 +89,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
     if(b0.w<60||b0.h<60) problems.push(`${tag} balloon too small to tap (${Math.round(b0.w)}x${Math.round(b0.h)})`);
     await page.mouse.click(b1.x,b1.y);
     const score=await evalp(()=>document.querySelector('.pz-score').textContent);
-    if(!/1/.test(score)) problems.push(`${tag} tapping a balloon did not score (${score})`);
+    if(!/🎈 1\b/.test(score)) problems.push(`${tag} tapping a balloon did not score (${score})`);
     if(W===1024) await page.screenshot({path:`${OUT}/balloon_${tag}.png`});
     await leave();
 
@@ -113,6 +112,19 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
       if(!res.b.includes('Player 2')||res.w!==1) problems.push(`${tag} reaction: GO tap by Player 2 did not win cleanly (${res.b}, winners ${res.w})`);
     }
     await leave();
+    // parent adjustment: hard question, then controls
+    await page.click('#pzParentButton');
+    await overflow(tag,'parent question');
+    const hq=await evalp(()=>document.getElementById('pzAdjChallenge').textContent);
+    await page.type('#pzAdjAnswer',solveHard(hq));
+    await page.click('#pzAdjust button.primary-button');
+    await page.waitForSelector('#pzAdjAmount',{timeout:3000});
+    await overflow(tag,'parent controls');
+    if(W===1024||W===844) await page.screenshot({path:`${OUT}/parent_${tag}.png`});
+    await page.click('#pzAdjAdd'); await page.click('#pzAdjConfirm');
+    const msg=await evalp(()=>document.getElementById('pzAdjMessage').textContent);
+    if(!/Before: 26 min → After: 31 min/.test(msg)) problems.push(`${tag} parent adjust message unexpected: ${msg}`);
+    await page.click('#pzAdjDone');
     await page.click('#pzBack');
     const back=await evalp(()=>!document.getElementById('setupPanel').classList.contains('hidden'));
     if(!back) problems.push(`${tag} Back did not return to the main menu`);

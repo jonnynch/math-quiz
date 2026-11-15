@@ -134,6 +134,16 @@
     };
   }
 
+  // Playzone personal bests: fastest valid Reaction Battle time (ms, lower is better) and highest Balloon Pop score.
+  function cleanPlayzone(raw) {
+    const p = raw && typeof raw === 'object' ? raw : {};
+    const ms = Math.round(Number(p.reactionBest));
+    return {
+      reactionBest: Number.isFinite(ms) && ms >= 1 && ms <= 60000 ? ms : null,
+      balloonBest: Math.min(whole(p.balloonBest), 1000000)
+    };
+  }
+
   function cleanProfile(raw) {
     if (!raw || typeof raw !== 'object') return null;
     const name = String(raw.name || '').trim().slice(0, NAME_LENGTH);
@@ -169,7 +179,8 @@
       history,
       trophies: Trophies ? Trophies.cleanAll(raw.trophies) : {},
       lastSetup: last,
-      rewards: cleanRewards(raw.rewards)
+      rewards: cleanRewards(raw.rewards),
+      playzone: cleanPlayzone(raw.playzone)
     };
   }
 
@@ -222,6 +233,16 @@
   // Backup import and Undo can overwrite profiles, balances and reward settings, so they are parent-only too.
   const IMPORT_DENIED = 'Parent verification is needed before importing or undoing a backup.';
   const rewardBalance = (profile) => (profile && profile.rewards ? profile.rewards.earned - profile.rewards.redeemed : 0);
+  const MAX_ADJUST = 600;   // largest single manual adjustment, in minutes
+  // The one place minutes are spent (parent redeem and Playzone).
+  function applyRedeem(profile, minutes) {
+    const error = api.checkRedeem(profile, minutes);
+    if (error) return { error };
+    profile.rewards.redeemed += minutes;
+    profile.rewards.redeemTx.unshift({ t: Date.now(), minutes });
+    profile.rewards.redeemTx.length = Math.min(profile.rewards.redeemTx.length, MAX_REWARD_TX);
+    return { redeemed: minutes, saved: save() };
+  }
   const rewardPercent = (correct, completed) => (completed ? Math.floor((correct * 100) / completed) : 0);
 
   // Minutes for one batch of completed questions. Rounds down once, at the end, never per question.
@@ -394,12 +415,47 @@
     redeem(profile, minutes) {
       const denied = parentDenied();
       if (denied) return denied;
-      const error = api.checkRedeem(profile, minutes);
-      if (error) return { error };
-      profile.rewards.redeemed += minutes;
-      profile.rewards.redeemTx.unshift({ t: Date.now(), minutes });
-      profile.rewards.redeemTx.length = Math.min(profile.rewards.redeemTx.length, MAX_REWARD_TX);
-      return { redeemed: minutes, saved: save() };
+      return applyRedeem(profile, minutes);
+    },
+    // Playzone: the child spends minutes on a game. Same bank, checks and history as redeem(), but no parent question.
+    // Only the Playzone shell calls this; it can never add minutes.
+    redeemForPlay(profile, minutes) {
+      return applyRedeem(profile, minutes);
+    },
+    // Parent-only manual correction of the same bank: +minutes raise `earned`, -minutes raise `redeemed`.
+    // Needs the separate hard verification (MQParent.hard), not the normal parent check.
+    adjustBalance(profile, delta) {
+      const hard = root.MQParent && root.MQParent.hard;
+      if (!hard || !hard.isUnlocked()) return { denied: true, error: 'Parent verification is needed first.', saved: false };
+      if (!profile || !profile.rewards) return { error: 'Choose a profile first.' };
+      if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_ADJUST) return { error: `Type a whole number of minutes from 1 to ${MAX_ADJUST}.` };
+      const before = rewardBalance(profile);
+      if (delta < 0 && -delta > before) return { error: `Only ${before} minute${before === 1 ? ' is' : 's are'} available to deduct.` };
+      if (delta > 0) profile.rewards.earned += delta;
+      else profile.rewards.redeemed += -delta;
+      return { before, after: rewardBalance(profile), saved: save() };
+    },
+    // Keeps the better of the stored and new value. kind: 'reaction' (ms, lower wins) or 'balloon' (score, higher wins).
+    recordPlayzone(profile, kind, value) {
+      if (!profile || !profile.playzone || !Number.isFinite(value)) return { isNew: false, best: null, saved: false };
+      const pz = profile.playzone;
+      let previous;
+      let better;
+      if (kind === 'reaction') {
+        value = Math.round(value);
+        if (value < 1 || value > 60000) return { isNew: false, best: pz.reactionBest, saved: false };
+        previous = pz.reactionBest;
+        better = previous === null || value < previous;
+        if (better) pz.reactionBest = value;
+      } else if (kind === 'balloon') {
+        value = Math.floor(value);
+        if (value < 1) return { isNew: false, best: pz.balloonBest, saved: false };
+        previous = pz.balloonBest;
+        better = value > previous;
+        if (better) pz.balloonBest = Math.min(value, 1000000);
+      } else return { isNew: false, best: null, saved: false };
+      const best = kind === 'reaction' ? pz.reactionBest : pz.balloonBest;
+      return { isNew: better, first: better && !previous, best, saved: better ? save() : true };
     },
     save,
 
