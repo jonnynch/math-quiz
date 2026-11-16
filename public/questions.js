@@ -1390,20 +1390,13 @@
   const within120 = (list) => list.filter(v => Number.isInteger(v) && v >= 0 && v <= 120);
 
   function makeGrade1PlaceValueQuestion() {
-    const kind = weightedChoose([['read', 22], ['count', 20], ['partition', 24], ['digit', 18], ['make', 16]]);
+    const kind = weightedChoose([['read', 42], ['partition', 24], ['digit', 18], ['make', 16]]);
     let n;
     do { n = intBetween(11, 99); } while (n % 10 === 0 || (kind === 'digit' && Math.floor(n / 10) === n % 10));
     const tens = Math.floor(n / 10), ones = n % 10, swap = swapDigits(n);
     const tier = n < 30 ? 1 : n < 60 ? 2 : 3;
     if (kind === 'read') {
       return mark({ question: 'What number is shown?', promptVisual: blocksOf(n), ...choicesFrom(n, [n - 1, n + 1, n - 10, n + 10, swap, tens + ones], [swap, tens + ones]) }, 'placevalue', kind, tier, false);
-    }
-    if (kind === 'count') {
-      const askTens = Math.random() < 0.5;
-      return mark({
-        question: askTens ? 'How many 10s?' : 'How many 1s?', promptVisual: blocksOf(n),
-        ...(askTens ? numberChoices(tens, 0, 9, [ones]) : numberChoices(ones, 0, 9, [tens]))
-      }, 'placevalue', askTens ? 'count10s' : 'count1s', tier, false);
     }
     if (kind === 'partition') {
       const form = choose(['head', 'tail', 'tensHead', 'tensTail']);

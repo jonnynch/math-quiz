@@ -179,8 +179,9 @@ if (g1Topics !== 'all,mixed,add,sub,numbers,fractions,money,clock,shapes') fail(
 
 function checkGrade1(topic, q) {
   const label = 'grade1/' + topic, text = q.question, n = Number(ans(q)); let m;
+  if (text === 'How many 10s?' || text === 'How many 1s?') fail(label + ': excluded standalone tens/ones question', q);
   if (/[×÷]/.test(text) || /^Compare/.test(text) || q.answers.includes(LESS)) return fail(label + ': multiplication/division/comparison', q);
-  if (/^Which number word is \d+\?$|^Which number is ".+"\?$|^What number comes (after|before) \d+\?$|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|10s\b|1s\b)[a-z]+\?$/.test(text)) fail(label + ': excluded English / standalone question type', q);
+  if (/^Which number word is \d+\?$|^Which number is ".+"\?$|^What number comes (after|before) \d+\?$|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b)[a-z]+\?$/.test(text)) fail(label + ': excluded English / standalone question type', q);
   if (['add', 'sub', 'mixed'].includes(topic) && text.length > 40) fail(label + ': question sentence too long (no stories)', q);
   noBanned(label, q);
   const arithmetic = () => {
@@ -219,9 +220,9 @@ function checkGrade1(topic, q) {
     else if ((m = text.match(/^10 \+ (\d+) = \?$/))) { const x = Number(m[1]); if (n !== x + 10 || x > 110) fail(label + ': ten more as an equation', q); }
     else if (q.topic === 'placevalue') {
       const pv = q.promptVisual;
-      if (text === 'What number is shown?') { if (!pv || pv.tens * 10 + pv.ones !== n) fail(label + ': blocks', q); }
-      else if (text === 'How many 10s?') { if (!pv || pv.tens !== n) fail(label + ': count tens', q); }
-      else if (text === 'How many 1s?') { if (!pv || pv.ones !== n) fail(label + ': count ones', q); }
+      if (text === 'What number is shown?') {
+        if (!pv || !Number.isInteger(pv.tens) || !Number.isInteger(pv.ones) || pv.tens < 1 || pv.tens > 9 || pv.ones < 1 || pv.ones > 9 || pv.tens * 10 + pv.ones !== n) fail(label + ': full number must match tens-and-ones blocks', q);
+      }
       else if ((m = text.match(/^(\d+) = (\d+) \+ \?$/))) { if (n !== m[1] - m[2] || m[2] % 10 !== 0) fail(label + ': partition', q); }
       else if ((m = text.match(/^(\d+) = \? \+ (\d+)$/))) { if (n !== m[1] - m[2] || n % 10 !== 0) fail(label + ': partition', q); }
       else if ((m = text.match(/^(\d+) = (\d+) tens and \? ones$/))) { if (n !== m[1] - 10 * m[2]) fail(label + ': tens and ones', q); }
@@ -261,8 +262,9 @@ function checkGrade1(topic, q) {
 }
 
 const g1Seen = {};
+const g1ShownByPath = { numbers: 0, all: 0 };
 for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock', 'shapes']) {
-  for (let i = 0; i < N; i++) { const q = Q.generateQuestion('grade1', t); if (common('grade1/' + t, q)) { checkGrade1(t, q); if (!q.tier) fail('grade1/' + t + ': tier missing', q); g1Seen[q.topic] = (g1Seen[q.topic] || 0) + 1; } }
+  for (let i = 0; i < N; i++) { const q = Q.generateQuestion('grade1', t); if (common('grade1/' + t, q)) { checkGrade1(t, q); if (t === 'numbers' && q.question === 'What number is shown?') g1ShownByPath.numbers++; if (!q.tier) fail('grade1/' + t + ': tier missing', q); g1Seen[q.topic] = (g1Seen[q.topic] || 0) + 1; } }
 }
 ['addsub', 'placevalue', 'numbers', 'fractions', 'money', 'shapes', 'position', 'measurement', 'data'].forEach(t => { if (!g1Seen[t]) fail('grade1: topic never generated: ' + t, g1Seen); });
 // Mixed All draws from every Grade 1 topic and nothing outside Grade 1 scope.
@@ -273,8 +275,10 @@ for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock'
     if (!common('grade1/all', q)) continue;
     const text = q.question + ' ' + q.answers.join(' ');
     if (/[×÷]/.test(q.question) || /^Compare/.test(q.question) || q.answers.includes(LESS) || NO_SMALL_COINS.test(text)) fail('grade1/all: out of scope question', q);
-    if (/^Which number word is \d+\?|^Which number is ".+"\?|^What number comes (after|before) \d+\?|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|10s\b|1s\b)[a-z]+\?$/.test(q.question)) fail('grade1/all: excluded question type', q);
+    if (/^Which number word is \d+\?|^Which number is ".+"\?|^What number comes (after|before) \d+\?|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b)[a-z]+\?$/.test(q.question)) fail('grade1/all: excluded question type', q);
+    if (q.topic === 'placevalue' && q.question === 'What number is shown?') g1ShownByPath.all++;
     if (q.topic === 'addsub') checkGrade1('mixed', q);
+    else if (q.topic === 'numbers' || q.topic === 'placevalue') checkGrade1('numbers', q);
     const cat = q.figure && q.figure.type === 'clock' ? 'clock' : q.topic === 'money' ? 'money' : q.topic === 'fractions' ? 'fractions' : ['numbers', 'placevalue'].includes(q.topic) ? 'numbers' : ['addsub', 'grouping', 'sharing'].includes(q.topic) ? 'arithmetic' : 'shapes';
     seen[cat] = (seen[cat] || 0) + 1;
     const n = Number(ans(q));
@@ -282,6 +286,7 @@ for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock'
   }
   ['arithmetic', 'numbers', 'fractions', 'money', 'clock', 'shapes'].forEach(c => { if ((seen[c] || 0) < 200) fail('grade1/all: category too rare: ' + c, seen); });
 }
+Object.entries(g1ShownByPath).forEach(([path, count]) => { if (!count) fail('grade1/' + path + ': no full-number tens-and-ones question was checked', g1ShownByPath); });
 
 // A larger sample guards the Grade 1 mixed-pool arithmetic weighting against random noise.
 {
