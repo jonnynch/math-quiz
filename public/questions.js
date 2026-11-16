@@ -2362,7 +2362,7 @@
     if (name === 'all') {
       const offered = topicsFor(difficulty).map(t => t.value);
       const pool = ALL_MIX_TOPICS.filter(t => offered.includes(t));
-      // Grade 1 arithmetic gets 5/3 the weight of each other mixed category (25% vs 16.7%).
+      // Grade 1 arithmetic gets weight 5; the five other categories get weight 3 each (25% vs 15% each).
       name = grade === 1 ? weightedChoose(pool.map(t => [t, t === 'mixed' ? 5 : 3])) : choose(pool);
     }
     let q;

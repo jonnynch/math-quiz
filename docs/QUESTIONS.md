@@ -20,6 +20,26 @@ All in `public/questions.js` (pure, testable in Node: `require('./public/questio
 }
 ```
 **Layout rule (all levels):** any illustration (`stage`, `figure`, `pattern`, `promptVisual`, `picture`, `coins`, `visual`) is drawn ABOVE the question sentence; a number strip (`numbers`) stays under it. Questions without an illustration get no empty container (`createQuestionBoard` in `game.js`, checked by `tests/illustration-layout.check.js`).
+
+## Generator and test index
+
+| Category | Generator | Relevant tests |
+|---|---|---|
+| Age 6 counting | `makeAge6CountingQuestion` | `curriculum.check.js` |
+| Age 6 subitising | `makeSubitisingQuestion` | `curriculum.check.js` |
+| Age 6 sequences | `makeAge6OrderQuestion` | `curriculum.check.js` |
+| Age 6 addition | `makeWithin10Question` | `curriculum.check.js`, `illustration-layout.check.js` |
+| Age 6 subtraction | `makeSubtractionPicture6` | `curriculum.check.js`, `illustration-layout.check.js` |
+| Age 6 symbolic arithmetic | `makeSymbolic10Question` | `curriculum.check.js` |
+| Age 6 number bonds | `makeBondQuestion` | `curriculum.check.js` |
+| Grade 1 arithmetic | `makeGrade1AddQuestion`, `makeGrade1SubQuestion` | `curriculum.check.js` |
+| Grade 1 place value | `makeGrade1PlaceValueQuestion` | `curriculum.check.js` |
+| Grade 1 fractions | `makeGrade1FractionsQuestion` | `curriculum.check.js` |
+| Grade 1 money | `makeGrade1MoneyQuestion` | `curriculum.check.js`, `illustration-layout.check.js` |
+
+`TOPICS` defines selectable Grade 1–6 topics; `ALL_MIX_TOPICS` is the candidate pool for Mixed All; `generateRawQuestion()` selects and routes to a generator; `generateQuestion()` applies final wording transformations and answer ordering. `tests/curriculum.check.js` independently validates displayed curriculum content and answer correctness.
+
+Existing generator convention: choose question type and difficulty, calculate the answer, generate distractors, attach any required illustration, then return through existing metadata helpers such as `mark()` or `tag()`. Preserve `topic`, `kind` and `tier` metadata.
 Generators return answers with `correct: 0` and the wrapper `generateQuestion` orders them. Generators may also return `keys` (numeric sort keys parallel to `answers`, used for fractions and clock questions) and `groups`/`picture`, handled by `game.js` for Age 2–4.
 
 ## Ordering rule (`generateQuestion`)
@@ -66,7 +86,7 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 | Topic | Grades | Generator and notes |
 |---|---|---|
 | `mixed` | 1–6 | `arithmeticQuestion`: Grade 1 `makeGrade1ArithmeticQuestion` (+ − within 20 as short equations: plain, double/near-double, bonds to 20, missing number in either position; every operation has an operand from 10 to 19; no stories, grouping or sharing). Grade 2 uses two-digit calculations, friendly hundreds/tens, missing values and inverse facts; multiplication/division stay within the 2, 5 and 10 tables. Grade 3 adds friendly three-digit addition/subtraction, missing/inverse equations, tables through 10×10 and manageable two-digit-by-one-digit multiplication. Grade 4 uses three-digit addition/subtraction, missing/inverse equations, two-digit-by-one-digit multiplication and exact one-digit division. Grade 5 keeps all four operations mentally manageable, with two-digit-by-one-digit multiplication and exact one-digit division. Grade 6 continues with moderate whole numbers, negative integer addition/subtraction and missing-value equations. |
-| `all` (Mixed All Questions, first in the list and the default) | 1–6 | `generateRawQuestion` picks from `ALL_MIX_TOPICS` and keeps the grade's allowed set. Grades 2–3 include number work, patterns and data; Grade 4 includes decimals; Grade 5 includes numbers, decimals, percentages, ratios and probability; Grade 6 adds algebra and statistics. Decimal-versus-fraction comparisons in Grades 5–6 come through `fractions`. |
+| `all` (Mixed All Questions, first in the list and the default) | 1–6 | `generateRawQuestion` picks from `ALL_MIX_TOPICS` and keeps the grade's allowed set. Grade 1 weights arithmetic 5 and each of numbers, fractions, money, clock and shapes 3, giving expected shares of 25% for arithmetic and 15% for each other category. Grades 2–3 include number work, patterns and data; Grade 4 includes decimals; Grade 5 includes numbers, decimals, percentages, ratios and probability; Grade 6 adds algebra and statistics. Decimal-versus-fraction comparisons in Grades 5–6 come through `fractions`. |
 | `numbers` | 1–6 | Grade 1 `makeGrade1NumbersQuestion`: missing numbers and sequences up to 120, ten more/less **as equations**, skip counting in 2s/5s/10s, and tens-and-ones place value. Grade 2 `makeGrade2NumbersQuestion`: two-/three-digit numbers, hundreds/tens/ones, expanded form, missing place values, `<` / `=` / `>` comparisons, ordering and number sequences. Grade 3 adds three-/four-digit place value and expanded notation, missing places, ordering, comparison, rounding to 10/100, and interval sequences. Grade 4 adds four-digit place value, expanded notation, rounding/estimation, factor lists, multiples and introductory prime/composite questions. Grade 5 adds rounding/estimation, factors/multiples, divisibility, missing factors and order of operations with small numbers. Grade 6 adds negative numbers and number-line comparisons, factors/multiples, divisibility, rounding/estimation, missing equations and order of operations. |
 | `add`, `sub` | 1–6 | same generator, one operator |
 | `mul`, `div` | 2–6 | same generator, one operator (division is always exact) |
@@ -74,7 +94,7 @@ Sorting ascending makes the right answer land in the middle if wrong answers are
 | `patterns` | 2–4 | Grade 2 repeats the visual AB/AAB/ABB/ABC pattern tasks using shapes and colours; Grade 3 uses multiplication sequences with a missing term; Grade 4 uses interval and multiplication sequences with missing terms |
 | `data` | 2–3 | Grade 2 bar charts: read a category, find the most, compare the difference or find a total. Grade 3 uses four-category bar charts and the same concise interpretation tasks |
 | ~~`compare`~~ | none | No standalone Comparing-numbers topic. Grade 2 comparisons are embedded in Numbers, Fractions and Measurement; Grade 4 compares decimals and angles inside their topics; Grades 5–6 compare one decimal with one fraction inside Fractions. The `TOPICS` entry (no grades) keeps old history/reports labelled; an old saved selection normalises to `all`. Age 2–6 behaviour is untouched |
-| `fractions` | 1–6 | `makeFractionsQuestion`: G1 numeric halves only; G2 halves, quarters and eighths (amounts, equal-part shape diagrams, equivalent halves/quarters and simple fraction comparisons); Grade 3 adds unit fractions and fractions of amounts, equal-part shape diagrams, simple equivalents and comparisons; Grade 4 includes equivalent and compared/ordered fractions, same-denominator addition/subtraction, fractions of quantities, fraction bars and simple mixed-number equivalence; Grade 5 adds equivalent and simplified fractions, compatible unlike denominators, fraction × whole number, quantities and fraction comparisons, plus **compare one decimal with one fraction**; Grade 6 adds fraction simplification, comparison, addition/subtraction with compatible denominators, multiplication/division and fractions × whole numbers. |
+| `fractions` | 1–6 | `makeFractionsQuestion`: Grade 1 covers halves of numbers and how many halves make one whole. Displayed prompts and answers use words such as “one half” and “halves”; formal fraction notation, quarters and thirds are excluded. Grades 2–6 extend fraction concepts as described by their generators: Grade 2 adds quarters and eighths; Grade 3 adds unit fractions and fractions of amounts; Grades 4–6 add equivalence, comparison, operations and mixed-number concepts progressively. Grade 5 also compares one decimal with one fraction. |
 | `decimals` | 4–6 | Grade 4: tenths and hundredths place value, comparisons, simple addition/subtraction and fraction-to-decimal equivalences. Grade 5 adds thousandths, ordering, short addition/subtraction, decimal multiplication/division and fraction/decimal conversions. Grade 6 continues decimal calculations and adds terminating decimal-to-fraction conversion. Decimal choices are ordered numerically. |
 | `percentages` | 5–6 | Grade 5 common percentages, conversions to/from simple fractions and decimals, percentages of quantities and comparisons. Grade 6 adds percentages of quantities, simple percentage increase/decrease, and fraction/decimal/percentage conversions. |
 | `ratio` | 5–6 | Grade 5 simplifying and equivalent ratios, missing values and parts of a total. Grade 6 adds sharing a quantity in a ratio. |

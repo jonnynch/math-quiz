@@ -228,8 +228,9 @@ function checkGrade1(topic, q) {
     return;
   }
   if (topic === 'fractions') {
-    if (/third|quarter|fourth|(?<!1)\/\d|\d\.\d/.test(text + q.answers.join(' '))) return fail(label + ': only halves are allowed', q);
-    if ((m = text.match(/^1\/2 of (\d+) = \?$/))) { if (m[1] % 2 || m[1] > 20 || n !== m[1] / 2) fail(label + ': half', q); }
+    const displayed = text + ' ' + q.answers.join(' ');
+    if (/third|quarter|fourth|\b\d+\s*\/\s*\d+\b|\d\.\d/i.test(displayed)) return fail(label + ': only word-based halves are allowed', q);
+    if ((m = text.match(/^one half of (\d+) = \?$/))) { if (m[1] % 2 || m[1] > 20 || n !== m[1] / 2) fail(label + ': half', q); }
     else if (text === 'How many halves make one whole?') { if (n !== 2) fail(label + ': halves in a whole', q); }
     else fail(label + ': fractions text', q);
     return;
@@ -297,7 +298,12 @@ Object.entries(g1ShownByPath).forEach(([path, count]) => { if (!count) fail('gra
 const grade2Topics = Q.topicsFor('grade2').map(t => t.value);
 ['numbers', 'patterns', 'data', 'tables', 'fractions', 'clock', 'shapes'].forEach(t => { if (!grade2Topics.includes(t)) fail('grade2 topic missing: ' + t, grade2Topics); });
 const g2Kinds = {};
-const fractionValue = text => { const m = String(text).match(/^(\d+)\/(\d+)$/); return m ? Number(m[1]) / Number(m[2]) : NaN; };
+const fractionValue = text => {
+  const raw = String(text), m = raw.match(/^(\d+)\/(\d+)$/);
+  if (m) return Number(m[1]) / Number(m[2]);
+  const words = { 'one half': 0.5, 'two halves': 1, 'one quarter': 0.25, 'two quarters': 0.5, 'three quarters': 0.75, 'one eighth': 0.125, 'two eighths': 0.25, 'three eighths': 0.375, 'four eighths': 0.5, 'five eighths': 0.625, 'six eighths': 0.75, 'seven eighths': 0.875 };
+  return words[raw] ?? NaN;
+};
 function checkGrade2Arithmetic(label, q, allowed = ['+', '−', '×', '÷']) {
   const text = q.question, n = Number(ans(q)); let m, op, a, b, expected;
   if ((m = text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))) {
@@ -354,10 +360,10 @@ function checkGrade2(label, topic, q) {
   if (topic === 'fractions') {
     g2Kinds['fractions/' + q.kind] = (g2Kinds['fractions/' + q.kind] || 0) + 1;
     let m;
-    if ((m = text.match(/^1\/(2|4|8) of (\d+) = \?$/))) { if (Number(m[2]) / Number(m[1]) !== n || Number(m[2]) % Number(m[1])) fail(label + ': unit fraction amount', q); }
+    if ((m = text.match(/^(one half|one quarter|one eighth) of (\d+) = \?$/))) { const divisor = { 'one half': 2, 'one quarter': 4, 'one eighth': 8 }[m[1]]; if (Number(m[2]) / divisor !== n || Number(m[2]) % divisor) fail(label + ': unit fraction amount', q); }
     else if (text === 'What fraction of the shape is shaded?') { if (!q.figure || q.figure.type !== 'fraction' || Math.abs(fractionValue(ans(q)) - q.figure.numerator / q.figure.denominator) > 1e-9) fail(label + ': equal-parts fraction diagram', q); }
-    else if (text === '1/2 = ?/4') { if (n !== 2) fail(label + ': equivalent halves and quarters', q); }
-    else if ((m = text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/))) { const left = Number(m[1]) / Number(m[2]), right = Number(m[3]) / Number(m[4]), correct = left < right ? LESS : left > right ? MORE : EQUAL; if (ans(q) !== correct) fail(label + ': fraction comparison', q); }
+    else if (text === 'one half = how many quarters') { if (n !== 2) fail(label + ': equivalent halves and quarters', q); }
+    else if ((m = text.match(/^Compare: (.+) \? (.+)$/))) { const left = fractionValue(m[1]), right = fractionValue(m[2]), correct = left < right ? LESS : left > right ? MORE : EQUAL; if (!Number.isFinite(left) || !Number.isFinite(right) || ans(q) !== correct) fail(label + ': fraction comparison', q); }
     else fail(label + ': unknown Grade 2 fraction question', q);
     return;
   }
