@@ -40,7 +40,7 @@ Every gameplay check must show the board, question, objects/figure, each answer,
 Current status: **Normal and Large text: 0 problems in every tested size (568×280 up to 932×360).** Extra large: passes from 667×300 up except it is capped on short screens; at the smallest tested size (568×280) a few 1 vs 1 cases with long fraction questions need a small scroll (nothing is clipped). That is accepted. Do not make it worse.
 
 ### Viewports used (CSS px)
-Landscape phones 568×280, 667×300, 740×320, 800×300, 844×340, 844×390, 932×360 (heights include browser toolbars); portrait 390×844 and 360×640; tablet 768×1024; desktop 1280×800.
+`layout-game.check.js` landscape phone 844×390 (iPhone 12–14; very short/unusual sizes 568×280, 667×300, 740×320, 800×300, 844×340 and 932×360 are intentionally not tested); other layout checks cover further phone, tablet and desktop sizes; portrait 390×844 and 360×640; tablet 768×1024; desktop 1280×800.
 
 ## Writing new checks
 - Derive the expected answer independently from the question text (as `questions.check.js` does).
