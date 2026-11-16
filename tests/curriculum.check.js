@@ -1,4 +1,4 @@
-// Curriculum scope: Age 6 and Grade 1, the expanded Grade 2 pool, embedded Grade 2 comparisons,
+// Curriculum scope: Age 6 and Grades 1-3, embedded Grade 2 comparisons,
 // decimal-versus-fraction comparisons for Grades 5-6, and Age 2-5 left exactly as they were.
 // Every answer is recomputed here from the question text / picture data; the generators' own answers are never trusted.
 const path = require('path');
@@ -419,13 +419,96 @@ if (grade2Topics.includes('numbers')) {
   Object.entries(g2Kinds).forEach(([kind, count]) => { if (!count) fail('grade2: question kind never generated: ' + kind, g2Kinds); });
 }
 
+// ============================ GRADE 3 ============================
+const grade3Topics = Q.topicsFor('grade3').map(t => t.value);
+['numbers', 'patterns', 'data', 'tables', 'fractions', 'clock', 'shapes'].forEach(t => { if (!grade3Topics.includes(t)) fail('grade3 topic missing: ' + t, grade3Topics); });
+const g3Kinds = {};
+function checkGrade3(label, topic, q) {
+  if (!q.question || q.question.length > 80) fail(label + ': prompt too long or missing', q);
+  const text = q.question, n = Number(ans(q)); let m;
+  if (['mixed', 'add', 'sub', 'mul', 'div'].includes(topic)) {
+    if ((m = text.match(/^([?\d,]+) ([+−×÷]) ([?\d,]+) = \?$/))) {
+      const a = Number(m[1].replace(/,/g, '')), b = Number(m[3].replace(/,/g, '')), op = m[2], result = op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b;
+      if (result !== n || !Number.isInteger(result) || result < 0 || (topic === 'add' && op !== '+') || (topic === 'sub' && op !== '−') || (topic === 'mul' && op !== '×') || (topic === 'div' && op !== '÷')) fail(label + ': arithmetic equation', q);
+      if ((op === '+' || op === '−') && (Math.max(a, b, n) > 1000 || (op === '−' && a < b))) fail(label + ': arithmetic exceeds manageable three-digit range', q);
+      if (op === '×' && !((a >= 2 && a <= 10 && b >= 2 && b <= 10) || (a >= 21 && a <= 29 && b >= 2 && b <= 4) || (b >= 21 && b <= 29 && a >= 2 && a <= 4))) fail(label + ': multiplication range', q);
+      if (op === '÷' && (a % b !== 0 || b < 2 || b > 10)) fail(label + ': division not exact/known fact', q);
+    } else if ((m = text.match(/^([?\d]+) × \? = (\d+)$/))) { if (Number(m[1]) * n !== +m[2]) fail(label + ': missing factor', q); }
+    else if ((m = text.match(/^([?\d]+) ÷ \? = (\d+)$/))) { if (+m[1] / n !== +m[2]) fail(label + ': missing divisor', q); }
+    else if ((m = text.match(/^\? \+ (\d+) = (\d+)$/))) { if (n + +m[1] !== +m[2]) fail(label + ': missing addend', q); }
+    else if ((m = text.match(/^(\d+) \+ \? = (\d+)$/))) { if (+m[1] + n !== +m[2]) fail(label + ': missing addend', q); }
+    else if ((m = text.match(/^(\d+) − \? = (\d+)$/))) { if (+m[1] - n !== +m[2]) fail(label + ': missing subtrahend', q); }
+    else if ((m = text.match(/^(\d+) \+ (\d+) = (\d+), so (\d+) − (\d+) = \?$/))) { if (+m[1] + +m[2] !== +m[3] || +m[4] - +m[5] !== n) fail(label + ': inverse fact', q); }
+    else if ((m = text.match(/^(\d+) − (\d+) = (\d+), so (\d+) \+ (\d+) = \?$/))) { if (+m[1] - +m[2] !== +m[3] || +m[4] + +m[5] !== n || n !== +m[1]) fail(label + ': inverse fact', q); }
+    else fail(label + ': unsupported arithmetic format', q);
+    return;
+  }
+  if (topic === 'numbers') {
+    g3Kinds['numbers/' + q.kind] = (g3Kinds['numbers/' + q.kind] || 0) + 1;
+    if (q.kind === 'round10' || q.kind === 'round100') { const step = q.kind === 'round10' ? 10 : 100, value = Number(text.match(/^[\d,]+/)[0].replace(/,/g, '')); if (Math.round(value / step) * step !== n) fail(label + ': rounding', q); }
+    else if (q.kind === 'sequence') { const hole = q.numbers.indexOf('?'), vals = q.numbers.map(Number), indexes = vals.map((v, i) => Number.isFinite(v) ? [i, v] : null).filter(Boolean), step = (indexes[1][1] - indexes[0][1]) / (indexes[1][0] - indexes[0][0]); if (hole < 0 || q.numbers.filter(x => x === '?').length !== 1 || Number(q.numbers[0]) + hole * step !== n || Math.abs(step) > 500) fail(label + ': varied interval sequence', q); }
+    else if (q.kind === 'recognise') { const words = text.match(/^What number is (.+)\?$/)?.[1].split(', ').map(x => Number(x.match(/^\d+/)?.[0]) * ({ thousand: 1000, thousands: 1000, hundred: 100, hundreds: 100, ten: 10, tens: 10, one: 1, ones: 1 }[x.replace(/^\d+ /, '')] || 0)); if (!words || sum(words) !== n) fail(label + ': number recognition/place value', q); }
+    else if (q.kind === 'expanded') { const expected = text.match(/^([\d,]+) = \?$/), sumParts = ans(q).split(' + ').reduce((s, x) => s + Number(x), 0); if (!expected || Number(expected[1].replace(/,/g, '')) !== sumParts) fail(label + ': expanded notation', q); }
+    else if (q.kind === 'missingPlace') { const parts = text.match(/^([\d□ +]+) = (\d+)$/), terms = parts && parts[1].split(' + '); if (!terms || terms.filter(x => x === '□').length !== 1 || terms.reduce((sum, x) => sum + (x === '□' ? n : Number(x)), 0) !== +parts[2]) fail(label + ': missing place value', q); }
+    else if (q.kind === 'compare') { const a = Number(text.match(/^Compare: (\d+)/)[1]), b = Number(text.match(/\? (\d+)$/)[1]); if (ans(q) !== (a < b ? LESS : a > b ? MORE : EQUAL)) fail(label + ': comparison', q); }
+    else if (q.kind === 'order') { const xs = ans(q).split(',').map(Number); if (xs.length !== 3 || xs.some((x, i) => i && x <= xs[i - 1])) fail(label + ': ordering', q); }
+    else fail(label + ': unknown number kind', q);
+    return;
+  }
+  if (topic === 'tables' || topic === 'mul' || topic === 'div') {
+    g3Kinds['tables/' + q.kind] = (g3Kinds['tables/' + q.kind] || 0) + 1;
+    if (q.kind === 'twoDigit' && !/^\d{2} × [234] = \?$/.test(text)) fail(label + ': two-digit multiplication', q);
+    return;
+  }
+  if (topic === 'fractions') {
+    g3Kinds['fractions/' + q.kind] = (g3Kinds['fractions/' + q.kind] || 0) + 1;
+    if (q.kind === 'diagram') { const f = q.figure; if (!f || f.type !== 'fraction' || Math.abs(f.numerator / f.denominator - fractionValue(ans(q))) > 1e-9) fail(label + ': fraction diagram', q); }
+    else if (q.kind === 'amount') { const x = text.match(/^(\d+)\/(\d+) of (\d+) = \?$/); if (!x || +x[1] * +x[3] / +x[2] !== n) fail(label + ': fraction amount', q); }
+    else if (q.kind === 'equivalent') { const x = text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/); if (!x || +x[1] / +x[2] !== n / +x[3]) fail(label + ': equivalent fractions', q); }
+    else if (q.kind === 'compare') { const x = text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/), left = +x[1] / +x[2], right = +x[3] / +x[4]; if (!x || ans(q) !== (left < right ? LESS : left > right ? MORE : EQUAL)) fail(label + ': fraction comparison', q); }
+    else fail(label + ': unknown fraction format', q);
+    return;
+  }
+  if (topic === 'patterns') { g3Kinds['patterns/' + q.kind] = (g3Kinds['patterns/' + q.kind] || 0) + 1; const hole = q.numbers.indexOf('?'), known = q.numbers.map((v, i) => [i, Number(v)]).filter(([i]) => i !== hole), gap = known[1][0] - known[0][0], ratio = (known[1][1] / known[0][1]) ** (1 / gap), start = Number(q.numbers[0]); if (q.kind !== 'multiplySequence' || hole < 1 || !Number.isInteger(ratio) || ratio < 2 || ratio > 3 || known.some(([i, v]) => v !== start * ratio ** i) || n !== Number(q.numbers[hole - 1]) * ratio) fail(label + ': multiplication sequence', q); return; }
+  if (topic === 'data') { g3Kinds['data/' + q.kind] = (g3Kinds['data/' + q.kind] || 0) + 1; const f = q.figure; if (!f || f.type !== 'bar-chart' || f.values.length !== 4) fail(label + ': bar chart', q); else if (q.kind === 'total' && n !== sum(f.values) || q.kind === 'difference' && n !== Math.max(...f.values) - Math.min(...f.values) || q.kind === 'read' && !f.values.includes(n) || q.kind === 'most' && !f.labels.includes(ans(q))) fail(label + ': chart answer', q); return; }
+  if (topic === 'clock') { g3Kinds['clock/' + q.kind] = (g3Kinds['clock/' + q.kind] || 0) + 1; if (q.kind === 'elapsed') { const x = text.match(/^(\d+) h (\d+) min = \? min$/); if (!x || +x[1] * 60 + +x[2] !== n) fail(label + ': hour/minute calculation', q); } else if (!q.figure || ans(q) !== `${q.figure.hour}:${String(q.figure.minute).padStart(2, '0')}`) fail(label + ': clock reading', q); return; }
+  if (topic === 'shapes') {
+    g3Kinds['shapes/' + q.kind] = (g3Kinds['shapes/' + q.kind] || 0) + 1; const f = q.figure;
+    if (q.kind === 'area' && (!f || f.type !== 'grid-area' || n !== f.rows * f.cols)) fail(label + ': unit square area', q);
+    else if (q.kind === 'perimeter' && (!f || f.type !== 'perimeter' || n !== 2 * (f.length + f.width))) fail(label + ': perimeter', q);
+    else if (q.kind === 'angle' && (!f || f.type !== 'angle' || ans(q) !== (f.degrees < 90 ? 'acute' : f.degrees === 90 ? 'right' : 'obtuse'))) fail(label + ': angle recognition', q);
+    else if (q.kind === 'convert' && !/^\d+ m = \? cm$/.test(text) || q.kind === 'convert' && n !== Number(text.match(/^(\d+)/)[1]) * 100) fail(label + ': metric conversion', q);
+    else if (q.kind === 'solid' && !/^(faces|edges|vertices) of a /.test(text)) fail(label + ': solid properties', q);
+    else if (q.kind === 'polygon' && !/^Sides of /.test(text)) fail(label + ': polygon', q);
+    else if (q.kind === 'measure' && !/^Compare: /.test(text)) fail(label + ': measurement comparison', q);
+    return;
+  }
+}
+for (const topic of grade3Topics.filter(t => t !== 'all')) for (let i = 0; i < 1000; i++) checkGrade3('grade3/' + topic, topic, Q.generateQuestion('grade3', topic));
+const g3Seen = {};
+for (let i = 0; i < 12000; i++) {
+  const q = Q.generateQuestion('grade3', 'all');
+  const topic = ['numbers', 'patterns', 'data', 'tables', 'fractions', 'clock', 'shapes'].includes(q.topic) ? q.topic : /cents/.test(q.question) ? 'money' : 'mixed';
+  g3Seen[topic] = (g3Seen[topic] || 0) + 1;
+  if (topic !== 'money') checkGrade3('grade3/all', topic, q);
+}
+for (const topic of ['mixed', 'numbers', 'patterns', 'data', 'tables', 'fractions', 'money', 'clock', 'shapes']) if ((g3Seen[topic] || 0) < 500) fail('grade3/all category too rare: ' + topic, g3Seen);
+for (const topic of ['mixed', 'add', 'sub', 'mul', 'div']) {
+  const sample = Array.from({ length: 4000 }, () => Q.generateQuestion('grade3', topic));
+  if ((topic === 'mixed' || topic === 'add' || topic === 'sub') && sample.some(q => /[√²³]|probability|quadratic|decimal|long division/i.test(q.question))) fail('grade3 arithmetic excluded concept', sample.find(q => /[√²³]|probability|quadratic|decimal|long division/i.test(q.question)));
+}
+const g3MixedSample = Array.from({ length: 6000 }, () => Q.generateQuestion('grade3', 'mixed'));
+const g3Multiplicative = g3MixedSample.filter(q => /[×÷]/.test(q.question) || /(?:× \?|÷ \?)/.test(q.question)).length;
+if (g3Multiplicative < 2400 || g3Multiplicative > 3600) fail('grade3 mixed: multiplication and division should remain balanced with addition/subtraction', { g3Multiplicative, sample: g3MixedSample.length });
+for (const prefix of ['fractions/', 'shapes/', 'tables/', 'patterns/', 'data/', 'clock/']) for (const [kind, count] of Object.entries(g3Kinds)) if (kind.startsWith(prefix) && count < 10) fail('grade3 kind too rare: ' + kind, count);
+
 // ============================ COMPARISONS ============================
-// Grades 1, 3 and 4 have no comparison questions; Grade 2 compares within Numbers, Fractions and Measurement.
+// Grades 1 and 4 have no comparisons; Grades 2-3 compare numbers within their curriculum topics.
 for (const g of [1, 2, 3, 4]) {
   const level = 'grade' + g;
   if (Q.topicsFor(level).some(t => t.value === 'compare')) fail(level + ': compare topic is still offered', Q.topicsFor(level).map(t => t.value));
   if (Q.normaliseTopic(level, 'compare') !== 'all') fail(level + ': old compare selection not normalised', Q.normaliseTopic(level, 'compare'));
-  if (g === 2) continue;
+  if (g === 2 || g === 3) continue;
   for (const t of [...Q.topicsFor(level).map(x => x.value), 'compare']) {   // 'compare' = an old saved selection reaching the generator
     for (let i = 0; i < 1500; i++) {
       const q = Q.generateQuestion(level, t);

@@ -359,15 +359,32 @@
   function createBarChartSvg(spec) {
     const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-bar-chart', role: 'img', 'aria-label': `Bar chart: ${spec.labels.map((label, i) => `${label} ${spec.values[i]}`).join(', ')}` });
     svg.append(svgEl('path', { d: 'M 12 12 V 76 H 94', fill: 'none', stroke: '#1f2937', 'stroke-width': 1.5 }));
-    const colors = ['#60a5fa', '#f59e0b', '#34d399'];
+    const colors = ['#60a5fa', '#f59e0b', '#34d399', '#c084fc'];
+    const legacyThreeBars = spec.values.length === 3, slot = legacyThreeBars ? 24 : 76 / spec.values.length, barWidth = legacyThreeBars ? 14 : Math.min(14, slot - 4);
     spec.values.forEach((value, i) => {
-      const x = 22 + i * 24, h = value * 6;
-      svg.append(svgEl('rect', { x, y: 76 - h, width: 14, height: h, fill: colors[i], stroke: '#1f2937', 'stroke-width': 1 }));
-      const number = svgEl('text', { x: x + 7, y: 72 - h, 'text-anchor': 'middle', class: 'figure-label' }); number.textContent = String(value);
+      const x = legacyThreeBars ? 22 + i * 24 : 14 + i * slot + (slot - barWidth) / 2, h = value * (spec.values.length > 3 ? 4.5 : 6), center = x + barWidth / 2;
+      svg.append(svgEl('rect', { x, y: 76 - h, width: barWidth, height: h, fill: colors[i % colors.length], stroke: '#1f2937', 'stroke-width': 1 }));
+      const number = svgEl('text', { x: center, y: 72 - h, 'text-anchor': 'middle', class: 'figure-label' }); number.textContent = String(value);
       const shortLabels = { Books: 'Bk', Games: 'Gm', Balls: 'Bl' };
-      const label = svgEl('text', { x: x + 7, y: 88, 'text-anchor': 'middle', class: 'figure-label' }); label.textContent = shortLabels[spec.labels[i]] || spec.labels[i].slice(0, 2);
+      const label = svgEl('text', { x: center, y: 88, 'text-anchor': 'middle', class: 'figure-label' }); label.textContent = shortLabels[spec.labels[i]] || spec.labels[i].slice(0, 2);
       svg.append(number, label);
     });
+    return svg;
+  }
+
+  function createGridAreaSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-grid-area', role: 'img', 'aria-label': `Grid with ${spec.rows} rows and ${spec.cols} columns of unit squares` });
+    const cell = Math.min(64 / spec.cols, 64 / spec.rows), width = cell * spec.cols, height = cell * spec.rows, left = (100 - width) / 2, top = (100 - height) / 2;
+    for (let row = 0; row < spec.rows; row++) for (let col = 0; col < spec.cols; col++) svg.append(svgEl('rect', { x: left + col * cell, y: top + row * cell, width: cell, height: cell, fill: '#dbeafe', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    return svg;
+  }
+
+  function createAngleSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-angle', role: 'img', 'aria-label': `An angle measuring ${spec.degrees} degrees` });
+    const a = spec.degrees * Math.PI / 180, cx = 42, cy = 72, r = 36, x = cx + r * Math.cos(a), y = cy - r * Math.sin(a);
+    svg.append(svgEl('line', { x1: cx, y1: cy, x2: 88, y2: cy, stroke: '#1f2937', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+    svg.append(svgEl('line', { x1: cx, y1: cy, x2: x, y2: y, stroke: '#1f2937', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+    svg.append(svgEl('path', { d: `M ${cx + 18} ${cy} A 18 18 0 0 0 ${cx + 18 * Math.cos(a)} ${cy - 18 * Math.sin(a)}`, fill: 'none', stroke: '#2563eb', 'stroke-width': 2 }));
     return svg;
   }
 
@@ -392,6 +409,8 @@
     if (figure.type === 'fraction') return createFractionSvg(figure);
     if (figure.type === 'perimeter') return createPerimeterSvg(figure);
     if (figure.type === 'bar-chart') return createBarChartSvg(figure);
+    if (figure.type === 'grid-area') return createGridAreaSvg(figure);
+    if (figure.type === 'angle') return createAngleSvg(figure);
     if (figure.type === 'shape') return createShapeSvg(figure, 'figure figure-shape', 'A shape');
     return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
   }
