@@ -263,10 +263,13 @@ if (topicsEarly.size < 6) fail('the opening questions should already mix several
   const subs = bank.filter(q => q.topic === 'subtraction'), cross = subs.filter(q => q.kind === 'cross10');
   if (!cross.length || cross.length > subs.length * 0.5) fail('crossing 10 should be present but not dominant', { cross: cross.length, subs: subs.length });
 }
-// Age 6 and Age 4 generators are untouched by Age 5.
+// The Age 4 generator is untouched by Age 5; Age 6 keeps its object-stage questions inside its own pool (see curriculum.check.js).
+let stage6 = 0;
+for (let i = 0; i < 600; i++) {
+  if (Q.generateQuestion('age6').stage) stage6++;
+}
+if (!stage6) fail('Age 6 must still include the object-stage questions', {});
 for (let i = 0; i < 300; i++) {
-  const q6 = Q.generateQuestion('age6');
-  if (!q6.stage || q6.topic || q6.tier || q6.picture) fail('Age 6 must still use the object stage only', q6);
   const q4 = Q.generateQuestion('age4');
   if (q4.topic || q4.kind) fail('Age 4 questions carry no Age 5 fields', q4);
 }

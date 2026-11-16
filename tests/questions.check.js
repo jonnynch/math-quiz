@@ -23,6 +23,7 @@ for(const g of grades){
       if(numeric){ const n=a.map(Number); if(n.some((v,j)=>j&&v<=n[j-1])) fail(k,'not ascending',q); if(n.some(v=>v<0)) fail(k,'negative',q); }
       // topic specific verification
       let m;
+      if(g===1&&t.value!=='clock') continue;   // Grade 1 has its own, stricter checks in curriculum.check.js
       if(t.value==='mixed'||t.value==='add'||t.value==='sub'||t.value==='mul'||t.value==='div'||t.value==='tables'){
         if((m=text.match(/^What is (\d+) (\+|−|×|÷) (\d+)\?$/))){const x=+m[1],y=+m[3];const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]]; if(r!==Number(ans)||!Number.isInteger(r)) fail(k,'wrong arithmetic',q);
           const allowed={mixed:g===1?'+−':'+−×÷',add:'+',sub:'−',mul:'×',div:'÷',tables:'×÷'}[t.value]; if(!allowed.includes(m[2])) fail(k,'operator not allowed '+m[2],q);
@@ -30,7 +31,6 @@ for(const g of grades){
         } else if((m=text.match(/^(\d+) × \? = (\d+)$/))){ if(+m[1]*Number(ans)!==+m[2]) fail(k,'wrong missing factor',q);} else fail(k,'unrecognised text',q);
         if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^What is (\d+) × (\d+)\?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
       }
-      if(t.value==='compare'){ m=text.match(/^Compare: (\d+) \? (\d+)$/); if(!m) fail(k,'compare text',q); else{const x=+m[1],y=+m[2];const exp=x<y?0:x===y?1:2; if(c!==exp) fail(k,'wrong compare',q); const max=[0,20,99,999,9999][g]; if(x>max||y>max) fail(k,'compare range',q);} if(a.length!==3) fail(k,'compare answers',q);}
       if(t.value==='money'){ const nn=Number(ans); if(m=text.match(/^You have (.+)\. How many cents altogether\?$/)){const s=m[1].split(', ').reduce((s,x)=>s+(x.startsWith('$')?100*+x.slice(1):+x.slice(0,-1)),0); if(s!==nn) fail(k,'coins wrong',q);}
         else if(m=text.match(/^Something costs (\d+)c\. You pay (\S+)\. How many cents change\?$/)){const pay=m[2].startsWith('$')?100*+m[2].slice(1):+m[2].slice(0,-1); if(pay-m[1]!==nn||pay-m[1]<=0) fail(k,'change wrong',q);}
         else if(m=text.match(/^A pen costs (\d+)c and a rubber costs (\d+)c/)){ if(+m[1]+ +m[2]!==nn) fail(k,'sum wrong',q);}
@@ -54,7 +54,10 @@ for(const g of grades){
         if(m=text.match(/^What is half of (\d+)\?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
         else if(m=text.match(/^What is (\d+)\/(\d+) of (\d+)\?$/)){ if(m[1]*m[3]/m[2]!==+ans||!Number.isInteger(m[3]/m[2])) fail(k,'fraction of amount wrong',q);}
         else if(m=text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/)){ if(m[1]/m[2]!==+ans/m[3]) fail(k,'equiv wrong',q);}
-        else if(m=text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/)){ const x=m[1]/m[2],y=m[3]/m[4]; const exp=Math.abs(x-y)<1e-12?1:x<y?0:2; if(c!==exp) fail(k,'frac compare wrong',q);}
+        else if(m=text.match(/^Compare: (\S+) \? (\S+)$/)){ // Grades 5-6 only: exactly one decimal and one fraction
+          const dec=m.slice(1,3).filter(x=>/^0\.\d+$/.test(x)), fr=m.slice(1,3).filter(x=>/^\d+\/\d+$/.test(x));
+          if(g<5||dec.length!==1||fr.length!==1) fail(k,'comparison must be one decimal and one fraction (Grades 5-6 only)',q);
+          else { const [n,d]=frac(fr[0]); const x=+dec[0]; const y=n/d; const dv=m[1]===dec[0]?x-y:y-x; const exp=Math.abs(dv)<1e-12?1:dv<0?0:2; if(c!==exp) fail(k,'decimal/fraction compare wrong',q); } }
         else if(m=text.match(/^(\d+)\/(\d+) ([+−×÷]) (\d+)(?:\/(\d+))? = \? \(simplest form\)$/)){
           const x=m[1]/m[2]; const y=m[5]?m[4]/m[5]:+m[4]; const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[3]]; if(Math.abs(val(ans)-r)>1e-9) fail(k,'frac arithmetic wrong',q);
           const [n,d]=frac(ans); if(gcd(n,d)!==1&&d!==1) fail(k,'not simplest',q); if(r<=0) fail(k,'non-positive result',q);
@@ -76,10 +79,11 @@ for(const g of grades){
   for(let i=0;i<3000;i++){
     const q=Q.generateQuestion('grade'+g,'all'); total++; const x=q.question;
     if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length) fail(k,'bad question',q);
+    if(g===1){ seen.g1=(seen.g1||0)+1; if(/^Compare/.test(x)) fail(k,'Grade 1 has no comparison questions',q); continue; }   // Grade 1 categories: curriculum.check.js
     let cat;
     if(q.figure&&q.figure.type==='clock') cat='clock';
     else if(q.figure&&q.figure.type==='polygon') cat='shapes';
-    else if(/^Compare: \d+ \? \d+$/.test(x)) cat='compare';
+    else if(/^Compare: /.test(x)) cat='fractions';   // Grades 5-6: decimal versus fraction lives inside Fractions
     else if(/cents/.test(x)) cat='money';
     else if(/\d\/\d|half of/.test(x)) cat='fractions';
     else if(/cm|°|faces|edges|vertices|sides/.test(x)) cat='shapes';
@@ -88,10 +92,13 @@ for(const g of grades){
     seen[cat]=(seen[cat]||0)+1;
     if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);
   }
-  ['arithmetic','compare','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c)).forEach(c=>{
+  if(g===1) continue;
+  ['arithmetic','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c)).forEach(c=>{
     if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
   });
 }
+// Comparing numbers is not offered at any grade; an old saved selection falls back to Mixed All Questions.
+for(const g of grades){ if(Q.topicsFor('grade'+g).some(t=>t.value==='compare')) fail('g'+g+'/compare','compare topic must not be offered',{}); if(Q.normaliseTopic('grade'+g,'compare')!=='all') fail('g'+g+'/compare','old compare selection must normalise to all',{}); }
 // Topic order and default: Mixed All Questions first and default; unsupported topics are not offered or generated.
 if(Q.topicsFor('grade3')[0].value!=='all'||Q.DEFAULT_TOPIC!=='all'||Q.normaliseTopic('grade3','bogus')!=='all'||Q.normaliseTopic('grade5','tables')!=='all'||Q.normaliseTopic('grade3','mixed')!=='mixed') fail('topic-default','Mixed All Questions is not first/default',{});
 for(const g of grades){ const offered=Q.topicsFor('grade'+g).map(t=>t.value); if(offered[0]!=='all') fail('g'+g+'/order','all is not first',offered); }

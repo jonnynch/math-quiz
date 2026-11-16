@@ -51,15 +51,15 @@ Under each Grade level a Topic can be chosen. The age levels (2–3 to 6) do not
 
 | Topic | Grades | What it asks |
 |---|---|---|
-| Mixed arithmetic, Addition only, Subtraction only | 1–6 | + and − (Grade 1), plus × and ÷ from Grade 2 |
-| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, comparing, fractions, money, clock, shapes |
+| Mixed arithmetic, Addition only, Subtraction only | 1–6 | + and − within 20 (Grade 1: missing numbers, doubles, simple stories; Mixed also has sharing, grouping and repeated addition), plus × and ÷ from Grade 2 |
+| Numbers & place value | 1 | numbers to 120, number words, before/after, missing numbers, 10 more/less, counting in 2s, 5s, 10s, tens and ones |
+| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, fractions (Grades 5–6 include decimal-versus-fraction comparisons), money, clock, shapes; Grade 1 also numbers & place value |
 | Multiplication only, Division only | 2–6 | |
 | Times tables | 2–4 | × and ÷ facts, e.g. 7 × ? = 56 (Grade 2: tables of 2, 5, 10; Grade 4: up to 12 × 12) |
-| Comparing numbers | 1–4 | choose <, = or > (0–20, up to 99, 999, 9999) |
-| Fractions | 1–6 | half of a number, 1/4 of 20, comparing, equivalent, add/subtract, multiply/divide (answers in simplest form) |
-| Money | 1–4 | coins, change and totals, answered in cents |
+| Fractions | 1–6 | Grade 1: halves only; then 1/4 of 20, equivalent, add/subtract, multiply/divide (answers in simplest form); Grades 5–6: compare one decimal with one fraction (`0.75 ? 2/3`) |
+| Money | 1–4 | Australian coins (5c, 10c, 20c, 50c, $1, $2), change and totals, answered in cents |
 | Clock reading | 1–4 | an analogue clock (o'clock/half past, quarter hours, 5 minutes, any minute) |
-| Shapes & measures | 1–6 | sides and corners, faces/edges/vertices, angles, perimeter, area |
+| Shapes & measures | 1–6 | sides and corners, faces/edges/vertices, angles, perimeter, area; Grade 1 also position, practical measurement and simple data |
 
 Answers are listed smallest to largest (fractions and times by value). Choices such as < = > keep a fixed order.
 

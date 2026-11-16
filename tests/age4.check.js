@@ -136,9 +136,9 @@ if (!(late / 200 > 2.2 && late > early)) fail('later questions should be harder 
   }
   Object.entries(want).forEach(([k, rows]) => { if (!found[k] || found[k].join() !== rows.join()) fail('layout for ' + k, found[k]); });
 }
-// The Age 2-3 and Age 6 generators are untouched (Age 5 has its own pictures and tiers, see age5.check.js).
+// The Age 2-3 generator is untouched (Age 5 has its own pictures and tiers, see age5.check.js; Age 6 has its own pool, see curriculum.check.js).
 for (let i = 0; i < 300; i++) {
-  ['toddler', 'age6'].forEach(l => { const q = Q.generateQuestion(l); if (q.picture || q.tier) fail('picture/tier leaked into ' + l, q); });
+  ['toddler'].forEach(l => { const q = Q.generateQuestion(l); if (q.picture || q.tier) fail('picture/tier leaked into ' + l, q); });
   const q5 = Q.generateQuestion('age5');
   if (q5.stage) fail('Age 5 no longer uses the object stage', q5);
 }

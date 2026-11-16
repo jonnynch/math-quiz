@@ -25,7 +25,10 @@
     { value: 'mul', label: 'Multiplication only', grades: [2, 3, 4, 5, 6] },
     { value: 'div', label: 'Division only', grades: [2, 3, 4, 5, 6] },
     { value: 'tables', label: 'Times tables', grades: [2, 3, 4] },
-    { value: 'compare', label: 'Comparing numbers', grades: [1, 2, 3, 4] },
+    { value: 'numbers', label: 'Numbers & place value', grades: [1] },
+    // Kept only so old saved games and reports still show a label. Not offered at any grade: standalone
+    // comparisons were removed for Grades 1-4; Grades 5-6 compare a decimal with a fraction inside Fractions.
+    { value: 'compare', label: 'Comparing numbers', grades: [] },
     { value: 'fractions', label: 'Fractions', grades: ALL },
     { value: 'money', label: 'Money', grades: [1, 2, 3, 4] },
     { value: 'clock', label: 'Clock reading', grades: [1, 2, 3, 4] },
@@ -188,10 +191,7 @@
   }
 
   function makeFractionsQuestion(grade) {
-    if (grade === 1) {
-      const n = intBetween(1, 10) * 2;
-      return makeNumericQuestion(`What is half of ${n}?`, n / 2, { extras: [n, n * 2] });
-    }
+    if (grade === 1) return makeGrade1FractionsQuestion();
     if (grade === 2) {
       const den = choose([2, 3, 4]);
       const n = den * intBetween(1, 10);
@@ -206,12 +206,11 @@
     };
     if (grade === 3) {
       if (Math.random() < 0.5) return ofAmount([2, 3, 4, 5, 6, 8, 10], 10);
-      let b = intBetween(2, 10), c = intBetween(2, 10);
-      if (Math.random() > 0.1) while (c === b) c = intBetween(2, 10);
-      return makeCompareQuestion(`Compare: 1/${b} ? 1/${c}`, sign(c - b));
+      const den = choose([2, 3, 4, 5, 6, 8, 10]), k = intBetween(2, 10);
+      return makeNumericQuestion(`What is 1/${den} of ${den * k}?`, k, { extras: [den * k, den, den * k - k] });
     }
     if (grade === 4) {
-      const kind = choose(['equiv', 'add', 'sub', 'compare', 'amount']);
+      const kind = choose(['equiv', 'add', 'sub', 'amount']);
       if (kind === 'equiv') {
         const d = intBetween(2, 6), n = intBetween(1, d - 1), k = intBetween(2, 5);
         return makeNumericQuestion(`${n}/${d} = ?/${d * k}`, n * k, { extras: [n, n + k, d * k] });
@@ -224,25 +223,13 @@
         const d = intBetween(5, 12), a = intBetween(2, d - 1), b = intBetween(1, a - 1);
         return makeFractionQuestion(`${a}/${d} − ${b}/${d} = ? (simplest form)`, [a - b, d], [[a + b, d]]);
       }
-      if (kind === 'compare') {
-        if (Math.random() < 0.5) {
-          const d = intBetween(4, 12);
-          let a = intBetween(1, d - 1), b = intBetween(1, d - 1);
-          return makeCompareQuestion(`Compare: ${a}/${d} ? ${b}/${d}`, sign(a - b));
-        }
-        const n = intBetween(1, 5);
-        let d1 = intBetween(n + 1, 12), d2 = intBetween(n + 1, 12);
-        return makeCompareQuestion(`Compare: ${n}/${d1} ? ${n}/${d2}`, sign(d2 - d1));
-      }
       return ofAmount([3, 4, 5, 6, 8, 10], 12);
     }
     if (grade === 5) {
       const kind = choose(['add', 'sub', 'compare', 'amount']);
       if (kind === 'amount') return ofAmount([3, 4, 5, 6, 8, 10, 12], 12);
       if (kind === 'compare') {
-        let a, b, c, d;
-        do { b = intBetween(2, 8); d = intBetween(2, 8); a = intBetween(1, b - 1); c = intBetween(1, d - 1); } while (b === d);
-        return makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, sign(a * d - c * b));
+        return makeDecimalFractionCompare(5);
       }
       // Denominators where one is a multiple of the other, answer below 1.
       for (let tries = 0; tries < 200; tries++) {
@@ -263,7 +250,8 @@
       return ofAmount([3, 4, 5, 6, 8, 10, 12], 12);
     }
     // Grade 6
-    const kind = choose(['mul', 'divWhole', 'howMany', 'addUnlike']);
+    const kind = choose(['mul', 'divWhole', 'howMany', 'addUnlike', 'compare']);
+    if (kind === 'compare') return makeDecimalFractionCompare(6);
     if (kind === 'mul') {
       const b = intBetween(2, 9), d = intBetween(2, 9);
       const a = intBetween(1, b - 1), c = intBetween(1, d - 1);
@@ -289,21 +277,6 @@
     return makeFractionQuestion('1/2 × 1/3 = ? (simplest form)', [1, 6], [[2, 5]]);
   }
 
-  // ---------- comparing numbers ----------
-  function makeCompareNumbersQuestion(grade) {
-    const range = [null, [0, 20], [10, 99], [100, 999], [1000, 9999]][grade];
-    const [min, max] = range;
-    const near = Math.max(1, Math.round((max - min) * (grade === 1 ? 0.15 : 0.06)));
-    const clamp = (v) => Math.min(max, Math.max(min, v));
-    const a = intBetween(min, max);
-    const mode = Math.random();
-    let b;
-    if (mode < 0.12) b = a;
-    else if (mode < 0.62) b = clamp(a + choose([-1, 1]) * intBetween(1, near));
-    else b = intBetween(min, max);
-    return makeCompareQuestion(`Compare: ${a} ? ${b}`, sign(a - b));
-  }
-
   // ---------- times tables ----------
   function makeTablesQuestion(grade) {
     let a, b;
@@ -321,11 +294,12 @@
   // ---------- money (answers are in cents) ----------
   const coinText = (c) => c >= 100 ? `$${c / 100}` : `${c}c`;
   function makeMoneyQuestion(grade) {
-    if (grade === 1 || grade === 2) {
-      const values = grade === 1 ? [1, 2, 5, 10] : [5, 10, 20, 50, 100];
+    if (grade === 1) return makeGrade1MoneyQuestion();
+    if (grade === 2) {
+      const values = [5, 10, 20, 50, 100];
       let coins;
-      do { coins = Array.from({ length: intBetween(2, grade === 1 ? 3 : 4) }, () => choose(values)); }
-      while (coins.reduce((s, c) => s + c, 0) > (grade === 1 ? 25 : 250));
+      do { coins = Array.from({ length: intBetween(2, 4) }, () => choose(values)); }
+      while (coins.reduce((s, c) => s + c, 0) > 250);
       const total = coins.reduce((s, c) => s + c, 0);
       return makeNumericQuestion(`You have ${coins.map(coinText).join(', ')}. How many cents altogether?`, total, { extras: [Math.max(...coins), coins.length] });
     }
@@ -390,9 +364,10 @@
   ];
 
   function makeShapesQuestion(grade) {
-    if (grade === 1 || grade === 2) {
-      const n = grade === 1 ? intBetween(3, 6) : intBetween(3, 8);
-      const word = grade === 1 ? 'sides' : choose(['sides', 'corners']);
+    if (grade === 1) return makeGrade1ShapesQuestion();
+    if (grade === 2) {
+      const n = intBetween(3, 8);
+      const word = choose(['sides', 'corners']);
       const q = makeNumericQuestion(`How many ${word} does this shape have?`, n, { count: 4 });
       q.figure = { type: 'polygon', sides: n };
       return q;
@@ -1196,7 +1171,192 @@
     ])();
   }
 
-  // Age 6: addition with a sum of at most 10, or subtraction starting from at most 10.
+  // ---------- shared by Age 6 and Grade 1 ----------
+  // `simple` gives the Age 6 look (big centred buttons); Grade 1 keeps the normal A/B/C buttons.
+  const mark = (q, topic, kind, tier, simple) => Object.assign(q, { topic, kind, tier }, simple ? { simple: true } : {});
+
+  // Text answers in random order (numeric answers are sorted by generateQuestion instead).
+  function textChoices(correct, wrong, count = 4) {
+    const others = shuffledCopy([...new Set(wrong)].filter(w => w !== correct)).slice(0, count - 1);
+    const answers = shuffledCopy([correct, ...others]);
+    return { answers, correct: answers.indexOf(correct) };
+  }
+
+  // Australian coins only (5c, 10c, 20c, 50c, $1, $2): never 1c or 2c. Totals are multiples of 5 and so are the wrong totals.
+  const AU_COINS = [5, 10, 20, 50, 100, 200];
+  function totalChoices(total, coins) {
+    const pool = [];
+    for (let k = 1; k <= 5; k++) pool.push(total + 5 * k, total - 5 * k);
+    const mistakes = [Math.max(...coins), total - Math.min(...coins), total + Math.min(...coins)].filter(v => v > 0);
+    const wrong = pickWithMistake(total, pool.filter(v => v > 0), 3, mistakes);
+    return { answers: [total, ...wrong].map(String), correct: 0 };
+  }
+
+  function makeCoinTotalQuestion(values, limit, simple) {
+    let coins, total;
+    do { coins = Array.from({ length: intBetween(2, 3) }, () => choose(values)); total = coins.reduce((s, c) => s + c, 0); } while (total > limit);
+    return mark({
+      question: `You have ${coins.map(coinText).join(', ')}. How many cents altogether?`,
+      ...totalChoices(total, coins)
+    }, 'money', 'total', total <= 30 ? 1 : total <= 100 ? 2 : 3, simple);
+  }
+
+  function makeCoinValueQuestion(simple) {
+    const coin = choose([100, 200]);
+    return mark({
+      question: `How many cents is ${coinText(coin)}?`,
+      ...choicesFrom(coin, [5, 10, 20, 50, 100, 200].filter(v => v !== coin), [])
+    }, 'money', 'dollar', 3, simple);
+  }
+
+  function makeCoinCombosQuestion(simple) {
+    const values = [5, 10, 20, 50], sets = new Map();
+    values.forEach(a => values.forEach(b => [[a, b], ...values.map(c => [a, b, c])].forEach(set => {
+      const sorted = set.slice().sort((x, y) => y - x), sum = sorted.reduce((s, c) => s + c, 0);
+      if (sum <= 100) sets.set(sorted.join(), { text: sorted.map(coinText).join(' + '), sum });
+    })));
+    const all = [...sets.values()], correct = choose(all);
+    return mark({
+      question: `Which coins make ${coinText(correct.sum)}?`,
+      ...textChoices(correct.text, all.filter(s => s.sum !== correct.sum).map(s => s.text))
+    }, 'money', 'combos', 2, simple);
+  }
+
+  // Practical measurement: [property, bigger one, smaller one]. Only the size/length/mass/capacity words differ.
+  const MEASURE_PAIRS = [
+    ['length', '🚂 train', '🚗 car'], ['length', '🐍 snake', '🐜 ant'], ['length', '🧣 scarf', '🧦 sock'], ['length', '🦒 giraffe', '🐇 rabbit'],
+    ['size', '🐘 elephant', '🐭 mouse'], ['size', '🐋 whale', '🐟 fish'], ['size', '🏠 house', '🐛 bug'], ['size', '🌳 tree', '🌼 flower'],
+    ['mass', '🐘 elephant', '🐦 bird'], ['mass', '🚚 truck', '🚲 bike'], ['mass', '🍉 watermelon', '🍓 strawberry'], ['mass', '🧱 brick', '🎈 balloon'],
+    ['capacity', '🛁 bath', '🥛 cup'], ['capacity', '🏊 swimming pool', '🍼 baby bottle'], ['capacity', '🛢️ barrel', '🥄 spoon']
+  ];
+  const MEASURE_WORDS = { length: ['longer', 'shorter'], size: ['bigger', 'smaller'], mass: ['heavier', 'lighter'], capacity: ['holds more', 'holds less'] };
+
+  function makeMeasureQuestion(simple) {
+    const [prop, big, small] = choose(MEASURE_PAIRS);
+    const first = Math.random() < 0.6, word = MEASURE_WORDS[prop][first ? 0 : 1];
+    const choices = textChoices(first ? big : small, [big, small], 2);
+    return mark({
+      question: prop === 'capacity' ? `Which one ${word} water?` : `Which one is ${word}?`,
+      ...choices,
+      answerLabels: choices.answers.map(a => a.replace(/^\S+\s/, ''))   // read aloud without the emoji
+    }, 'measurement', prop, prop === 'length' || prop === 'size' ? 1 : 2, simple);
+  }
+
+  // Grade 1: choosing a measuring tool.
+  const MEASURE_TOOLS = [['how long a pencil is', 'a ruler'], ['how heavy a bag of apples is', 'scales'], ['how much water a jug holds', 'a measuring cup'], ['how long a film is', 'a clock']];
+  function makeMeasureToolQuestion() {
+    const [thing, tool] = choose(MEASURE_TOOLS);
+    return mark({ question: `What do we use to find out ${thing}?`, ...textChoices(tool, MEASURE_TOOLS.map(t => t[1])) }, 'measurement', 'tool', 2, false);
+  }
+
+  // Position and direction: two objects drawn above/below or left/right of each other, or an arrow.
+  function makePositionQuestion(simple) {
+    const kind = weightedChoose([['vertical', 35], ['horizontal', 30], ['arrow', 35]]);
+    if (kind === 'arrow') {
+      const dirs = [['Up', '⬆️'], ['Down', '⬇️'], ['Left', '⬅️'], ['Right', '➡️']], [name, arrow] = choose(dirs);
+      return mark({ question: `Which way does the arrow point? ${arrow}`, ...textChoices(name, dirs.map(d => d[0])) }, 'position', kind, 2, simple);
+    }
+    const [first, second] = shuffledCopy(COUNT_OBJECTS), vertical = kind === 'vertical', askFirst = Math.random() < 0.5;
+    const where = vertical ? (askFirst ? 'on top' : 'at the bottom') : (askFirst ? 'on the left' : 'on the right');
+    return mark({
+      question: `Which one is ${where}?`,
+      picture: {
+        groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: vertical ? ['X', 'Y'] : ['XY'] }],
+        label: `${first.name} ${vertical ? 'above' : 'to the left of'} ${second.name}`,
+        key: key('position', kind, first.emoji, second.emoji)
+      },
+      ...textChoices(askFirst ? first.name : second.name, [first.name, second.name], 2)
+    }, 'position', kind, 1, simple);
+  }
+
+  // Simple data: a picture graph (groups of objects) or, from Grade 1, tally marks.
+  function makeDataQuestion(simple) {
+    const kind = weightedChoose(simple ? [['count', 60], ['total', 40]] : [['count', 35], ['total', 30], ['tally', 35]]);
+    if (kind === 'tally') {
+      const n = intBetween(3, 20), gates = Math.floor(n / 5);
+      const marks = ['||||/ '.repeat(gates).trim(), '|'.repeat(n % 5)].filter(Boolean).join(' ');
+      return mark({ question: `Each ||||/ is a group of 5. How many tally marks? ${marks}`, ...numberChoices(n, 1, 20, [n - gates, gates + (n % 5)]) }, 'data', 'tally', n <= 10 ? 2 : 3, simple);
+    }
+    const cats = shuffledCopy(COUNT_OBJECTS).slice(0, intBetween(2, 3)), limit = simple ? 10 : 20;
+    let counts;
+    do { counts = cats.map(() => intBetween(1, simple ? 4 : 6)); } while (counts.reduce((s, c) => s + c, 0) > limit);
+    const sum = counts.reduce((s, c) => s + c, 0);
+    const picture = {
+      groups: cats.map((c, i) => ({ emoji: c.emoji, rows: chunkRows(counts[i], 5), framed: true })),
+      label: `Picture graph: ${cats.map((c, i) => `${counts[i]} ${c.name}`).join(', ')}`,
+      key: key('data', ...cats.map((c, i) => c.emoji + counts[i]))
+    };
+    if (kind === 'total') return mark({ question: 'How many altogether?', picture, ...numberChoices(sum, 1, limit + 2, counts) }, 'data', kind, 2, simple);
+    const pick = intBetween(0, cats.length - 1);
+    return mark({ question: `How many ${cats[pick].name}?`, picture, ...numberChoices(counts[pick], 1, 8, counts.filter((_, i) => i !== pick)) }, 'data', kind, 1, simple);
+  }
+
+  // ---------- Age 6: ONE pool, no stages; `tier` (1-3) lets createQuestionDeck start with the easier questions ----------
+  // No number-comparison questions (more/fewer/<=>) are in this pool; practical measurement comparisons are.
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const DAY_TIMES = [['eat breakfast', 'In the morning'], ['wake up and get dressed', 'In the morning'], ['come home from school', 'In the afternoon'], ['go to bed and sleep', 'At night']];
+  const DURATIONS = [['clap your hands', 'watch a film'], ['brush your teeth', 'sleep at night'], ['blink your eyes', 'spend a day at school'], ['tie a shoelace', 'go on a holiday']];
+
+  function makeDaysQuestion() {
+    const kind = weightedChoose([['after', 28], ['before', 24], ['week', 10], ['routine', 20], ['duration', 18]]);
+    if (kind === 'after' || kind === 'before') {
+      const i = intBetween(0, 6), answer = DAYS[(i + (kind === 'after' ? 1 : 6)) % 7];
+      return tag({ question: `What day comes ${kind} ${DAYS[i]}?`, ...textChoices(answer, DAYS) }, 'days', kind, 2);
+    }
+    if (kind === 'week') return tag({ question: 'How many days are in a week?', ...numberChoices(7, 3, 10, [5, 6]) }, 'days', kind, 1);
+    if (kind === 'routine') {
+      const [what, when] = choose(DAY_TIMES);
+      return tag({ question: `When do you ${what}?`, ...textChoices(when, ['In the morning', 'In the afternoon', 'At night'], 3) }, 'days', kind, 1);
+    }
+    const [quick, long] = choose(DURATIONS), longer = Math.random() < 0.6;
+    return tag({
+      question: longer ? `Which takes longer: to ${quick} or to ${long}?` : `Which is quicker: to ${quick} or to ${long}?`,
+      ...textChoices(longer ? long : quick, [quick, long], 2)
+    }, 'days', kind, 2);
+  }
+
+  const ACTION_STEPS = [
+    ['Getting ready', 'wake up', 'brush your teeth', 'eat breakfast', 'go to school'],
+    ['Putting on shoes', 'put on your socks', 'put on your shoes', 'tie your laces'],
+    ['Growing a flower', 'plant a seed', 'water the seed', 'watch the flower grow'],
+    ['Cooking an egg', 'crack the egg', 'cook the egg', 'eat the egg'],
+    ['Having a bath', 'fill the bath', 'get into the bath', 'dry with a towel']
+  ];
+  function makeActionSequenceQuestion() {
+    const kind = weightedChoose([['first', 38], ['last', 28], ['next', 34]]);
+    const [title, ...steps] = choose(ACTION_STEPS);
+    if (kind === 'first') return tag({ question: `${title}: what happens first?`, ...textChoices(steps[0], steps) }, 'actions', kind, 1);
+    if (kind === 'last') return tag({ question: `${title}: what happens last?`, ...textChoices(steps[steps.length - 1], steps) }, 'actions', kind, 1);
+    const i = intBetween(0, steps.length - 2);
+    const others = ACTION_STEPS.filter(s => s[0] !== title).flatMap(s => s.slice(1));
+    return tag({
+      question: `${title}. You ${steps[i]}. What happens next?`,
+      ...textChoices(steps[i + 1], [...steps.slice(0, i + 1), ...shuffledCopy(others).slice(0, 3)])
+    }, 'actions', kind, 2);
+  }
+
+  function makeAge6OrderQuestion() {
+    const kind = weightedChoose([['after', 28], ['before', 24], ['forward', 26], ['backward', 22]]);
+    if (kind === 'after' || kind === 'before') {
+      const n = kind === 'after' ? intBetween(1, 19) : intBetween(2, 20), answer = kind === 'after' ? n + 1 : n - 1;
+      return tag({ question: `What number comes ${kind} ${n}?`, ...numberChoices(answer, 0, 20, [n, kind === 'after' ? n + 2 : n - 2]) }, 'sequences', kind, n <= 10 ? 1 : 2);
+    }
+    const len = choose([4, 4, 5]), forward = kind === 'forward';
+    const start = forward ? intBetween(1, 21 - len) : intBetween(len, 20);
+    const seq = Array.from({ length: len }, (_, i) => start + (forward ? i : -i));
+    const hole = intBetween(0, len - 1), answer = seq[hole];
+    const near = [answer + 1, answer - 1, answer + 2, answer - 2, answer + 3, answer - 3].filter(v => v >= 0 && v <= 20);
+    return tag({
+      question: 'What number is missing?',
+      numbers: seq.map((v, i) => i === hole ? '?' : String(v)),
+      ...choicesFrom(answer, near, near.slice(0, 2))
+    }, 'sequences', kind, start > 10 ? 2 : 1);
+  }
+
+  // Quick look at 1-5 objects (subitising).
+  const makeSubitisingQuestion = () => tag(makeCountingQuestion(), 'subitising', 'quick-look', 1);
+
+  // Joining / taking away with objects (stage), within 10.
   function makeWithin10Question() {
     let a, b, answer, operator;
     if (Math.random() < 0.5) {
@@ -1213,31 +1373,285 @@
     const choices = makeNumberChoices(answer, 0, 10, 4);
     const [first, second] = shuffledCopy(COUNT_OBJECTS);
     // The stage shows the first number; the correct answer adds objects of another type or removes some.
-    return {
+    return tag({
       question: `What is ${a} ${operator} ${b}?`,
       resultText: `${a} ${operator} ${b} = ${answer}`,
       stage: operator === '+'
         ? { base: first, baseCount: a, op: 'add', change: b, added: second }
         : { base: first, baseCount: a, op: 'remove', change: b },
-      ...choices,
-      simple: true
-    };
+      ...choices
+    }, 'addsub', 'objects', tierOf(Math.max(a, answer)));
+  }
+
+  // Symbols only: addition with a sum of at most 10, subtraction from at most 10.
+  function makeSymbolic10Question() {
+    const add = Math.random() < 0.5;
+    let a, b, answer;
+    if (add) { a = intBetween(1, 9); b = intBetween(1, 10 - a); answer = a + b; }
+    else { a = intBetween(2, 10); b = intBetween(1, a - 1); answer = a - b; }
+    return tag({
+      question: `What is ${a} ${add ? '+' : '−'} ${b}?`,
+      resultText: `${a} ${add ? '+' : '−'} ${b} = ${answer}`,
+      ...makeNumberChoices(answer, 0, 10, 4)
+    }, 'addsub', 'symbols', Math.min(3, tierOf(Math.max(a, answer)) + 1));
+  }
+
+  // Number bonds, partitioning and missing parts, all within 10.
+  function makeBondQuestion() {
+    const kind = weightedChoose([['bond', 34], ['partition', 28], ['missing', 38]]);
+    const total = intBetween(2, 10), a = intBetween(1, total - 1), b = total - a;
+    if (kind === 'bond') {
+      const pair = (x, y) => `${Math.min(x, y)} and ${Math.max(x, y)}`, wrong = [];
+      for (let s = Math.max(2, total - 3); s <= Math.min(10, total + 3); s++) if (s !== total) { const p = intBetween(1, s - 1); wrong.push(pair(p, s - p)); }
+      return tag({ question: `Which two numbers make ${total}?`, ...textChoices(pair(a, b), wrong) }, 'bonds', kind, tierOf(total));
+    }
+    if (kind === 'partition') {
+      return tag({ question: `Split ${total} into ${a} and ?`, resultText: `${total} = ${a} + ${b}`, ...numberChoices(b, 0, 10, [a, total]) }, 'bonds', kind, tierOf(total));
+    }
+    const form = choose(['add2', 'add1', 'sub']);
+    return tag({
+      question: form === 'add2' ? `${a} + ? = ${total}` : form === 'add1' ? `? + ${a} = ${total}` : `${total} − ? = ${a}`,
+      resultText: form === 'add2' ? `${a} + ${b} = ${total}` : form === 'add1' ? `${b} + ${a} = ${total}` : `${total} − ${b} = ${a}`,
+      ...numberChoices(b, 0, 10, [a, total])
+    }, 'bonds', 'missing', Math.min(3, tierOf(total) + 1));
+  }
+
+  // Missing part drawn with objects (the Age 4 picture, e.g. 3 + ? = 7).
+  const makeMissingPartPicture = () => Object.assign(makeMissingNumberQuestion(), { topic: 'bonds', kind: 'missing-picture' });
+
+  function makeAge6MoneyQuestion() {
+    const kind = weightedChoose([['total', 45], ['dollar', 20], ['combos', 35]]);
+    if (kind === 'total') return makeCoinTotalQuestion([5, 10, 20, 50], 100, true);
+    return kind === 'dollar' ? makeCoinValueQuestion(true) : makeCoinCombosQuestion(true);
+  }
+
+  function makeAge6Question() {
+    return weightedChoose([
+      [makeCounting20Question, 12], [makeSubitisingQuestion, 6], [makeAge6OrderQuestion, 12],
+      [makeWithin10Question, 14], [makeSymbolic10Question, 10], [makeBondQuestion, 8], [makeMissingPartPicture, 6],
+      [makeGroupingQuestion, 5], [makeSharingQuestion, 5], [makePatternQuestion, 6], [makeActionSequenceQuestion, 4],
+      [makeAge6MoneyQuestion, 6], [() => makeMeasureQuestion(true), 6], [makeDaysQuestion, 6],
+      [makeShapes2dQuestion, 6], [() => makePositionQuestion(true), 5], [() => makeDataQuestion(true), 5]
+    ])();
+  }
+
+  // ---------- Grade 1: numbers to 120, skip counting, place value (topic 'numbers') ----------
+  const ONES_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const TENS_WORDS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const numberWord = (n) => n >= 100
+    ? (n === 100 ? 'one hundred' : `one hundred and ${numberWord(n - 100)}`)
+    : n < 20 ? ONES_WORDS[n] : TENS_WORDS[Math.floor(n / 10)] + (n % 10 ? `-${ONES_WORDS[n % 10]}` : '');
+  const within120 = (list) => list.filter(v => Number.isInteger(v) && v >= 0 && v <= 120);
+
+  function makeGrade1PlaceValueQuestion() {
+    const kind = weightedChoose([['read', 22], ['count', 20], ['partition', 24], ['digit', 18], ['make', 16]]);
+    let n;
+    do { n = intBetween(11, 99); } while (n % 10 === 0 || (kind === 'digit' && Math.floor(n / 10) === n % 10));
+    const tens = Math.floor(n / 10), ones = n % 10, swap = swapDigits(n);
+    const tier = n < 30 ? 1 : n < 60 ? 2 : 3;
+    if (kind === 'read') {
+      return mark({ question: 'What number is shown?', promptVisual: blocksOf(n), ...choicesFrom(n, [n - 1, n + 1, n - 10, n + 10, swap, tens + ones], [swap, tens + ones]) }, 'placevalue', kind, tier, false);
+    }
+    if (kind === 'count') {
+      const askTens = Math.random() < 0.5;
+      return mark({
+        question: askTens ? 'How many 10s?' : 'How many 1s?', promptVisual: blocksOf(n),
+        ...(askTens ? numberChoices(tens, 0, 9, [ones]) : numberChoices(ones, 0, 9, [tens]))
+      }, 'placevalue', askTens ? 'count10s' : 'count1s', tier, false);
+    }
+    if (kind === 'partition') {
+      const form = choose(['head', 'tail', 'tensHead', 'tensTail']);
+      if (form === 'head') return mark({ question: `${n} = ${tens * 10} + ?`, ...numberChoices(ones, 0, 9, [tens, ones + 1]) }, 'placevalue', kind, tier, false);
+      if (form === 'tail') return mark({ question: `${n} = ? + ${ones}`, ...choicesFrom(tens * 10, [tens * 10 + 10, tens * 10 - 10, tens * 10 + 20, ones, tens], [ones, tens]) }, 'placevalue', kind, tier, false);
+      if (form === 'tensHead') return mark({ question: `${n} = ${tens} tens and ? ones`, ...numberChoices(ones, 0, 9, [tens]) }, 'placevalue', kind, tier, false);
+      return mark({ question: `${n} = ? tens and ${ones} ones`, ...numberChoices(tens, 0, 9, [ones]) }, 'placevalue', kind, tier, false);
+    }
+    if (kind === 'digit') {
+      const askTens = Math.random() < 0.5, digit = askTens ? tens : ones, value = askTens ? tens * 10 : ones;
+      const other = askTens ? ones : tens;
+      return mark({
+        question: `What is the value of the digit ${digit} in ${n}?`,
+        ...choicesFrom(value, [digit, digit * 10, other, other * 10].filter(v => v !== value), [askTens ? digit : digit * 10])
+      }, 'placevalue', kind, 3, false);
+    }
+    return mark({ question: `What number is ${tens} tens and ${ones} ones?`, ...choicesFrom(n, [swap, n + 10, n - 10, n + 1, n - 1, tens + ones], [swap]) }, 'placevalue', kind, tier, false);
+  }
+
+  function makeGrade1NumbersQuestion() {
+    const kind = weightedChoose([['words', 9], ['wordsBack', 6], ['after', 10], ['before', 8], ['missing', 10], ['tenmore', 12], ['skip', 20], ['place', 25]]);
+    if (kind === 'place') return makeGrade1PlaceValueQuestion();
+    if (kind === 'words' || kind === 'wordsBack') {
+      const n = intBetween(11, 120), swap = n < 100 ? swapDigits(n) : n;
+      const confuse = n >= 13 && n <= 19 ? (n - 10) * 10 : n % 10 === 0 && n >= 30 && n <= 90 ? n / 10 + 10 : n + 2;
+      const near = within120([swap, confuse, n + 1, n - 1, n + 10, n - 10]).filter(v => v !== n);
+      const tier = n <= 20 ? 1 : n <= 99 ? 2 : 3;
+      if (kind === 'words') return mark({ question: `Which number is "${numberWord(n)}"?`, ...choicesFrom(n, near, near.slice(0, 2)) }, 'numbers', kind, tier, false);
+      return mark({ question: `Which number word is ${n}?`, ...textChoices(numberWord(n), near.map(numberWord)) }, 'numbers', kind, tier, false);
+    }
+    if (kind === 'after' || kind === 'before') {
+      const n = kind === 'after' ? intBetween(1, 119) : intBetween(2, 120), answer = kind === 'after' ? n + 1 : n - 1;
+      return mark({ question: `What number comes ${kind} ${n}?`, ...numberChoices(answer, 0, 120, within120([n, kind === 'after' ? n + 2 : n - 2])) }, 'numbers', kind, n <= 20 ? 1 : n <= 99 ? 2 : 3, false);
+    }
+    if (kind === 'tenmore') {
+      const more = Math.random() < 0.5, n = more ? intBetween(0, 110) : intBetween(10, 120), answer = more ? n + 10 : n - 10;
+      const near = within120([answer + 1, answer - 1, answer + 10, answer - 10, n + 1, n - 1]).filter(v => v !== answer);
+      return mark({ question: `What is 10 ${more ? 'more' : 'less'} than ${n}?`, ...choicesFrom(answer, near, within120([n + 1, n - 1])) }, 'numbers', more ? 'tenmore' : 'tenless', n <= 50 ? 1 : 2, false);
+    }
+    const skip = kind === 'skip', step = skip ? choose([2, 5, 10]) : 1, forward = Math.random() < 0.6, len = choose([4, 5, 5]);
+    const top = Math.floor(120 / step);
+    const first = skip
+      ? step * (forward ? intBetween(1, top - (len - 1)) : intBetween(len, top))
+      : (forward ? intBetween(1, 121 - len) : intBetween(len, 120));
+    const seq = Array.from({ length: len }, (_, i) => first + (forward ? 1 : -1) * step * i);
+    const hole = intBetween(0, len - 1), answer = seq[hole];
+    const near = within120([answer + step, answer - step, answer + 2 * step, answer - 2 * step, answer + 1, answer - 1]).filter(v => v !== answer);
+    return mark({
+      question: 'What number is missing?',
+      numbers: seq.map((v, i) => i === hole ? '?' : String(v)),
+      ...choicesFrom(answer, near, within120([answer + 1, answer - 1]))
+    }, 'numbers', skip ? 'skip' : 'missing', skip ? (forward ? 2 : 3) : (first <= 20 ? 1 : 2), false);
+  }
+
+  // ---------- Grade 1: addition and subtraction within 20 ----------
+  const tier20 = (n) => n <= 10 ? 1 : n <= 15 ? 2 : 3;
+  const STORY_PEOPLE = [['Sam', 'He', 'he'], ['Mia', 'She', 'she']];
+  const STORY_ITEMS = ['stickers', 'marbles', 'apples', 'cards'];
+
+  function makeGrade1AddQuestion() {
+    const kind = weightedChoose([['plain', 28], ['double', 12], ['near', 12], ['bond', 12], ['missing', 20], ['word', 16]]);
+    let a, b;
+    if (kind === 'double' || kind === 'near') {
+      a = intBetween(1, 9); b = kind === 'double' ? a : a + 1;
+      if (kind === 'near' && Math.random() < 0.5) [a, b] = [b, a];
+      return mark(makeQuestion(a, '+', b, a + b), 'addsub', kind, tier20(a + b), false);
+    }
+    if (kind === 'bond' || kind === 'missing') {
+      const total = kind === 'bond' ? choose([10, 20]) : intBetween(3, 20);
+      a = intBetween(1, total - 1); b = total - a;
+      const second = Math.random() < 0.6;
+      return mark(makeNumericQuestion(second ? `${a} + ? = ${total}` : `? + ${b} = ${total}`, second ? b : a, { extras: [total, second ? a : b] }), 'addsub', kind, Math.min(3, tier20(total) + 1), false);
+    }
+    if (kind === 'word') {
+      const [name, He, he] = choose(STORY_PEOPLE), item = choose(STORY_ITEMS);
+      a = intBetween(2, 15); b = intBetween(1, 20 - a);
+      return mark(makeNumericQuestion(`${name} has ${a} ${item}. ${He} gets ${b} more. How many ${item} does ${he} have now?`, a + b, { extras: [a, b] }), 'addsub', 'word', tier20(a + b), false);
+    }
+    a = intBetween(1, 19); b = intBetween(1, 20 - a);
+    return mark(makeQuestion(a, '+', b, a + b), 'addsub', 'plain', tier20(a + b), false);
+  }
+
+  function makeGrade1SubQuestion() {
+    const kind = weightedChoose([['plain', 28], ['bond', 12], ['double', 10], ['missing', 22], ['word', 16]]);
+    let a, b;
+    if (kind === 'bond') {
+      a = choose([10, 20]); b = intBetween(1, a - 1);
+      return mark(makeQuestion(a, '−', b, a - b), 'addsub', kind, tier20(a), false);
+    }
+    if (kind === 'double') {
+      b = intBetween(2, 10); a = 2 * b;
+      return mark(makeQuestion(a, '−', b, b), 'addsub', kind, tier20(a), false);
+    }
+    if (kind === 'missing') {
+      a = intBetween(3, 20); b = intBetween(1, a - 1);
+      const second = Math.random() < 0.6;
+      return mark(makeNumericQuestion(second ? `${a} − ? = ${a - b}` : `? − ${b} = ${a - b}`, second ? b : a, { extras: [a - b, second ? a : b] }), 'addsub', kind, Math.min(3, tier20(a) + 1), false);
+    }
+    if (kind === 'word') {
+      const [name, He, he] = choose(STORY_PEOPLE), item = choose(STORY_ITEMS);
+      a = intBetween(4, 20); b = intBetween(1, a - 1);
+      return mark(makeNumericQuestion(`${name} has ${a} ${item}. ${He} gives ${b} away. How many ${item} does ${he} have left?`, a - b, { extras: [a, b] }), 'addsub', 'word', tier20(a), false);
+    }
+    a = intBetween(2, 20); b = intBetween(1, a - 1);
+    return mark(makeQuestion(a, '−', b, a - b), 'addsub', 'plain', tier20(a), false);
+  }
+
+  // Equal sharing, simple grouping and repeated addition (no × or ÷ symbols).
+  function makeGrade1GroupingQuestion() {
+    const kind = weightedChoose([['share', 36], ['group', 30], ['repeat', 34]]), item = choose(STORY_ITEMS);
+    if (kind === 'repeat') {
+      const size = intBetween(2, 4), count = intBetween(3, 5), emoji = choose(COUNT_OBJECTS).emoji, picture = {
+        groups: Array.from({ length: count }, () => ({ emoji, rows: [...GROUP_ROWS[size]], framed: true })),
+        label: `${count} groups of ${size}`, key: key('repeat', size, count)
+      };
+      return mark({ ...makeNumericQuestion(`What is ${Array(count).fill(size).join(' + ')}?`, size * count, { extras: [size + count, size * (count - 1)] }), picture }, 'grouping', kind, 3, false);
+    }
+    const size = intBetween(2, 5);
+    let count = intBetween(2, 5);
+    while (size * count > 20) count -= 1;
+    const total = size * count;
+    if (kind === 'share') {
+      const kids = choose([2, 3, 4, 5].filter(k => total % k === 0));
+      return mark(makeNumericQuestion(`${total} ${item} are shared equally between ${kids} children. How many does each child get?`, total / kids, { extras: [kids, total] }), 'grouping', kind, total <= 10 ? 1 : 2, false);
+    }
+    return mark(makeNumericQuestion(`There are ${total} ${item}. They go in groups of ${size}. How many groups?`, count, { extras: [size, total] }), 'grouping', kind, total <= 10 ? 1 : 2, false);
+  }
+
+  function makeGrade1ArithmeticQuestion(topic) {
+    if (topic === 'mixed' && Math.random() < 0.15) return makeGrade1GroupingQuestion();
+    const add = topic === 'add' || (topic !== 'sub' && Math.random() < 0.5);
+    return add ? makeGrade1AddQuestion() : makeGrade1SubQuestion();
+  }
+
+  // ---------- Grade 1: halves only ----------
+  function makeGrade1FractionsQuestion() {
+    const kind = weightedChoose([['half', 46], ['whole', 10], ['name', 14], ['equal', 30]]);
+    if (kind === 'half') {
+      const n = intBetween(1, 10) * 2;
+      return mark(makeNumericQuestion(`What is half of ${n}?`, n / 2, { extras: [n, n * 2] }), 'fractions', kind, n <= 10 ? 1 : 2, false);
+    }
+    if (kind === 'whole') return mark({ question: 'How many halves make one whole?', ...numberChoices(2, 1, 5, [1, 4]) }, 'fractions', kind, 1, false);
+    if (kind === 'name') return mark({ question: 'Cutting something into 2 equal parts makes two ...', ...textChoices('halves', ['wholes', 'doubles', 'pairs'], 3) }, 'fractions', kind, 1, false);
+    const same = Math.random() < 0.5, thing = choose(['ribbon', 'pizza', 'sandwich', 'cake']);
+    return mark({
+      question: `A ${thing} is cut into 2 pieces. ${same ? 'The pieces are the same size.' : 'One piece is bigger than the other.'} Are they halves?`,
+      ...textChoices(same ? 'Yes' : 'No', ['Yes', 'No'], 2)
+    }, 'fractions', kind, 2, false);
+  }
+
+  function makeGrade1MoneyQuestion() {
+    const kind = weightedChoose([['total', 70], ['dollar', 15], ['combos', 15]]);
+    if (kind === 'total') return makeCoinTotalQuestion(AU_COINS, 300, false);
+    return kind === 'dollar' ? makeCoinValueQuestion(false) : makeCoinCombosQuestion(false);
+  }
+
+  function makeGrade1ShapesQuestion() {
+    const kind = weightedChoose([['polygon', 40], ['position', 16], ['measure', 16], ['tool', 8], ['data', 20]]);
+    if (kind === 'position') return makePositionQuestion(false);
+    if (kind === 'measure') return makeMeasureQuestion(false);
+    if (kind === 'tool') return makeMeasureToolQuestion();
+    if (kind === 'data') return makeDataQuestion(false);
+    const n = intBetween(3, 6), word = choose(['sides', 'corners']);
+    const q = makeNumericQuestion(`How many ${word} does this shape have?`, n, { count: 4 });
+    q.figure = { type: 'polygon', sides: n };
+    return mark(q, 'shapes', word, n <= 4 ? 1 : 2, false);
+  }
+
+  // ---------- Grades 5-6: compare ONE decimal with ONE fraction (the only number comparison above Age 6) ----------
+  function makeDecimalFractionCompare(grade) {
+    const dens = grade === 5 ? [2, 3, 4, 5, 8, 10] : [2, 3, 4, 5, 6, 8, 10, 20, 25];
+    const offsets = grade === 5 ? [5, 10, 15, 20] : [1, 2, 5, 10];   // hundredths away from the fraction's value
+    for (let tries = 0; tries < 500; tries++) {
+      const want = choose([-1, 0, 1]), d = choose(dens), n = intBetween(1, d - 1);
+      let h = Math.round(100 * n / d);
+      if (want === 0 && (100 * n) % d !== 0) continue;   // equal only when the fraction is an exact 1-2 place decimal
+      if (want !== 0) h += want * choose(offsets);
+      if (h < 1 || h > 99 || sign(h * d - 100 * n) !== want) continue;
+      const decimal = String(h / 100), fraction = `${n}/${d}`, flip = Math.random() < 0.3;
+      return makeCompareQuestion(flip ? `Compare: ${fraction} ? ${decimal}` : `Compare: ${decimal} ? ${fraction}`, flip ? -want : want);
+    }
+    return makeCompareQuestion('Compare: 0.5 ? 1/2', 0);
   }
 
   // ---------- Grade 1-6 arithmetic ----------
   function arithmeticQuestion(grade, topic) {
-    const all = grade === 1 ? ['+', '−'] : ['+', '−', '×', '÷'];
+    if (grade === 1) return makeGrade1ArithmeticQuestion(topic);   // within 20, no × ÷
+    const all = ['+', '−', '×', '÷'];
     const ops = topic === 'add' ? ['+'] : topic === 'sub' ? ['−'] : topic === 'mul' ? ['×'] : topic === 'div' ? ['÷'] : all;
     const operator = choose(ops);
     let a, b, answer;
 
     // Number ranges and multiplication/division complexity increase by level.
-    if (grade === 1) {
-      a = intBetween(0, 20);
-      b = intBetween(0, 20);
-      if (operator === '−' && b > a) [a, b] = [b, a];
-      answer = operator === '+' ? a + b : a - b;
-    } else if (grade === 2) {
+    if (grade === 2) {
       if (operator === '+') { a = intBetween(10, 99); b = intBetween(1, 99); answer = a + b; }
       if (operator === '−') { a = intBetween(10, 150); b = intBetween(1, a); answer = a - b; }
       if (operator === '×') { a = intBetween(2, 10); b = choose([2, 5, 10]); answer = a * b; }
@@ -1268,28 +1682,31 @@
 
   // "Mixed All Questions" draws each question from one of these categories (only those the grade offers).
   // 'mixed' covers + − × ÷ (÷ and × from Grade 2); add/sub/mul/div are not listed so arithmetic is not over-weighted.
-  const ALL_MIX_TOPICS = ['mixed', 'tables', 'compare', 'fractions', 'money', 'clock', 'shapes'];
+  const ALL_MIX_TOPICS = ['mixed', 'numbers', 'tables', 'fractions', 'money', 'clock', 'shapes'];
 
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeToddlerQuestion();
     if (difficulty === 'age4') return makeAge4Question();
     if (difficulty === 'age5') return makeAge5Question();
-    if (difficulty === 'age6') return makeWithin10Question();
+    if (difficulty === 'age6') return makeAge6Question();
     const grade = gradeOf(difficulty);
     let name = normaliseTopic(difficulty, topic);
     if (name === 'all') {
       const offered = topicsFor(difficulty).map(t => t.value);
       name = choose(ALL_MIX_TOPICS.filter(t => offered.includes(t)));
     }
+    let q;
     switch (name) {
-      case 'tables': return makeTablesQuestion(grade);
-      case 'compare': return makeCompareNumbersQuestion(grade);
-      case 'fractions': return makeFractionsQuestion(grade);
-      case 'money': return makeMoneyQuestion(grade);
-      case 'clock': return makeClockQuestion(grade);
-      case 'shapes': return makeShapesQuestion(grade);
-      default: return arithmeticQuestion(grade, name);
+      case 'numbers': q = makeGrade1NumbersQuestion(); break;
+      case 'tables': q = makeTablesQuestion(grade); break;
+      case 'fractions': q = makeFractionsQuestion(grade); break;
+      case 'money': q = makeMoneyQuestion(grade); break;
+      case 'clock': q = makeClockQuestion(grade); break;
+      case 'shapes': q = makeShapesQuestion(grade); break;
+      default: q = arithmeticQuestion(grade, name);
     }
+    if (grade === 1 && !q.tier) q.tier = 2;   // Grade 1 is one pool: easier tiers are dealt first (see createQuestionDeck)
+    return q;
   }
 
   // Numeric answers are listed from smallest to largest. Fractions and times are sorted by their

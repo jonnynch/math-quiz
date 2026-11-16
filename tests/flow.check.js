@@ -13,12 +13,11 @@ const click=b=>b.click();
 const change=(sel,val)=>{sel.value=val;sel.dispatchEvent(new w.Event('change',{bubbles:true}));};
 const ok=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg); if(!cond) process.exitCode=1;};
 const btns=(i=0)=>[...d.querySelectorAll('.question-board')[i].querySelectorAll('.answer-button')];
-const solve=(i=0)=>{ // answers tables / compare questions
+const solve=(i=0)=>{ // answers tables questions
   const t=d.querySelectorAll('.question-board')[i].querySelector('.question-text').textContent;
   let m;
   if(m=t.match(/^What is (\d+) (×|÷) (\d+)\?$/)) return String(m[2]==='×'?+m[1]*+m[3]:+m[1]/+m[3]);
   if(m=t.match(/^(\d+) × \? = (\d+)$/)) return String(+m[2]/+m[1]);
-  if(m=t.match(/^Compare: (\d+) \? (\d+)$/)) return +m[1]<+m[2]?'<':+m[1]===+m[2]?'=':'>';
   throw new Error('cannot solve '+t);
 };
 const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.textContent.replace(/^[A-E]\. /,'');return txt===a||txt.startsWith(a+' ');});};
@@ -34,9 +33,9 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(!$('topicRow1').classList.contains('hidden'),'topic row visible for default Grade 3');
   ok(topicIds('topic1')[0]==='all'&&$('topic1').options[0].textContent==='Mixed All Questions','Mixed All Questions is the first topic option');
   ok($('topic1').value==='all'&&$('topic2').value==='all','Mixed All Questions is selected by default for both players');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 12 topics (incl. Mixed All Questions)');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,fractions,money,clock,shapes','Grade 3 has 11 topics (incl. Mixed All Questions, no Comparing numbers)');
   change($('difficulty1'),'grade1');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,numbers,fractions,money,clock,shapes','Grade 1 excludes multiplication, division, times tables and comparing');
   change($('difficulty1'),'grade5');
   ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
   change($('difficulty1'),'grade3'); change($('topic1'),'tables'); change($('difficulty1'),'grade5');
@@ -102,6 +101,13 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('profile1'),mia().id);
   ok($('difficulty1').value==='grade2'&&$('topic1').value==='tables','choosing the profile restores Grade 2 · Times tables');
 
+  // ---- an old saved Comparing-numbers selection (Grade 1-4) loads safely and falls back to Mixed All Questions
+  w.MQStore.getProfile(mia().id).lastSetup={difficulty:'grade3',topic:'compare'};
+  change($('profile1'),''); change($('profile1'),mia().id);
+  ok($('difficulty1').value==='grade3'&&$('topic1').value==='all'&&!topicIds('topic1').includes('compare'),'a saved Grade 3 · Comparing numbers selection is replaced by Mixed All Questions');
+  ok(w.MQQuestions.normaliseTopic('grade2','compare')==='all'&&w.MQQuestions.topicLabel('compare')==='Comparing numbers','old compare selection normalises; old history still has a label');
+  w.MQStore.getProfile(mia().id).lastSetup={difficulty:'grade2',topic:'tables'};
+
   // ---- versus: duplicates blocked, timed game, personal best
   click(d.querySelector('[data-mode=versus]'));
   const leoId=store().profiles[1].id;
@@ -111,7 +117,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('profile2'),leoId);
   ok([...$('profile1').options].find(o=>o.value===leoId).disabled===true,'Player 1 cannot pick the profile Player 2 chose');
   ok([...$('profile2').options].find(o=>o.value===mia().id).disabled===true,'Player 2 cannot pick the profile Player 1 chose');
-  change($('difficulty2'),'grade3'); change($('topic2'),'compare'); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty2'),'grade3'); change($('topic2'),'tables'); change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   w.MQTrophies.TARGETS.grade3={bronze:1,silver:1,gold:2}; // tiny targets so unlocking can be seen in this test
   click(d.querySelector('[data-length=timed]')); $('duration').innerHTML='<option value="1" selected>1</option>';
   click($('startButton')); await sleep(80);
@@ -120,7 +126,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(d.querySelector('.score-card.orange')&&true,'scoreboard rendered');
   await sleep(1300);
   ok(!$('resultPanel').classList.contains('hidden')&&$('resultEyebrow').textContent.includes('TIME'),'timed versus game ended');
-  ok(mia().bests['grade3|compare|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
+  ok(mia().bests['grade3|tables|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
   ok(store().profiles[1].history.length===0&&store().profiles[1].totals.games===0,'player 2 (never tapped) not recorded');
   ok(mia().trophies.grade3.completed===1&&mia().trophies.grade3.correct===1&&mia().trophies.grade3.unlocked.slice().sort().join()==='bronze,silver','1 vs 1: the winner is credited and unlocks bronze + silver');
   ok(!store().profiles[1].trophies.grade3,'1 vs 1: the player who never answered gets no trophy progress');
@@ -210,7 +216,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- guest streak stickers are not saved
   change($('profile1'),''); change($('profile2'),'');
   click(d.querySelector('[data-mode=solo]')); click(d.querySelector('[data-length=endless]'));
-  change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   const gamesBefore=store().profiles[0].totals.games, countBefore=store().profiles.length;
   click($('startButton')); await sleep(80);
   for(let i=0;i<3;i++){ tap(answerBtn()); await sleep(900); }
@@ -238,7 +244,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   click($('profilesButton')); $('profileName').value='Earner'; click($('addProfileButton')); click($('profilesClose'));
   const earnerId=store().profiles.find(p=>p.name==='Earner').id;
   const bankOf=()=>w.MQStore.getProfile(earnerId).rewards;
-  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   click($('startButton')); await sleep(80);
   tap(wrongBtn()); tap(answerBtn()); await sleep(900); tap(answerBtn()); // wrong then retry, then a right answer
   click($('stopButton'));
