@@ -700,6 +700,11 @@
       box.style.setProperty('--tc', String(tc));                          // columns needed in one row
       box.style.setProperty('--wc', String(Math.min(tc, Math.max(maxCols + framed, 6))));   // columns per row when the groups wrap
     }
+    const rowCount = Math.max(...picture.groups.map(g => g.rows.length));
+    if (rowCount >= 5) {   // tall arrays (e.g. 9 rows of 2): CSS sizes them by row count so they fit short landscape screens
+      box.classList.add('tall');
+      box.style.setProperty('--rows', String(rowCount));
+    }
     if (!picture.immediate && picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);   // `immediate`: crossed-out objects are visible from the start
     return box;
   }

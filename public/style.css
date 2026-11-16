@@ -744,3 +744,14 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
 .pz-sky[data-env="night"] .pz-hazard.spiky { background: #e2e8f0; color: #0f172a; }
 @keyframes pz-drift { from { background-position: 0 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .pz-sky[data-env="cloudy"]::before { animation: none; } .pz-sky { transition: none; } }
+
+/* Tall arrays (5+ rows, times tables) on a phone held sideways: size the objects by row count so the board, answers and
+   feedback fit the height. Only ever shrinks the object size chosen above; other screens are unchanged. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.playing .question-boards.solo .counting-visual.picture.tall {
+    font-size: min(2.4rem, 9vh, calc((var(--app-h) - 137px - 40px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 24px) / (var(--tc, 5) * 1.3 + 1.5)));
+  }
+  body.playing .question-boards.versus .counting-visual.picture.tall {
+    font-size: min(1.8rem, 5vh, calc((var(--app-h) - 137px - 40px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1)));
+  }
+}
