@@ -189,6 +189,17 @@
     });
     box.append(book);
 
+    // Playzone personal bests: the same saved records the games use (profile.playzone), shown for this profile only.
+    box.append(element('p', 'detail-title', 'Playzone records'));
+    const pz = profile.playzone || {};
+    const records = element('ul', 'detail-list pz-records');
+    const reaction = element('li', '', pz.reactionBest ? `⚡ Reaction Battle · best reaction time: ${pz.reactionBest} ms (lower is better)` : '⚡ Reaction Battle · best reaction time: Not played yet');
+    reaction.dataset.record = 'reaction';
+    const balloon = element('li', '', pz.balloonBest ? `🎈 Balloon Pop · personal best score: ${pz.balloonBest}` : '🎈 Balloon Pop · personal best score: Not played yet');
+    balloon.dataset.record = 'balloon';
+    records.append(reaction, balloon);
+    box.append(records);
+
     const bests = Object.entries(profile.bests).sort((a, b) => b[1] - a[1]).slice(0, 5);
     if (bests.length) {
       box.append(element('p', 'detail-title', 'Best timed scores'));
@@ -255,6 +266,25 @@
   }
 
   // ---------- achievements window ----------
+  function trophyCard(t) {
+    const card = element('div', `trophy-card ${t.unlocked ? 'unlocked' : 'locked'}`);
+    const icon = element('span', 'trophy-icon', t.tier.icon);
+    icon.setAttribute('aria-hidden', 'true');
+    const bar = element('div', 'trophy-bar');
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', String(t.target));
+    bar.setAttribute('aria-valuenow', String(t.value));
+    bar.setAttribute('aria-label', t.tier.name);
+    const fill = element('span');
+    fill.style.width = `${Math.round((t.value / t.target) * 100)}%`;
+    bar.append(fill);
+    card.append(icon, element('strong', 'trophy-name', t.tier.name), element('span', 'trophy-desc', t.description), bar,
+      element('span', 'trophy-progress', `${t.value} / ${t.target}`),
+      element('span', 'trophy-state', t.unlocked ? '✓ Unlocked' : '🔒 Locked'));
+    return card;
+  }
+
   function renderAchievements() {
     const list = $('achievementsList');
     list.innerHTML = '';
@@ -266,7 +296,7 @@
       return;
     }
     const profile = Store.getProfile($('achievementsProfile').value) || profiles[0];
-    const total = Trophies.LEVELS.length * Trophies.TIERS.length;
+    const total = Trophies.LEVELS.length * Trophies.TIERS.length + Trophies.BALLOON_TROPHIES.length;
     $('achievementsSummary').textContent = `🏆 ${Trophies.unlockedCount(profile)} / ${total} trophies collected`;
     Trophies.LEVELS.forEach(level => {
       const trophies = Trophies.progressFor(profile, level);
@@ -275,27 +305,19 @@
       head.append(element('h3', '', Q.difficultyLabel(level)),
         element('span', 'trophy-level-count', `${trophies.filter(t => t.unlocked).length} / ${trophies.length}`));
       const grid = element('div', 'trophy-grid');
-      trophies.forEach(t => {
-        const card = element('div', `trophy-card ${t.unlocked ? 'unlocked' : 'locked'}`);
-        const icon = element('span', 'trophy-icon', t.tier.icon);
-        icon.setAttribute('aria-hidden', 'true');
-        const bar = element('div', 'trophy-bar');
-        bar.setAttribute('role', 'progressbar');
-        bar.setAttribute('aria-valuemin', '0');
-        bar.setAttribute('aria-valuemax', String(t.target));
-        bar.setAttribute('aria-valuenow', String(t.value));
-        bar.setAttribute('aria-label', t.tier.name);
-        const fill = element('span');
-        fill.style.width = `${Math.round((t.value / t.target) * 100)}%`;
-        bar.append(fill);
-        card.append(icon, element('strong', 'trophy-name', t.tier.name), element('span', 'trophy-desc', t.description), bar,
-          element('span', 'trophy-progress', `${t.value} / ${t.target}`),
-          element('span', 'trophy-state', t.unlocked ? '✓ Unlocked' : '🔒 Locked'));
-        grid.append(card);
-      });
+      trophies.forEach(t => grid.append(trophyCard(t)));
       section.append(head, grid);
       list.append(section);
     });
+    // Balloon Pop trophies (same page, same cards; kept per profile, so each player has their own)
+    const balloon = Trophies.balloonProgress(profile);
+    const bs = element('section', 'trophy-level trophy-balloon');
+    const bh = element('div', 'trophy-level-head');
+    bh.append(element('h3', '', '🎈 Balloon Pop'), element('span', 'trophy-level-count', `${balloon.filter(t => t.unlocked).length} / ${balloon.length}`));
+    const bg = element('div', 'trophy-grid');
+    balloon.forEach(t => bg.append(trophyCard(t)));
+    bs.append(bh, bg);
+    list.append(bs);
   }
 
   // Opens on Player 1's profile when one is chosen, otherwise the first profile.
@@ -547,6 +569,7 @@
   function closeBank() {
     stopCooldownTimer();
     Parent.lock();
+    if (api.adjustReset) api.adjustReset();   // the by-hand adjustment (bank-adjust.js) locks again too
   }
 
   // Called when a parent-only action is refused because the bank is locked.
@@ -561,6 +584,7 @@
   // (new question) after a wrong answer and when a cooldown ends, and calls opts.onUnlocked() on success.
   // Returns a function that stops its cooldown timer.
   function renderParentChallenge(host, opts) {
+    const Parent = opts.parent || root.MQParent;   // default: the normal parent check
     let timer = null;
     let notice = '';
     const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
@@ -600,7 +624,7 @@
       const submit = () => {
         const result = Parent.submit(input.value);
         if (result.ok) { stop(); opts.onUnlocked(); return; }
-        if (result.reason === 'invalid') { show('Please type a number or a fraction such as 1/2.'); return; }
+        if (result.reason === 'invalid') { show(opts.invalidText || 'Please type a number or a fraction such as 1/2.'); return; }
         if (opts.onWrong) opts.onWrong();
         notice = result.reason === 'cooldown'
           ? ''
@@ -654,7 +678,7 @@
     input.type = 'number';
     input.id = 'redeemMinutes';
     input.min = '1';
-    input.max = String(balance);
+    input.max = String(Math.max(0, balance));
     input.step = '1';
     input.setAttribute('inputmode', 'numeric');
     input.setAttribute('aria-label', 'Minutes to redeem');
@@ -790,12 +814,14 @@
     renderBank();
     renderBankSettings();
     syncParentControls();
+    if (api.adjustReset) api.adjustReset();   // now that the profile is known, show the closed parent-adjust entry
   }
 
   function initBank() {
     $('bankProfile').addEventListener('change', () => {
       bankId = $('bankProfile').value || null;
       bankNotice('', '');
+      if (api.adjustReset) api.adjustReset();   // a different profile: the adjustment must be unlocked again
       renderBank();
     });
   }
@@ -996,4 +1022,7 @@
 
   root.MQMenus = api;
   api.init = init;
+  api.renderParentChallenge = renderParentChallenge;   // bank-adjust.js reuses the same parent question
+  api.bankProfile = () => Store.getProfile(bankId);    // the profile shown in the Screen-time window
+  api.refreshBank = () => renderBank();
 })(window);

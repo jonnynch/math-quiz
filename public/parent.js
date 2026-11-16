@@ -35,6 +35,55 @@
     };
   }
 
+  const gcd = (a, b) => (b ? gcd(b, a % b) : Math.abs(a));
+
+  // A much harder question for adjusting the Screen-time Bank by hand: a quadratic with two different rational roots,
+  // built from the roots so the answer is exact. answer is { roots: [{ num, den }, { num, den }] }.
+  function generateHardChallenge(rng) {
+    rng = rng || Math.random;
+    const root = () => {
+      let n = randInt(rng, 1, 6) * (randInt(rng, 0, 1) ? 1 : -1);
+      const d = [1, 1, 1, 2, 3][randInt(rng, 0, 4)];
+      const g = gcd(n, d);
+      return { num: n / g, den: d / g };
+    };
+    let r1 = root();
+    let r2 = root();
+    while (sameValue(r1, r2)) r2 = root();
+    let A = r1.den * r2.den;
+    let B = -(r1.num * r2.den + r2.num * r1.den);
+    let C = r1.num * r2.num;
+    const g = gcd(gcd(A, B), C);
+    A /= g; B /= g; C /= g;
+    const term = (n, v) => `${n < 0 ? '-' : '+'} ${Math.abs(n) === 1 && v ? '' : Math.abs(n)}${v}`;
+    let eq = `${A === 1 ? '' : A}x²`;
+    if (B) eq += ` ${term(B, 'x')}`;
+    if (C) eq += ` ${term(C, '')}`;
+    const verb = ['Solve', 'Find the roots of'][randInt(rng, 0, 1)];
+    return {
+      kind: 'roots',
+      text: `${verb} ${eq} = 0. Type both answers separated by a comma, for example 2, -1/2.`,
+      answer: { roots: [r1, r2] }
+    };
+  }
+
+  // Signed version of parseAnswer: "-3", "-1/2", "−0.5".
+  function parseSigned(input) {
+    const t = String(input === undefined || input === null ? '' : input).replace(/\s/g, '').replace('−', '-');
+    const neg = t.startsWith('-');
+    const v = parseAnswer(neg ? t.slice(1) : t);
+    return v ? { num: neg ? -v.num : v.num, den: v.den } : null;
+  }
+
+  // Two values separated by a comma/semicolon (a leading "x =" is allowed). null unless exactly two valid numbers.
+  function parseRoots(input) {
+    const parts = String(input === undefined || input === null ? '' : input).replace(/x\s*=/gi, '').split(/[,;]|\band\b|\bor\b/i);
+    if (parts.length !== 2) return null;
+    const a = parseSigned(parts[0]);
+    const b = parseSigned(parts[1]);
+    return a && b ? [a, b] : null;
+  }
+
   // Reads a typed answer as a fraction: "3/4", "0.75", ".75", "75%" or a whole number. null when it is none of these.
   function parseAnswer(input) {
     const t = String(input === undefined || input === null ? '' : input).replace(/\s/g, '');
@@ -56,6 +105,8 @@
   function create(options) {
     const opts = options || {};
     const rng = opts.rng || Math.random;
+    const generate = opts.generate || generateChallenge;
+    const lockKey = opts.lockKey || LOCK_KEY;
     const now = opts.now || Date.now;
     const storage = opts.storage !== undefined ? opts.storage : defaultStorage();
     let unlocked = false;
@@ -64,7 +115,7 @@
     let until = 0; // time (ms) when the cooldown ends
 
     try {
-      const saved = storage && JSON.parse(storage.getItem(LOCK_KEY) || 'null');
+      const saved = storage && JSON.parse(storage.getItem(lockKey) || 'null');
       if (saved && typeof saved === 'object') {
         fails = Number.isInteger(saved.fails) ? Math.min(Math.max(saved.fails, 0), MAX_FAILS) : 0;
         until = Number.isFinite(saved.until) ? Math.min(saved.until, now() + COOLDOWN_SECONDS * 1000) : 0;
@@ -72,7 +123,7 @@
     } catch (error) { /* no usable storage: the counter then lasts for this page load only */ }
 
     function persist() {
-      try { if (storage) storage.setItem(LOCK_KEY, JSON.stringify({ fails, until })); } catch (error) { /* ignore */ }
+      try { if (storage) storage.setItem(lockKey, JSON.stringify({ fails, until })); } catch (error) { /* ignore */ }
     }
 
     // When a cooldown has run out the player gets a fresh set of tries.
@@ -87,8 +138,8 @@
 
     function nextChallenge() {
       const previous = challenge && challenge.text;
-      let next = generateChallenge(rng);
-      for (let i = 0; i < 10 && next.text === previous; i++) next = generateChallenge(rng);
+      let next = generate(rng);
+      for (let i = 0; i < 10 && next.text === previous; i++) next = generate(rng);
       challenge = next;
     }
 
@@ -107,10 +158,14 @@
         if (unlocked) return { ok: true };
         const remaining = cooldownRemaining();
         if (remaining > 0) return { ok: false, reason: 'cooldown', remaining, attemptsLeft: 0 };
-        const typed = parseAnswer(input);
-        if (!typed) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
         if (!challenge) nextChallenge();
-        if (sameValue(typed, challenge.answer)) {
+        const roots = challenge.kind === 'roots';
+        const typed = roots ? parseRoots(input) : parseAnswer(input);
+        if (!typed) return { ok: false, reason: 'invalid', remaining: 0, attemptsLeft: Math.max(0, MAX_FAILS - fails) };
+        const correct = roots
+          ? challenge.answer.roots.every(r => typed.some(t => sameValue(t, r)))   // both roots, in either order
+          : sameValue(typed, challenge.answer);
+        if (correct) {
           unlocked = true; fails = 0; until = 0; challenge = null;
           persist();
           return { ok: true };
@@ -130,6 +185,10 @@
   const api = create();
   api.create = create;
   api.generateChallenge = generateChallenge;
+  api.generateHardChallenge = generateHardChallenge;
+  api.parseRoots = parseRoots;
+  // Separate in-memory verification used only for manual Screen-time Bank adjustments (never unlocked by the easy one).
+  api.hard = create({ generate: generateHardChallenge, lockKey: 'mathQuizBattle.parentLock.hard' });
   api.parseAnswer = parseAnswer;
   api.sameValue = sameValue;
   root.MQParent = api;
