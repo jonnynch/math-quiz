@@ -1365,7 +1365,7 @@
       [makeAge6CountingQuestion, 12], [makeSubitisingQuestion, 6], [makeAge6OrderQuestion, 12],
       [makeWithin10Question, 8], [makeSubtractionPicture6, 12], [makeSymbolic10Question, 12], [makeBondQuestion, 12],
       [makePatternQuestion, 6], [makeAge6MoneyQuestion, 7],
-      [makeShapes2dQuestion, 6], [() => makePositionQuestion(true, true, false), 6], [() => makeDataQuestion(true), 5]
+      [makeShapes2dQuestion, 6], [() => makeDataQuestion(true), 5]
     ])();
   }
 

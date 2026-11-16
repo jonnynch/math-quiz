@@ -117,7 +117,7 @@ for (let i = 0; i < N; i++) {
   age6Seen[q.topic] = (age6Seen[q.topic] || 0) + 1;
   noBanned('age6', q);
   if (!q.simple || !q.topic || !q.kind || ![1, 2, 3].includes(q.tier)) fail('age6: missing simple/topic/kind/tier', q);
-  if (['grouping', 'sharing', 'measurement'].includes(q.topic) || /^Counting from the left|^What number comes (after|before) /.test(q.question)) fail('age6: excluded question type', q);
+  if (['grouping', 'sharing', 'measurement', 'position'].includes(q.topic) || /^Counting from the left|^What number comes (after|before) |^Which way does the arrow point\?/.test(q.question)) fail('age6: excluded question type', q);
   if (/[×÷]/.test(q.question) || q.groups) fail('age6: no multiplication, division or compare-groups', q);
   if (q.topic === 'compare' || /^Compare|[<>]|^Which group has (more|fewer)/.test(q.question)) fail('age6: number comparison appeared', q);
   const n = Number(ans(q));
@@ -157,12 +157,11 @@ for (let i = 0; i < N; i++) {
     case 'patterns': if (!q.pattern || q.pattern[q.pattern.length - 1] !== null) fail('age6 pattern', q); break;
     case 'shapes': if (!q.figure && !q.answerVisuals) fail('age6 shapes', q); break;
     case 'money': checkMoney('age6', q, 100, [5, 10, 20, 50]); break;
-    case 'position': if (!/^Which way does the arrow point\? /.test(q.question)) fail('age6: only direction questions remain in position', q); else checkPosition('age6', q); break;
     case 'data': checkData('age6', q, 10, true); break;
     default: fail('age6: unknown topic ' + q.topic, q);
   }
 }
-['counting', 'subitising', 'sequences', 'addsub', 'bonds', 'patterns', 'money', 'shapes', 'position', 'data']
+['counting', 'subitising', 'sequences', 'addsub', 'bonds', 'patterns', 'money', 'shapes', 'data']
   .forEach(t => { if ((age6Seen[t] || 0) < 40) fail('age6: topic too rare or missing: ' + t, age6Seen); });
 // One unified pool: no stage or sub-level fields, difficulty only through tier.
 for (let i = 0; i < 300; i++) { const q = Q.generateQuestion('age6'); if (q.stageLevel || q.level || q.subLevel) fail('age6: stages/sub-levels are not allowed', q); }
