@@ -1,6 +1,6 @@
 // Shared layout rule: whenever a question has an illustration (objects, picture, figure, pattern, blocks, coins ...) it is
 // drawn ABOVE the question sentence; questions without one have no empty illustration container. Checked on the real
-// rendering code (jsdom) for several levels, plus the Age 6 subtraction picture (crossed out at once) and Grade 1 coins.
+// rendering code (jsdom) for several levels, plus Age 6 progressive illustrations and Grade 1 coins.
 const { JSDOM } = require('jsdom'); const fs = require('fs'); const path = require('path');
 const dir = path.join(__dirname, '..', 'public') + '/';
 const html = fs.readFileSync(dir + 'index.html', 'utf8').replace(/<script src="[^"]+"><\/script>/g, '');
@@ -58,12 +58,29 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     ok(r.pictures.length === 0 && !r.info.querySelector(ILLUSTRATION), `${level}: a question without an illustration has no illustration container`);
   }
 
-  // Age 6 subtraction: every starting object is drawn and the objects taken away are crossed out immediately.
+  // Age 6 addition: show the first addend, then reveal the added objects after the shared aid delay.
+  {
+    const q = find('age6', x => x.kind === 'objects'), m = q.question.match(/^What is (\d+) \+ (\d+)\?$/), a = Number(m[1]), b = Number(m[2]);
+    const r = await render(q, 'age6'), slots = [...r.d.querySelectorAll('.object-stage .slot')];
+    const visible = () => slots.filter(slot => slot.textContent && !slot.classList.contains('added')).length;
+    ok(slots.length === 10 && visible() === a && r.d.querySelector('.object-stage.aids-pending'), 'Age 6 addition: initially only the first addend is visible in the fixed ten slots');
+    const css = fs.readFileSync(dir + 'style.css', 'utf8');
+    ok(css.includes('.object-stage.aids-pending .slot.added { visibility: hidden; }'), 'Age 6 addition: added objects stay invisible during the delay');
+    ok(!r.board.textContent.includes(q.resultText), 'Age 6 addition: the answer equation is not shown before answering');
+    await sleep(1300);
+    ok(slots.filter(slot => slot.textContent).length === a + b && r.d.querySelector('.object-stage.aids-flash'), 'Age 6 addition: the second addend appears after the shared delay');
+    r.board.querySelectorAll('.answer-button')[q.correct].dispatchEvent(new r.w.Event('pointerdown', { bubbles: true, cancelable: true }));
+    ok(r.board.querySelector('.question-text').textContent === q.resultText, 'Age 6 addition: the equation result appears only after the answer');
+  }
+
+  // Age 6 subtraction: every starting object appears before the shared delay; then taken-away objects are crossed out.
   {
     const q = find('age6', x => x.kind === 'objects-sub'), m = q.question.match(/^What is (\d+) − (\d+)\?$/), a = Number(m[1]), b = Number(m[2]);
     const r = await render(q, 'age6');
     ok(r.d.querySelectorAll('.counting-visual.picture .obj').length === a, 'Age 6 subtraction: all ' + a + ' starting objects are shown');
-    ok(r.d.querySelectorAll('.counting-visual.picture .cell.removed').length === b && !r.d.querySelector('.aids-pending'), 'Age 6 subtraction: the ' + b + ' objects taken away are crossed out at once, before any answer');
+    ok(r.d.querySelectorAll('.counting-visual.picture .cell.removed').length === b && r.d.querySelector('.picture.aids-pending'), 'Age 6 subtraction: all starting objects appear with cross-outs hidden at first');
+    await sleep(1300);
+    ok(r.d.querySelector('.picture.aids-flash'), 'Age 6 subtraction: the ' + b + ' objects taken away are crossed out after the shared delay');
     ok(!r.board.textContent.includes(q.resultText), 'Age 6 subtraction: the answer equation is not shown before answering');
   }
 

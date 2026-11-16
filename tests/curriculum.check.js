@@ -51,7 +51,7 @@ function readSequence(numbers) {
 }
 
 // ============================ AGE 6 ============================
-// Position / direction, picture-graph, cube-bar and coin checks are shared by Age 6 and Grade 1 (`label` names the level).
+// Position, picture-graph, cube-bar and coin checks are shared by Age 6 and Grade 1 (`label` names the level).
 function checkPosition(label, q) {
   let m;
   if ((m = q.question.match(/^Which way does the arrow point\? (.+)$/))) {
@@ -117,6 +117,7 @@ for (let i = 0; i < N; i++) {
   age6Seen[q.topic] = (age6Seen[q.topic] || 0) + 1;
   noBanned('age6', q);
   if (!q.simple || !q.topic || !q.kind || ![1, 2, 3].includes(q.tier)) fail('age6: missing simple/topic/kind/tier', q);
+  if (['grouping', 'sharing', 'measurement'].includes(q.topic) || /^Counting from the left|^What number comes (after|before) /.test(q.question)) fail('age6: excluded question type', q);
   if (/[×÷]/.test(q.question) || q.groups) fail('age6: no multiplication, division or compare-groups', q);
   if (q.topic === 'compare' || /^Compare|[<>]|^Which group has (more|fewer)/.test(q.question)) fail('age6: number comparison appeared', q);
   const n = Number(ans(q));
@@ -128,19 +129,18 @@ for (let i = 0; i < N; i++) {
       break;
     }
     case 'sequences':
-      if ((m = q.question.match(/^What number comes (after|before) (\d+)\?$/))) { const x = Number(m[2]); if (n !== (m[1] === 'after' ? x + 1 : x - 1) || x > 20 || n > 20 || n < 0) fail('age6 before/after', q); }
-      else { const s = q.numbers && readSequence(q.numbers); if (!s || Math.abs(s.step) !== 1 || s.answer !== n || Math.max(...s.values) > 20 || Math.min(...s.values) < 1) fail('age6 sequence', q); }
+      { const s = q.numbers && readSequence(q.numbers); if (!s || Math.abs(s.step) !== 1 || s.answer !== n || Math.max(...s.values) > 20 || Math.min(...s.values) < 1) fail('age6 sequence', q); }
       break;
     case 'addsub':
       if (!(m = q.question.match(/^What is (\d+) ([+−]) (\d+)\?$/))) { fail('age6 addsub text', q); break; }
       { const a = Number(m[1]), b = Number(m[3]), r = m[2] === '+' ? a + b : a - b;
         if (r !== n || r < 0 || a > 10 || (m[2] === '+' && r > 10) || q.answers.some(x => Number(x) > 10)) fail('age6 within 10', q);
-        if (q.kind === 'objects' && !(m[2] === '+' && q.stage && q.stage.baseCount === a && q.stage.change === b && q.stage.op === 'add')) fail('age6 object addition stage lost', q);
+        if (q.kind === 'objects' && !(m[2] === '+' && q.stage && q.stage.baseCount === a && q.stage.change === b && q.stage.op === 'add' && q.stage.delayAdd && q.stage.added.emoji !== q.stage.base.emoji)) fail('age6 delayed object addition stage lost', q);
         if (q.kind === 'symbols' && (q.stage || q.picture)) fail('age6 symbolic question must have no illustration', q);
         if (q.kind === 'objects-sub') {
-          // every starting object is drawn, the b taken away are crossed out from the start (no delay), and nothing reveals the answer
+          // All starting objects are drawn, with cross-outs held for the shared teaching-aid delay.
           const cells = q.picture && q.picture.groups.length === 1 ? q.picture.groups[0].rows.join('') : '';
-          if (m[2] !== '−' || q.stage || !q.picture.immediate || /[^Xx.]/.test(cells) || (cells.match(/x/g) || []).length !== b || (cells.match(/X/g) || []).length !== r || a !== r + b) fail('age6 subtraction illustration must show all objects with the taken-away ones crossed out', q);
+          if (m[2] !== '−' || q.stage || q.picture.immediate || /[^Xx.]/.test(cells) || (cells.match(/x/g) || []).length !== b || (cells.match(/X/g) || []).length !== r || a !== r + b) fail('age6 subtraction illustration must delay cross-outs of the removed objects', q);
           if (/\d/.test(q.picture.label)) fail('age6 subtraction illustration reveals the answer', q);
         } }
       break;
@@ -148,24 +148,21 @@ for (let i = 0; i < N; i++) {
       if ((m = q.question.match(/^Which two numbers make (\d+)\?$/))) {
         const pairSum = (t) => { const p = t.match(/^(\d+) and (\d+)$/); return p ? Number(p[1]) + Number(p[2]) : NaN; };
         if (pairSum(ans(q)) !== Number(m[1]) || Number(m[1]) > 10 || q.answers.some((a, i) => i !== q.correct && pairSum(a) === Number(m[1]))) fail('age6 bond', q);
-      } else if ((m = q.question.match(/^Split (\d+) into (\d+) and \?$/))) { if (Number(m[1]) > 10 || n !== m[1] - m[2]) fail('age6 partition', q); }
+      } else if ((m = q.question.match(/^(\d+) = (\d+) \+ \?$/))) { if (Number(m[1]) > 10 || n !== m[1] - m[2] || q.resultText !== `${m[1]} = ${m[2]} + ${n}`) fail('age6 partition equation', q); }
       else if ((m = q.question.match(/^(\d+) \+ \? = (\d+)$/))) { if (n !== m[2] - m[1] || Number(m[2]) > 10) fail('age6 missing part', q); }
       else if ((m = q.question.match(/^\? \+ (\d+) = (\d+)$/))) { if (n !== m[2] - m[1] || Number(m[2]) > 10) fail('age6 missing part', q); }
       else if ((m = q.question.match(/^(\d+) − \? = (\d+)$/))) { if (n !== m[1] - m[2] || Number(m[1]) > 10) fail('age6 missing subtrahend', q); }
       else fail('age6 bonds text', q);
       break;
-    case 'grouping': if (q.picture.groups.length !== n) fail('age6 grouping', q); break;
-    case 'sharing': if (q.picture.groups.some(g => countX(g.rows) !== n)) fail('age6 sharing', q); break;
     case 'patterns': if (!q.pattern || q.pattern[q.pattern.length - 1] !== null) fail('age6 pattern', q); break;
     case 'shapes': if (!q.figure && !q.answerVisuals) fail('age6 shapes', q); break;
     case 'money': checkMoney('age6', q, 100, [5, 10, 20, 50]); break;
-    case 'measurement': checkBars('age6', q, 10); break;
-    case 'position': checkPosition('age6', q); break;
+    case 'position': if (!/^Which way does the arrow point\? /.test(q.question)) fail('age6: only direction questions remain in position', q); else checkPosition('age6', q); break;
     case 'data': checkData('age6', q, 10, true); break;
     default: fail('age6: unknown topic ' + q.topic, q);
   }
 }
-['counting', 'subitising', 'sequences', 'addsub', 'bonds', 'grouping', 'sharing', 'patterns', 'money', 'measurement', 'shapes', 'position', 'data']
+['counting', 'subitising', 'sequences', 'addsub', 'bonds', 'patterns', 'money', 'shapes', 'position', 'data']
   .forEach(t => { if ((age6Seen[t] || 0) < 40) fail('age6: topic too rare or missing: ' + t, age6Seen); });
 // One unified pool: no stage or sub-level fields, difficulty only through tier.
 for (let i = 0; i < 300; i++) { const q = Q.generateQuestion('age6'); if (q.stageLevel || q.level || q.subLevel) fail('age6: stages/sub-levels are not allowed', q); }
@@ -177,25 +174,26 @@ if (g1Topics !== 'all,mixed,add,sub,numbers,fractions,money,clock,shapes') fail(
 function checkGrade1(topic, q) {
   const label = 'grade1/' + topic, text = q.question, n = Number(ans(q)); let m;
   if (/[×÷]/.test(text) || /^Compare/.test(text) || q.answers.includes(LESS)) return fail(label + ': multiplication/division/comparison', q);
+  if (/^Which number word is \d+\?$|^Which number is ".+"\?$|^What number comes (after|before) \d+\?$|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|10s\b|1s\b)[a-z]+\?$/.test(text)) fail(label + ': excluded English / standalone question type', q);
   if (['add', 'sub', 'mixed'].includes(topic) && text.length > 40) fail(label + ': question sentence too long (no stories)', q);
   noBanned(label, q);
   const arithmetic = () => {
+    const checkOperands = (values, operator) => {
+      if (!values.some(v => v >= 10 && v <= 19)) fail(label + ': arithmetic needs an operand from 10 to 19', q);
+      if (values.some(v => v < 0 || v > 20)) fail(label + ': arithmetic operand outside 0 to 20', q);
+      if (operator === '+' && values[0] + values[1] > 20) fail(label + ': addition above 20', q);
+      if (operator === '−' && values[0] < values[1]) fail(label + ': negative subtraction', q);
+    };
     if ((m = text.match(/^What is (\d+) ([+−]) (\d+)\?$/))) {
       const a = Number(m[1]), b = Number(m[3]), r = m[2] === '+' ? a + b : a - b;
       if (r !== n || r < 0 || a > 20 || b > 20 || (m[2] === '+' && r > 20)) fail(label + ': arithmetic', q);
+      checkOperands([a, b], m[2]);
       return m[2];
     }
-    if ((m = text.match(/^What is (\d+(?: \+ \d+){2,})\?$/))) {
-      const terms = m[1].split(' + ').map(Number);
-      if (new Set(terms).size !== 1 || sum(terms) !== n || n > 20 || !q.picture || q.picture.groups.length !== terms.length || q.picture.groups.some(g => countX(g.rows) !== terms[0])) fail(label + ': repeated addition', q);
-      return 'group';
-    }
-    if ((m = text.match(/^(\d+) \+ \? = (\d+)$/))) { if (n !== m[2] - m[1] || Number(m[2]) > 20) fail(label + ': missing addend', q); return '+'; }
-    if ((m = text.match(/^\? \+ (\d+) = (\d+)$/))) { if (n !== m[2] - m[1] || Number(m[2]) > 20) fail(label + ': missing first addend', q); return '+'; }
-    if ((m = text.match(/^(\d+) − \? = (\d+)$/))) { if (n !== m[1] - m[2] || Number(m[1]) > 20 || m[2] < 0) fail(label + ': missing subtrahend', q); return '−'; }
-    if ((m = text.match(/^\? − (\d+) = (\d+)$/))) { if (n !== Number(m[2]) + Number(m[1]) || n > 20) fail(label + ': missing minuend', q); return '−'; }
-    if (q.topic === 'sharing' && text === 'How many each?') { if (!q.picture || q.picture.groups.some(g => countX(g.rows) !== n) || q.picture.groups.length < 2) fail(label + ': sharing picture', q); return 'group'; }
-    if (q.topic === 'grouping' && text === 'How many groups?') { if (!q.picture || q.picture.groups.length !== n) fail(label + ': grouping picture', q); return 'group'; }
+    if ((m = text.match(/^(\d+) \+ \? = (\d+)$/))) { const values = [Number(m[1]), n]; if (n !== m[2] - m[1] || Number(m[2]) > 20) fail(label + ': missing addend', q); checkOperands(values, '+'); return '+'; }
+    if ((m = text.match(/^\? \+ (\d+) = (\d+)$/))) { const values = [n, Number(m[1])]; if (n !== m[2] - m[1] || Number(m[2]) > 20) fail(label + ': missing first addend', q); checkOperands(values, '+'); return '+'; }
+    if ((m = text.match(/^(\d+) − \? = (\d+)$/))) { const values = [Number(m[1]), n]; if (n !== m[1] - m[2] || Number(m[1]) > 20 || m[2] < 0) fail(label + ': missing subtrahend', q); checkOperands(values, '−'); return '−'; }
+    if ((m = text.match(/^\? − (\d+) = (\d+)$/))) { const values = [n, Number(m[1])]; if (n !== Number(m[2]) + Number(m[1]) || n > 20) fail(label + ': missing minuend', q); checkOperands(values, '−'); return '−'; }
     fail(label + ': arithmetic text not recognised', q);
     return null;
   };
@@ -210,9 +208,7 @@ function checkGrade1(topic, q) {
       const s = readSequence(q.numbers);
       if (!s || s.answer !== n || Math.min(...s.values) < 1 || Math.max(...s.values) > 120) return fail(label + ': sequence', q);
       if (q.kind === 'skip' ? ![2, 5, 10].includes(Math.abs(s.step)) : Math.abs(s.step) !== 1) fail(label + ': sequence step/kind', q);
-    } else if ((m = text.match(/^Which number is "(.+)"\?$/))) { if (wordToNumber(m[1]) !== n || n < 11 || n > 120) fail(label + ': number word', q); }
-    else if ((m = text.match(/^Which number word is (\d+)\?$/))) { if (wordToNumber(ans(q)) !== Number(m[1]) || q.answers.some(a => isNaN(wordToNumber(a)))) fail(label + ': number word back', q); }
-    else if ((m = text.match(/^What number comes (after|before) (\d+)\?$/))) { const x = Number(m[2]); if (n !== (m[1] === 'after' ? x + 1 : x - 1) || x > 120 || n > 120 || n < 0) fail(label + ': before/after', q); }
+    } else if ((m = text.match(/^Which number is "(.+)"\?$/)) || (m = text.match(/^Which number word is (\d+)\?$/)) || (m = text.match(/^What number comes (after|before) (\d+)\?$/))) fail(label + ': excluded number words / before-after', q);
     else if ((m = text.match(/^(\d+) ([+−]) 10 = \?$/))) { const x = Number(m[1]); if (n !== (m[2] === '+' ? x + 10 : x - 10) || x > 120 || n > 120 || n < 0) fail(label + ': ten more/less as an equation', q); }
     else if ((m = text.match(/^10 \+ (\d+) = \?$/))) { const x = Number(m[1]); if (n !== x + 10 || x > 110) fail(label + ': ten more as an equation', q); }
     else if (q.topic === 'placevalue') {
@@ -238,8 +234,6 @@ function checkGrade1(topic, q) {
     if (/third|quarter|fourth|\d\/\d|\d\.\d/.test(text + q.answers.join(' '))) return fail(label + ': only halves are allowed', q);
     if ((m = text.match(/^What is half of (\d+)\?$/))) { if (m[1] % 2 || m[1] > 20 || n !== m[1] / 2) fail(label + ': half', q); }
     else if (text === 'How many halves make one whole?') { if (n !== 2) fail(label + ': halves in a whole', q); }
-    else if (text === 'Cutting something into 2 equal parts makes two ...') { if (ans(q) !== 'halves') fail(label + ': name halves', q); }
-    else if ((m = text.match(/^A (\w+) is cut into 2 pieces\. (The pieces are the same size|One piece is bigger than the other)\. Are they halves\?$/))) { if (ans(q) !== (m[2].startsWith('The') ? 'Yes' : 'No') || q.answers.length !== 2) fail(label + ': equal/unequal parts', q); }
     else fail(label + ': fractions text', q);
     return;
   }
@@ -251,7 +245,8 @@ function checkGrade1(topic, q) {
   }
   if (topic === 'shapes') {
     if (q.figure) { if (q.figure.type !== 'polygon' || String(q.figure.sides) !== ans(q) || q.figure.sides < 3 || q.figure.sides > 6 || !/^How many (sides|corners) does this shape have\?$/.test(text)) fail(label + ': polygon', q); }
-    else if (/^(Which way|Counting from the left)/.test(text)) checkPosition(label, q);
+    else if (/^Counting from the left/.test(text)) checkPosition(label, q);
+    else if (/^Which way does the arrow point\?/.test(text)) fail(label + ': direction identification excluded', q);
     else if (/cubes/.test(text)) checkBars(label, q, 12);
     else checkData(label, q, 20, false);
     return;
@@ -263,7 +258,7 @@ const g1Seen = {};
 for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock', 'shapes']) {
   for (let i = 0; i < N; i++) { const q = Q.generateQuestion('grade1', t); if (common('grade1/' + t, q)) { checkGrade1(t, q); if (!q.tier) fail('grade1/' + t + ': tier missing', q); g1Seen[q.topic] = (g1Seen[q.topic] || 0) + 1; } }
 }
-['addsub', 'grouping', 'sharing', 'placevalue', 'numbers', 'fractions', 'money', 'shapes', 'position', 'measurement', 'data'].forEach(t => { if (!g1Seen[t]) fail('grade1: topic never generated: ' + t, g1Seen); });
+['addsub', 'placevalue', 'numbers', 'fractions', 'money', 'shapes', 'position', 'measurement', 'data'].forEach(t => { if (!g1Seen[t]) fail('grade1: topic never generated: ' + t, g1Seen); });
 // Mixed All draws from every Grade 1 topic and nothing outside Grade 1 scope.
 {
   const seen = {};
@@ -272,6 +267,8 @@ for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock'
     if (!common('grade1/all', q)) continue;
     const text = q.question + ' ' + q.answers.join(' ');
     if (/[×÷]/.test(q.question) || /^Compare/.test(q.question) || q.answers.includes(LESS) || NO_SMALL_COINS.test(text)) fail('grade1/all: out of scope question', q);
+    if (/^Which number word is \d+\?|^Which number is ".+"\?|^What number comes (after|before) \d+\?|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|10s\b|1s\b)[a-z]+\?$/.test(q.question)) fail('grade1/all: excluded question type', q);
+    if (q.topic === 'addsub') checkGrade1('mixed', q);
     const cat = q.figure && q.figure.type === 'clock' ? 'clock' : q.topic === 'money' ? 'money' : q.topic === 'fractions' ? 'fractions' : ['numbers', 'placevalue'].includes(q.topic) ? 'numbers' : ['addsub', 'grouping', 'sharing'].includes(q.topic) ? 'arithmetic' : 'shapes';
     seen[cat] = (seen[cat] || 0) + 1;
     const n = Number(ans(q));

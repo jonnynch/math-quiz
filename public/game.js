@@ -562,13 +562,14 @@
   const AID_DELAY_MS = 1200;
   const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  function scheduleAids(box) {
-    if (prefersReducedMotion()) return;
+  function scheduleAids(box, onReveal) {
+    if (prefersReducedMotion()) { if (onReveal) onReveal(); return; }
     box.classList.add('aids-pending');
     setTimeout(() => {
       if (!box.classList.contains('aids-pending')) return;
       box.classList.remove('aids-pending');
       box.classList.add('aids-flash');
+      if (onReveal) onReveal();
     }, AID_DELAY_MS);
   }
 
@@ -648,9 +649,14 @@
       const slot = document.createElement('span');
       slot.className = 'slot';
       slot.setAttribute('aria-hidden', 'true');
-      slot.textContent = i < stage.baseCount ? stage.base.emoji : '';
+      if (i < stage.baseCount) slot.textContent = stage.base.emoji;
+      else if (stage.delayAdd && i < stage.baseCount + stage.change) {
+        slot.classList.add('added');
+        slot.textContent = stage.added.emoji;
+      }
       box.append(slot);
     }
+    if (stage.delayAdd) scheduleAids(box, () => box.setAttribute('aria-label', stageLabel(stage, true)));
     return box;
   }
 
@@ -663,6 +669,7 @@
     const slots = box ? box.querySelectorAll('.slot') : [];
     for (let i = 0; stage && i < stage.change; i++) {
       if (stage.op === 'add') {
+        if (stage.delayAdd) continue;
         const slot = slots[stage.baseCount + i];
         if (!slot) continue;
         slot.textContent = stage.added.emoji;
