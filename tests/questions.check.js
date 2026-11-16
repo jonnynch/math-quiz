@@ -170,6 +170,8 @@ for(const g of grades){
         else if(m=text.match(/^Fourth angle = 360° − (\d+)° − (\d+)° − (\d+)°$/)){ if(360-m[1]-m[2]-m[3]!==+ans||+ans<=0) fail(k,'quad wrong',q);}
         else fail(k,'unrecognised shapes text',q);}
       if(t.value==='fractions'){
+        const wordFractions={'one half':1/2,'two halves':1,'one third':1/3,'two thirds':2/3,'one quarter':1/4,'two quarters':1/2,'three quarters':3/4,'one eighth':1/8,'two eighths':2/8,'three eighths':3/8,'four eighths':1/2,'five eighths':5/8,'six eighths':3/4,'seven eighths':7/8,'one fifth':1/5,'two fifths':2/5,'three fifths':3/5,'four fifths':4/5,'one sixth':1/6,'two sixths':1/3,'three sixths':1/2,'four sixths':2/3,'five sixths':5/6};
+        const fractionValue=s=>{const numeric=String(s).match(/^(\d+)\/(\d+)$/);return numeric?+numeric[1]/+numeric[2]:wordFractions[s];};
         if(g<=2 && /\b\d+\/\d+\b/.test(text+' '+a.join(' '))) fail(k,'formal fraction notation before Grade 3',q);
         if(m=text.match(/^1\/2 of (\d+) = \?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
         else if(g<=2 && (m=text.match(/^(one half|one quarter|one third|one eighth|\d+ parts out of \d+) of (\d+) = \?$/))){const fractions={'one half':1/2,'one quarter':1/4,'one third':1/3,'one eighth':1/8};const value=fractions[m[1]]??Number(m[1].match(/(\d+) parts out of (\d+)/)[1])/Number(m[1].match(/(\d+) parts out of (\d+)/)[2]);if(value*Number(m[2])!==+ans)fail(k,'word fraction of amount wrong',q);}
@@ -181,10 +183,13 @@ for(const g of grades){
         else if((g===5||g===6)&&(m=text.match(/^(\d+)\/(\d+) = \? \(simplest form\)$/))){const [n,d]=frac(ans);if(+m[1]/+m[2]!==n/d||gcd(n,d)!==1)fail(k,'simplifying fraction',q);}
         else if((g===3||g===4)&&text==='1/2 = ?/4'){if(Number(ans)!==2)fail(k,'equivalent fraction',q);}
         else if(g===2&&text==='1/2 = ?/4'){if(+ans!==2)fail(k,'equivalent halves and quarters',q);}
+        else if(g===2&&text==='one half = how many quarters'){if(+ans!==2)fail(k,'worded equivalent fraction',q);}
         else if(m=text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/)){ if(m[1]/m[2]!==+ans/m[3]) fail(k,'equiv wrong',q);}
-        else if(m=text.match(/^Compare: (\S+) \? (\S+)$/)){ // Grades 5-6 only: exactly one decimal and one fraction
+        else if(m=text.match(/^Compare: (.+) \? (.+)$/)){ // Grades 5-6 only: exactly one decimal and one fraction
           const dec=m.slice(1,3).filter(x=>/^0\.\d+$/.test(x)), fr=m.slice(1,3).filter(x=>/^\d+\/\d+$/.test(x));
-          if((g===2||g===3||g===4||g===5||g===6)&&dec.length===0&&fr.length===2){const x=val(fr[0]),y=val(fr[1]),exp=x<y?0:x>y?2:1;if(c!==exp)fail(k,'fraction comparison wrong',q);}
+          const wordVals=m.slice(1,3).map(fractionValue);
+          if(g===2&&wordVals.every(Number.isFinite)){const exp=wordVals[0]<wordVals[1]?0:wordVals[0]>wordVals[1]?2:1;if(c!==exp)fail(k,'word fraction comparison wrong',q);}
+          else if((g===2||g===3||g===4||g===5||g===6)&&dec.length===0&&fr.length===2){const x=val(fr[0]),y=val(fr[1]),exp=x<y?0:x>y?2:1;if(c!==exp)fail(k,'fraction comparison wrong',q);}
           else if(g<5||dec.length!==1||fr.length!==1) fail(k,'comparison must be supported by this grade',q);
           else { const [n,d]=frac(fr[0]); const x=+dec[0]; const y=n/d; const dv=m[1]===dec[0]?x-y:y-x; const exp=Math.abs(dv)<1e-12?1:dv<0?0:2; if(c!==exp) fail(k,'decimal/fraction compare wrong',q); } }
         else if(m=text.match(/^(\d+)\/(\d+) ([+−×÷]) (\d+)(?:\/(\d+))? = \? \(simplest form\)$/)){
