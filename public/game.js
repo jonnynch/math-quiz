@@ -347,6 +347,13 @@
     return svg;
   }
 
+  function createFractionBarSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-fraction', role: 'img', 'aria-label': `${spec.numerator} of ${spec.denominator} equal parts shaded` });
+    const x = 12, y = 38, width = 76, height = 24, cell = width / spec.denominator;
+    for (let i = 0; i < spec.denominator; i++) svg.append(svgEl('rect', { x: x + i * cell, y, width: cell, height, fill: i < spec.numerator ? '#60a5fa' : '#f8fafc', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    return svg;
+  }
+
   function createPerimeterSvg(spec) {
     const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-perimeter', role: 'img', 'aria-label': `Rectangle, ${spec.length} centimetres by ${spec.width} centimetres` });
     svg.append(svgEl('rect', { x: 18, y: 31, width: 64, height: 38, fill: '#dbeafe', stroke: '#1f2937', 'stroke-width': 2 }));
@@ -407,7 +414,9 @@
 
   function createFigure(figure) {
     if (figure.type === 'fraction') return createFractionSvg(figure);
+    if (figure.type === 'fraction-bar') return createFractionBarSvg(figure);
     if (figure.type === 'perimeter') return createPerimeterSvg(figure);
+    if (figure.type === 'rectangle-measure') return createPerimeterSvg(figure);
     if (figure.type === 'bar-chart') return createBarChartSvg(figure);
     if (figure.type === 'grid-area') return createGridAreaSvg(figure);
     if (figure.type === 'angle') return createAngleSvg(figure);

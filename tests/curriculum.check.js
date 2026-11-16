@@ -502,8 +502,100 @@ const g3Multiplicative = g3MixedSample.filter(q => /[×÷]/.test(q.question) || 
 if (g3Multiplicative < 2400 || g3Multiplicative > 3600) fail('grade3 mixed: multiplication and division should remain balanced with addition/subtraction', { g3Multiplicative, sample: g3MixedSample.length });
 for (const prefix of ['fractions/', 'shapes/', 'tables/', 'patterns/', 'data/', 'clock/']) for (const [kind, count] of Object.entries(g3Kinds)) if (kind.startsWith(prefix) && count < 10) fail('grade3 kind too rare: ' + kind, count);
 
+// ============================ GRADE 4 ============================
+const grade4Topics = Q.topicsFor('grade4').map(t => t.value), g4Kinds = {};
+['numbers', 'patterns', 'tables', 'fractions', 'decimals', 'clock', 'shapes'].forEach(t => { if (!grade4Topics.includes(t)) fail('grade4 topic missing: ' + t, grade4Topics); });
+if (Q.topicsFor('grade3').some(t => t.value === 'decimals') || Q.topicsFor('grade5').some(t => t.value === 'decimals')) fail('decimals topic should be limited to Grade 4', {});
+function checkGrade4(label, topic, q) {
+  if (!q.question || q.question.length > 90 || /quadratic|square root|factorisation|long division/i.test(q.question)) fail(label + ': prompt length or excluded content', q);
+  const text = q.question, n = Number(ans(q)); let m;
+  if (['mixed', 'add', 'sub', 'mul', 'div'].includes(topic)) {
+    if ((m = text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))) {
+      const a = +m[1], b = +m[3], op = m[2], expected = op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b;
+      if (expected !== n || !Number.isInteger(expected) || expected < 0 || (topic === 'add' && op !== '+') || (topic === 'sub' && op !== '−') || (topic === 'mul' && op !== '×') || (topic === 'div' && op !== '÷')) fail(label + ': arithmetic equation', q);
+      if ((op === '+' || op === '−') && (a < 100 || b < 100 || Math.max(a, b, n) > 999)) fail(label + ': addition/subtraction outside three digits', q);
+      if (op === '×' && !((a >= 12 && a <= 35 && b >= 2 && b <= 6) || (b >= 12 && b <= 35 && a >= 2 && a <= 6))) fail(label + ': multiplication outside mental range', q);
+      if (op === '÷' && (a % b !== 0 || b < 2 || b > 9 || n < 12 || n > 24)) fail(label + ': division must be exact by one digit', q);
+    } else if ((m = text.match(/^□ × (\d+) = (\d+)$/))) { if (n * +m[1] !== +m[2] || n < 12 || n > 35) fail(label + ': missing factor', q); }
+    else if ((m = text.match(/^([\d]+) ÷ □ = (\d+)$/))) { if (+m[1] / n !== +m[2] || n < 2 || n > 9) fail(label + ': missing divisor', q); }
+    else if ((m = text.match(/^□ \+ (\d+) = (\d+)$/))) { if (n + +m[1] !== +m[2]) fail(label + ': missing addend', q); }
+    else if ((m = text.match(/^(\d+) \+ □ = (\d+)$/))) { if (+m[1] + n !== +m[2]) fail(label + ': missing addend', q); }
+    else if ((m = text.match(/^(\d+) − □ = (\d+)$/))) { if (+m[1] - n !== +m[2]) fail(label + ': missing subtrahend', q); }
+    else if ((m = text.match(/^(\d+) \+ (\d+) = (\d+), so (\d+) − (\d+) = \?$/))) { if (+m[1] + +m[2] !== +m[3] || +m[4] - +m[5] !== n) fail(label + ': inverse operation', q); }
+    else if ((m = text.match(/^(\d+) − (\d+) = (\d+), so (\d+) \+ (\d+) = \?$/))) { if (+m[1] - +m[2] !== +m[3] || +m[4] + +m[5] !== n) fail(label + ': inverse operation', q); }
+    else fail(label + ': unknown arithmetic format', q);
+    if (q.answers.every(isNum) && !q.answers.some((value, i) => i !== q.correct && value.slice(-1) === ans(q).slice(-1))) fail(label + ': no same-last-digit distractor', q);
+    return;
+  }
+  if (topic === 'tables') {
+    if ((m = text.match(/^(\d+) ([×÷]) (\d+) = \?$/))) { const expected = m[2] === '×' ? +m[1] * +m[3] : +m[1] / +m[3], inTables = m[2] === '×' ? Math.max(+m[1], +m[3]) <= 10 : (+m[1] / +m[3] <= 10 && +m[3] <= 10); if (expected !== n || !Number.isInteger(expected) || !inTables) fail(label + ': times-table fact', q); }
+    else if ((m = text.match(/^(\d+) × \? = (\d+)$/))) { if (+m[1] * n !== +m[2]) fail(label + ': table missing factor', q); }
+    else fail(label + ': table format', q);
+    if (!q.answers.some((value, i) => i !== q.correct && value.slice(-1) === ans(q).slice(-1))) fail(label + ': table missing same-last-digit distractor', q);
+    return;
+  }
+  if (topic === 'numbers') {
+    g4Kinds['numbers/' + q.kind] = (g4Kinds['numbers/' + q.kind] || 0) + 1;
+    if (q.kind === 'placeValue') { const terms = text.match(/^What number is (.+)\?$/)?.[1].split(', ').map(x => { const m = x.match(/^(\d+) (thousands|hundreds|tens|ones)$/), v = { thousands: 1000, hundreds: 100, tens: 10, ones: 1 }; return m ? +m[1] * v[m[2]] : NaN; }); if (!terms || sum(terms) !== n) fail(label + ': place value', q); }
+    else if (q.kind === 'expanded') { const value = Number(text.match(/^[\d,]+/)[0].replace(/,/g, '')), total = ans(q).split(' + ').reduce((s, x) => s + Number(x), 0); if (value !== total) fail(label + ': expanded notation', q); }
+    else if (q.kind === 'round') { const m = text.match(/^([\d,]+) rounded to the nearest (10|100|1000) = \?$/), value = Number(m[1].replace(/,/g, '')); if (Math.round(value / +m[2]) * +m[2] !== n) fail(label + ': rounding', q); }
+    else if (q.kind === 'estimate') { const m = text.match(/^Estimate (\d+) \+ (\d+) by rounding each to the nearest 100\.$/); if (!m || Math.round(+m[1] / 100) * 100 + Math.round(+m[2] / 100) * 100 !== n) fail(label + ': estimate', q); }
+    else if (q.kind === 'factors') { const target = Number(text.match(/factors of (\d+)/)[1]), factors = Array.from({ length: target }, (_, i) => i + 1).filter(x => target % x === 0); if (ans(q).split(', ').map(Number).join() !== factors.join()) fail(label + ': factors', q); }
+    else if (q.kind === 'multiple') { const base = Number(text.match(/multiples of (\d+)/)[1]), values = ans(q).split(', ').map(Number); if (values.length !== 5 || values.some((v, i) => v !== base * (i + 1))) fail(label + ': first five multiples', q); }
+    else if (q.kind === 'prime') { const value = Number(text.match(/^Is (\d+) prime/)[1]), prime = value > 1 && !Array.from({ length: value - 2 }, (_, i) => i + 2).some(d => value % d === 0); if (ans(q) !== (prime ? 'prime' : 'composite') || q.answers.length !== 2) fail(label + ': prime/composite', q); }
+    else fail(label + ': unknown number question', q);
+    return;
+  }
+  if (topic === 'patterns') { g4Kinds['patterns/' + q.kind] = (g4Kinds['patterns/' + q.kind] || 0) + 1; const hole = q.numbers.indexOf('?'), values = q.numbers.map(Number), known = values.map((v, i) => Number.isFinite(v) ? [i, v] : null).filter(Boolean); if (hole < 0 || q.numbers.filter(x => x === '?').length !== 1) fail(label + ': missing pattern term', q); else if (q.kind === 'interval') { const steps = known.slice(1).map((pair, i) => (pair[1] - known[i][1]) / (pair[0] - known[i][0])), step = steps[0]; if (steps.some(value => value !== step) || Number(q.numbers[0]) + step * hole !== n) fail(label + ': interval pattern', q); } else { const ratio = (known[1][1] / known[0][1]) ** (1 / (known[1][0] - known[0][0])); if (!Number.isInteger(ratio) || ratio < 2 || ratio > 3 || Number(q.numbers[hole - 1]) * ratio !== n) fail(label + ': multiplication pattern', q); } return; }
+  if (topic === 'fractions') {
+    g4Kinds['fractions/' + q.kind] = (g4Kinds['fractions/' + q.kind] || 0) + 1;
+    if (q.kind === 'diagram') { const f = q.figure; if (!f || f.type !== 'fraction-bar' || Math.abs(f.numerator / f.denominator - fractionValue(ans(q))) > 1e-9) fail(label + ': fraction bar', q); }
+    else if (q.kind === 'equiv') { const m = text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/); if (!m || +m[1] / +m[2] !== n / +m[3]) fail(label + ': equivalent fractions', q); }
+    else if (q.kind === 'compare') { const m = text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/), left = +m?.[1] / +m?.[2], right = +m?.[3] / +m?.[4]; if (!m || ans(q) !== rel(left, right)) fail(label + ': fraction comparison', q); }
+    else if (q.kind === 'order') { const input = text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(fractionValue), ordered = ans(q).split(', ').map(fractionValue); if (!input || ordered.some((v, i) => v !== [...input].sort((a, b) => a - b)[i])) fail(label + ': fraction ordering', q); }
+    else if (q.kind === 'mixed') { const m = text.match(/^(\d+) (\d+)\/(\d+) = \?\/(\d+)$/); if (!m || n !== +m[1] * +m[4] + +m[2] || +m[3] !== +m[4]) fail(label + ': mixed-number equivalence', q); }
+    else if ((m = text.match(/^(\d+)\/(\d+) (of|[+−]) (\d+)(?:\/(\d+))? = \?(?: \(simplest form\))?$/))) { const result = m[3] === 'of' ? +m[1] / +m[2] * +m[4] : (m[3] === '+' ? +m[1] / +m[2] + +m[4] / +m[2] : +m[1] / +m[2] - +m[4] / +m[2]); if (Math.abs(result - fractionValue(ans(q))) > 1e-9 && Math.abs(result - n) > 1e-9) fail(label + ': fraction calculation', q); }
+    else fail(label + ': unsupported fraction question', q);
+    return;
+  }
+  if (topic === 'decimals') {
+    g4Kinds['decimals/' + q.kind] = (g4Kinds['decimals/' + q.kind] || 0) + 1;
+    if ((m = text.match(/^(\d+(?:\.\d+)?) ([+−]) (\d+(?:\.\d+)?) = \?$/))) { const result = m[2] === '+' ? +m[1] + +m[3] : +m[1] - +m[3]; if (Math.abs(result - n) > 1e-9) fail(label + ': decimal operation', q); }
+    else if ((m = text.match(/^Compare: (\d*\.\d+) \? (\d*\.\d+)$/))) { if (ans(q) !== rel(+m[1], +m[2])) fail(label + ': decimal comparison', q); }
+    else if ((m = text.match(/^(\d+)\/(\d+) = \?$/))) { if (Math.abs(+m[1] / +m[2] - n) > 1e-9) fail(label + ': fraction/decimal equivalence', q); }
+    else if ((m = text.match(/^0\.(\d) = \?\/10$/))) { if (+m[1] !== n) fail(label + ': tenths place value', q); }
+    else if ((m = text.match(/^0\.(\d{2}) = \?\/100$/))) { if (+m[1] !== n) fail(label + ': hundredths place value', q); }
+    else fail(label + ': unknown decimal question', q);
+    return;
+  }
+  if (topic === 'shapes') {
+    g4Kinds['shapes/' + q.kind] = (g4Kinds['shapes/' + q.kind] || 0) + 1; const f = q.figure;
+    if (q.kind === 'area' && (!f || f.type !== 'rectangle-measure' || n !== f.length * f.width)) fail(label + ': rectangle area', q);
+    else if (q.kind === 'perimeter' && (!f || f.type !== 'rectangle-measure' || n !== 2 * (f.length + f.width))) fail(label + ': rectangle perimeter', q);
+    else if (q.kind === 'angle' && (!f || f.type !== 'angle' || ans(q) !== (f.degrees < 90 ? 'acute' : f.degrees === 90 ? 'right' : 'obtuse'))) fail(label + ': angle identification', q);
+    else if (q.kind === 'angleCompare') { const m = text.match(/^Compare: (\d+)° \? (\d+)°$/); if (!m || ans(q) !== rel(+m[1], +m[2])) fail(label + ': angle comparison', q); }
+    else if (q.kind === 'convert') { const m = text.match(/^(\d+(?:\.\d+)?) m = \? cm$/); if (!m || +m[1] * 100 !== n) fail(label + ': metric conversion', q); }
+    else if (q.kind === 'duration') { const m = text.match(/^(\d+) h (\d+) min = \? min$/); if (!m || +m[1] * 60 + +m[2] !== n) fail(label + ': duration', q); }
+    else if (q.kind === 'symmetry' && !q.figure) fail(label + ': symmetry figure', q);
+    else if (q.kind === 'properties' && !/^Sides of a /.test(text)) fail(label + ': shape property', q);
+    else if (q.kind === 'triangleAngle') { const m = text.match(/^Third angle = 180° − (\d+)° − (\d+)°$/); if (!m || 180 - +m[1] - +m[2] !== n) fail(label + ': triangle angle', q); }
+    return;
+  }
+  if (topic === 'clock' && (!q.figure || ans(q) !== `${q.figure.hour}:${String(q.figure.minute).padStart(2, '0')}`)) fail(label + ': clock reading', q);
+}
+for (const topic of grade4Topics.filter(t => t !== 'all')) for (let i = 0; i < 1200; i++) checkGrade4('grade4/' + topic, topic, Q.generateQuestion('grade4', topic));
+const g4Seen = {};
+for (let i = 0; i < 12000; i++) {
+  const q = Q.generateQuestion('grade4', 'all');
+  const topic = ['numbers', 'patterns', 'tables', 'fractions', 'decimals', 'shapes'].includes(q.topic) ? q.topic : q.coins || q.notes ? 'money' : q.figure?.type === 'clock' ? 'clock' : 'mixed';
+  g4Seen[topic] = (g4Seen[topic] || 0) + 1;
+  checkGrade4('grade4/all', topic, q);
+}
+for (const topic of ['mixed', 'numbers', 'patterns', 'tables', 'fractions', 'decimals', 'money', 'clock', 'shapes']) if ((g4Seen[topic] || 0) < 500) fail('grade4/all category too rare: ' + topic, g4Seen);
+for (const [kind, count] of Object.entries(g4Kinds)) if (count < 10) fail('grade4 question type too rare: ' + kind, count);
+
 // ============================ COMPARISONS ============================
-// Grades 1 and 4 have no comparisons; Grades 2-3 compare numbers within their curriculum topics.
+// Grade 4 compares decimals and angles within their topics; the other comparisons stay embedded in their curriculum.
 for (const g of [1, 2, 3, 4]) {
   const level = 'grade' + g;
   if (Q.topicsFor(level).some(t => t.value === 'compare')) fail(level + ': compare topic is still offered', Q.topicsFor(level).map(t => t.value));
@@ -513,8 +605,11 @@ for (const g of [1, 2, 3, 4]) {
     for (let i = 0; i < 1500; i++) {
       const q = Q.generateQuestion(level, t);
       if (!common(level + '/' + t, q)) continue;
-      if (/^Compare/.test(q.question)) fail(level + '/' + t + ': standalone comparison', q);
-      if (q.answers.includes(LESS) || q.answers.includes(EQUAL) || q.answers.includes(MORE)) fail(level + '/' + t + ': <, = or > answers', q);
+      if (/^Compare/.test(q.question)) {
+        const allowed = g === 4 && ((q.topic === 'decimals' && q.kind === 'compare') || (q.topic === 'shapes' && q.kind === 'angleCompare') || (q.topic === 'fractions' && q.kind === 'compare'));
+        const m = q.question.match(/^Compare: (\d+(?:\.\d+)?|\d+\/\d+)(?:°)? \? (\d+(?:\.\d+)?|\d+\/\d+)(?:°)?$/), value = token => token.includes('/') ? fractionValue(token) : Number(token);
+        if (!allowed || !m || ans(q) !== rel(value(m[1]), value(m[2]))) fail(level + '/' + t + ': comparison outside Grade 4 scope or answer mismatch', q);
+      } else if (q.answers.includes(LESS) || q.answers.includes(EQUAL) || q.answers.includes(MORE)) fail(level + '/' + t + ': <, = or > answers on a non-comparison', q);
     }
   }
 }
