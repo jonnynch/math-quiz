@@ -170,9 +170,11 @@ for(const g of grades){
         else if(m=text.match(/^Fourth angle = 360° − (\d+)° − (\d+)° − (\d+)°$/)){ if(360-m[1]-m[2]-m[3]!==+ans||+ans<=0) fail(k,'quad wrong',q);}
         else fail(k,'unrecognised shapes text',q);}
       if(t.value==='fractions'){
+        if(g<=2 && /\b\d+\/\d+\b/.test(text+' '+a.join(' '))) fail(k,'formal fraction notation before Grade 3',q);
         if(m=text.match(/^1\/2 of (\d+) = \?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
+        else if(g<=2 && (m=text.match(/^(one half|one quarter|one third|one eighth|\d+ parts out of \d+) of (\d+) = \?$/))){const fractions={'one half':1/2,'one quarter':1/4,'one third':1/3,'one eighth':1/8};const value=fractions[m[1]]??Number(m[1].match(/(\d+) parts out of (\d+)/)[1])/Number(m[1].match(/(\d+) parts out of (\d+)/)[2]);if(value*Number(m[2])!==+ans)fail(k,'word fraction of amount wrong',q);}
         else if(m=text.match(/^(\d+)\/(\d+) of (\d+) = \?$/)){ if(m[1]*m[3]/m[2]!==+ans||!Number.isInteger(m[3]/m[2])) fail(k,'fraction of amount wrong',q);}
-        else if((g===2||g===3)&&text==='What fraction of the shape is shaded?'){const f=q.figure,match=String(ans).match(/^(\d+)\/(\d+)$/);if(!f||f.type!=='fraction'||!match||Math.abs(+match[1]/+match[2]-f.numerator/f.denominator)>1e-9)fail(k,'fraction diagram wrong',q);}
+        else if((g===2||g===3)&&text==='What fraction of the shape is shaded?'){const f=q.figure,match=String(ans).match(/^(\d+)\/(\d+)$/),words={'one half':1/2,'one third':1/3,'one quarter':1/4,'one eighth':1/8,'two thirds':2/3,'two quarters':2/4,'three quarters':3/4,'three eighths':3/8,'five eighths':5/8,'seven eighths':7/8},value=match?+match[1]/+match[2]:words[ans];if(!f||f.type!=='fraction'||value===undefined||Math.abs(value-f.numerator/f.denominator)>1e-9)fail(k,'fraction diagram wrong',q);}
         else if(g===4&&text==='What fraction is shown?'){const f=q.figure,match=String(ans).match(/^(\d+)\/(\d+)$/);if(!f||f.type!=='fraction-bar'||!match||Math.abs(+match[1]/+match[2]-f.numerator/f.denominator)>1e-9)fail(k,'Grade 4 fraction bar',q);}
         else if(g===4&&q.kind==='order'){const input=text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(val),ordered=ans.split(', ').map(val);if(!input||input.some((v,i)=>ordered[i]!==[...input].sort((a,b)=>a-b)[i]))fail(k,'Grade 4 fraction order',q);}
         else if(g===4&&q.kind==='mixed'){const m=text.match(/^(\d+) (\d+)\/(\d+) = \?\/(\d+)$/);if(!m||+m[1]* +m[4]+ +m[2]!==Number(ans)||+m[3]!==+m[4])fail(k,'Grade 4 mixed-number equivalence',q);}

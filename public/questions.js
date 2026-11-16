@@ -195,6 +195,18 @@
   const reduceFrac = (n, d) => { const g = gcd(n, d) || 1; return [n / g, d / g]; };
   const fracText = (n, d) => d === 1 ? String(n) : `${n}/${d}`;
 
+  // Before Grade 3, keep fraction ideas in words while preserving the same questions and values.
+  function fractionWords(text) {
+    const names = { 2: ['half', 'halves'], 3: ['third', 'thirds'], 4: ['quarter', 'quarters'], 5: ['fifth', 'fifths'], 6: ['sixth', 'sixths'], 8: ['eighth', 'eighths'], 10: ['tenth', 'tenths'], 12: ['twelfth', 'twelfths'] };
+    return String(text).replace(/\?\/(\d+)/g, (_, bottom) => `how many ${names[Number(bottom)]?.[1] || `parts out of ${bottom}`}`).replace(/(\d+)\/(\d+)/g, (_, top, bottom) => {
+      const n = Number(top), d = Number(bottom), word = names[d];
+      if (!word) return `${n} part${n === 1 ? '' : 's'} out of ${d}`;
+      if (n === 1) return `one ${word[0]}`;
+      const numerals = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+      return `${numerals[n] || n} ${word[1]}`;
+    });
+  }
+
   // Fraction answers are listed by value, smallest to largest (the sort uses `keys`).
   function makeFractionQuestion(text, correctPair, mistakePairs = []) {
     const [rn, rd] = reduceFrac(correctPair[0], correctPair[1]);
@@ -2379,6 +2391,14 @@
   // value (`keys`). Text answers such as < = > keep a fixed order.
   function generateQuestion(difficulty, topic = DEFAULT_TOPIC) {
     const q = generateRawQuestion(difficulty, topic);
+    const grade = isGrade(difficulty) ? gradeOf(difficulty) : 0;
+    if (!isGrade(difficulty) || grade <= 2) {
+      q.question = fractionWords(q.question);
+      q.answers = q.answers.map(fractionWords);
+      if (q.resultText) q.resultText = fractionWords(q.resultText);
+      if (q.visualLabel) q.visualLabel = fractionWords(q.visualLabel);
+      if (q.answerLabels) q.answerLabels = q.answerLabels.map(fractionWords);
+    }
     const keys = q.keys || (q.answers.every(a => a.trim() !== '' && !isNaN(Number(a))) ? q.answers.map(Number) : null);
     if (keys) {
       const order = q.answers.map((_, i) => i).sort((x, y) => keys[x] - keys[y]);

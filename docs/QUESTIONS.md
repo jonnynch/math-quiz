@@ -28,7 +28,7 @@ Generators return answers with `correct: 0` and the wrapper `generateQuestion` o
 - Else keep the given order (only the `< (less than)`, `= (equal to)`, `> (greater than)` choices).
 
 ## Presentation and answer-choice conventions
-- Standalone arithmetic uses an equation prompt such as `7 × 8 = ?`; missing values stay in the equation, such as `3 + ? = 8`. Fraction amounts use `1/2 of 12 = ?`, with operators shown symbolically where that is clear to the learner.
+- Standalone arithmetic uses an equation prompt such as `7 × 8 = ?`; missing values stay in the equation, such as `3 + ? = 8`. Before Grade 3, fraction ideas use words (for example, `one half of 12 = ?`); Grade 3 introduces notation alongside words, and later grades use notation with words as appropriate.
 - Clock questions use `Read the time.` and keep the clock illustration above the prompt. Counting and diagram questions retain short age-appropriate prompts and their teaching aids.
 - Geometry prompts name the target quantity briefly (`How many sides?`, `faces of a cube = ?`) and show measurement units in the question (`Perimeter of 8 cm × 4 cm rectangle = ? cm`, `Area = ? cm²`).
 - Standard multiple-choice questions have four distinct answers at Age 4 through Grade 6. Age 2–3 counting uses three numeric choices. Intentional exceptions keep only meaningful options: group-comparison activities let the child tap one of two pictured groups; comparisons use the fixed `<`, `=`, `>` set; Grade 2 chart questions can offer three categories because the chart has three categories. These are checked by `tests/questions.check.js`.
