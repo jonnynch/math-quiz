@@ -1,13 +1,27 @@
+
 # Math Quiz Battle — guide for AI coding assistants
 
 Read this first. Deeper detail is in `docs/` (see the index at the bottom).
 
 ## What this is
-A touch-friendly maths quiz for one shared touch screen (tablet, phone or touch laptop), played **Solo** or **1 vs 1** (each player has their own answer area on the same screen). It is a **static site**: plain HTML/CSS/vanilla JavaScript, no framework, no build step, no backend, no network calls. Nginx in Docker just serves `public/` (`docker compose up -d`, port 8080). Everything (questions, profiles, settings) lives in the browser.
+
+A touch-friendly maths quiz for one shared touch screen (tablet, phone or touch laptop), played **Solo** or **1 vs 1** (each player has their own answer area on the same screen). It is a **static site**: plain HTML/CSS/vanilla JavaScript, no framework, no build step, no backend. Cloudflare Workers serves the static application. Everything (questions, profiles, settings) lives in the browser.
 
 Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs it on a home network and uses phones/tablets, often **held sideways**. Do not assume an iPad.
 
+## Deployment
+
+- Production is deployed on Cloudflare Workers.
+- GitHub is integrated with Cloudflare for deployments.
+- Feature branches and pull requests should use Cloudflare preview deployments for testing.
+- Merging an approved pull request into the production branch triggers the production deployment.
+- GitHub Actions handles CI verification.
+- AI agents must not deploy to production, merge pull requests, or change production configuration unless explicitly instructed.
+- Do not change Cloudflare configuration, deployment settings, or production environment variables as part of unrelated feature work.
+- Do not assume the application is deployed through Nginx or Docker.
+
 ## File map
+
 | Path | Role |
 |---|---|
 | `public/index.html` | All markup: setup screen, game screen, result screen, Settings and Profiles windows. Scripts load in order: `questions.js`, `trophies.js`, `parent.js`, `report.js`, `store.js`, `audio.js`, `menus.js`, `playzone.js`, `bank-adjust.js`, `pz-designer.js`, `pz-reaction.js`, `pz-balloon.js`, `game.js`, `pwa.js`. |
@@ -22,14 +36,17 @@ Audience: young children (ages 2–6 activities) up to Grade 6. The owner runs i
 | `public/game.js` | Game flow: setup, rounds, answers, timers, rewards, results, SVG figures. Wires everything together. |
 | `public/pwa.js`, `public/sw.js`, `public/manifest.webmanifest`, `public/icons/`, `public/favicon.svg` | Installable/offline support: service worker registration, "new version" notice, Install section in Settings. See `docs/ARCHITECTURE.md` (Offline and install). |
 | `public/style.css` | All styling: design tokens, palettes, text scale, components, and the phone-landscape layout. |
-| `tests/` | Node checks (see `docs/TESTING.md`). Not served by Nginx. |
+| `tests/` | Node checks (see `docs/TESTING.md`). These files are not part of the served application. |
 | `docs/` | Architecture, question rules, UI/layout rules, testing, owner requirements. |
 
 ## Levels and topics
+
 Levels: `toddler` (Age 2–3), `age4`, `age5`, `age6`, `grade1`…`grade6`. **Topics exist only for Grade 1–6**; the age levels have no topic selector. Age 5 is ONE pool of ten internal topics whose difficulty rises through `tier` (no stages or sub-levels). Full matrix: `docs/QUESTIONS.md`.
 
 ## Rules that must not be broken
+
 These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md`).
+
 1. **Answers are listed smallest → largest** (numbers numerically; fractions and clock times by value). Fixed-order text choices (`< = >`) are the only exception.
 2. **The correct answer's position must stay random.** Sorting alone makes it land in the middle. Pick the position first, then choose wrong answers to fit (`pickWrongAnswers` / `pickWithMistake`). Never reintroduce a "wrong answers symmetric around the right one" pattern.
 3. **One answer per row** (single column, labelled A, B, C… except large "simple" boards for the youngest). Never go back to tiles.
@@ -49,6 +66,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 17. **Playzone** is charged by ACTUAL usage, never an advertised cost: a session starts with `Store.startPlay` (only while the balance is above 0), the played time is counted by monotonic heartbeats (`tickPlay`), and `Store.endPlay` charges `Math.ceil(seconds / 60)` whole minutes (at least 1) exactly once. Sessions are stored on `profile.playzone.session`, a session left by a refresh/crash is ended on the next launch (`reconcilePlay`), and the balance may go negative (a negative or zero balance only blocks starting a NEW game; a running one always finishes). Children never see a parent question in Playzone; it can never add minutes or change the maths reward rules. `Store.redeem`, backup import and reward settings stay parent-only. Manual +/− adjustment (may go negative) lives on the Screen-time page, needs the separate hard quadratic question (`MQParent.hard`, `Store.adjustBalance`, `bank-adjust.js`), and Playzone has no parent controls. Personal bests live on the profile (`profile.playzone`, `Store.recordPlayzone`) and are also listed in Profile Details. New games register with `MQPlayzone.register({ id, title, icon, desc, players, mount })`, live in their own `pz-*.js`, use `ctx.begin()` / `ctx.end()` for their session, and must clean up their timers in `destroy()`. Balloon Pop levels are endless and follow pops only (combo bonuses change the score, never the level); its trophies live in `profile.trophies.balloon` (`trophies.js`).
 
 ## Common tasks
+
 - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.
 - **Change layout/CSS** → `docs/UI-AND-LAYOUT.md`. Run `npm run test:layout` (needs a browser; see `docs/TESTING.md`).
 - **Change game flow, rewards or profiles** → `docs/ARCHITECTURE.md`. Run `npm run test:flow`.
@@ -56,19 +74,12 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - **Run the game locally without Docker**: `cd public && python3 -m http.server 8080`, then open `http://localhost:8080`.
 
 ## Conventions
+
 - Vanilla ES2020, one IIFE per file, `'use strict'`, no bundler, no external libraries or CDNs (the game must work offline).
 - `questions.js` and `store.js` must stay DOM-free so Node can test them.
 - Small, named functions; comments explain *why* (especially around the answer-position logic and the landscape layout).
 - Keep UI text short and child-friendly. Use rem/clamp/vh for sizes so the text-size setting works.
 - After editing, inspect relevant tests and update them when necessary. AI agents may run relevant targeted checks only; never run the full test suite locally. GitHub Actions performs full verification.
-
-## Docs index
-- `docs/ARCHITECTURE.md` — modules, state, round lifecycle, storage schema, DOM structure.
-- `docs/QUESTIONS.md` — question object format, generators, answer ordering/position algorithm, topic matrix.
-- `docs/UI-AND-LAYOUT.md` — design tokens, palettes, text scale, landscape-phone layout, modals, figures.
-- `docs/TESTING.md` — what each check does, how to run it, acceptable known limits, manual checklist.
-- `docs/REQUIREMENTS.md` — the owner's requests in order, with the reasoning, so changes stay consistent.
-
 
 ## Full Test Suite Restrictions
 
@@ -79,3 +90,11 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - If uncertain whether a command triggers the full suite, do not execute it.
 - Do not ask an AI agent to run the full suite as part of its normal implementation workflow.
 - Always report that full test execution was left to GitHub Actions.
+
+## Docs index
+
+- `docs/ARCHITECTURE.md` — modules, state, round lifecycle, storage schema, DOM structure.
+- `docs/QUESTIONS.md` — question object format, generators, answer ordering/position algorithm, topic matrix.
+- `docs/UI-AND-LAYOUT.md` — design tokens, palettes, text scale, landscape-phone layout, modals, figures.
+- `docs/TESTING.md` — what each check does, how to run it, acceptable known limits, manual checklist.
+- `docs/REQUIREMENTS.md` — the owner's requests in order, with the reasoning, so changes stay consistent.
