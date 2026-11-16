@@ -56,7 +56,7 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     ['grade4', 'Grade 4 angle diagram', find('grade4', q => q.figure && q.figure.type === 'angle', 'shapes')],
     ['grade4', 'Grade 4 banknote', find('grade4', q => q.notes, 'money')],
     ['grade1', 'Grade 1 place-value blocks', find('grade1', q => q.promptVisual, 'numbers')],
-    ['grade1', 'Grade 1 picture (bars, graphs, position)', find('grade1', q => q.picture, 'shapes')],
+    ['grade1', 'Grade 1 picture (bars and graphs)', find('grade1', q => q.picture, 'shapes')],
     ['grade3', 'Grade 3 clock', find('grade3', q => q.figure, 'clock')],
     ['grade2', 'Grade 2 polygon', find('grade2', q => q.figure && q.figure.type === 'polygon', 'shapes')]
   ];

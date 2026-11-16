@@ -1670,23 +1670,6 @@
     return mark({ question: 'How many cubes in both bars?', picture: bars([x, y], 'Two bars made of cubes'), ...numberChoices(x + y, 2, 20, [x, y]) }, 'measurement', 'bar-total', 2, simple);
   }
 
-  // Position and direction with a clear maths task: an arrow's direction, or the place (1st, 2nd ...) of the star in a row.
-  function makePositionQuestion(simple, allowDirection = true, allowPlace = true) {
-    if (allowDirection && (!allowPlace || Math.random() < 0.5)) {
-      const dirs = [['Up', '⬆️'], ['Down', '⬇️'], ['Left', '⬅️'], ['Right', '➡️']], [name, arrow] = choose(dirs);
-      return mark({ question: `Which way does the arrow point? ${arrow}`, ...textChoices(name, dirs.map(d => d[0])) }, 'position', 'arrow', 2, simple);
-    }
-    const n = intBetween(3, 5), at = intBetween(1, n), item = choose(COUNT_OBJECTS);
-    return mark({
-      question: 'Counting from the left, which place is the ⭐?',
-      picture: {
-        groups: [{ emoji: item.emoji, emoji2: '⭐', rows: [Array.from({ length: n }, (_, i) => i === at - 1 ? 'Y' : 'X').join('')] }],
-        label: `A row of ${n} with one star`, key: key('place', item.emoji, n, at)
-      },
-      ...numberChoices(at, 1, 5, [n + 1 - at])
-    }, 'position', 'place', 2, simple);
-  }
-
   // Simple data: a picture graph (groups of objects) or, from Grade 1, tally marks.
   function makeDataQuestion(simple, totalOnly = false) {
     const kind = weightedChoose(simple || totalOnly ? [['total', 100]] : [['count', 35], ['total', 30], ['tally', 35]]);
@@ -1929,8 +1912,7 @@
   }
 
   function makeGrade1ShapesQuestion() {
-    const kind = weightedChoose([['polygon', 40], ['position', 16], ['measure', 24], ['data', 20]]);
-    if (kind === 'position') return makePositionQuestion(false, false, true);
+    const kind = weightedChoose([['polygon', 48], ['measure', 28], ['data', 24]]);
     if (kind === 'measure') return makeCubeBarQuestion(false);
     if (kind === 'data') return makeDataQuestion(false, true);
     const n = intBetween(3, 6), word = choose(['sides', 'corners']);

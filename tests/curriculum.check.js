@@ -19,6 +19,8 @@ const rel = (x, y) => x < y ? LESS : x > y ? MORE : EQUAL;
 
 // Checks every question must pass: valid answer index, distinct non-empty answers, numeric answers ascending.
 function common(label, q) {
+  const starRow = q.picture?.groups?.some(group => group.emoji2 === '⭐' && group.rows?.some(row => /^[XY]+$/.test(row)));
+  if (q.topic === 'position' && q.kind === 'place' || /^Counting from the left/i.test(q.question || '') || starRow) fail(label + ': ordinal star-position question generated', q);
   const a = q.answers;
   if (!Array.isArray(a) || a.length < 2 || a.length > 5) return fail(label + ': answer count', q), false;
   if (!(q.correct >= 0 && q.correct < a.length)) return fail(label + ': bad correct index', q), false;
@@ -51,18 +53,6 @@ function readSequence(numbers) {
 }
 
 // ============================ AGE 6 ============================
-// Position, picture-graph, cube-bar and coin checks are shared by Age 6 and Grade 1 (`label` names the level).
-function checkPosition(label, q) {
-  let m;
-  if ((m = q.question.match(/^Which way does the arrow point\? (.+)$/))) {
-    const want = m[1].includes('⬆') ? 'Up' : m[1].includes('⬇') ? 'Down' : m[1].includes('⬅') ? 'Left' : m[1].includes('➡') ? 'Right' : null;
-    if (!want || ans(q) !== want || q.answers.length !== 4) fail(label + ': arrow', q);
-    return;
-  }
-  const g = q.picture && q.picture.groups[0], row = g && g.rows.length === 1 ? g.rows[0] : '';
-  if (q.question !== 'Counting from the left, which place is the ⭐?' || !/^[XY]{3,5}$/.test(row) || (row.match(/Y/g) || []).length !== 1 || g.emoji2 !== '⭐' || Number(ans(q)) !== row.indexOf('Y') + 1) fail(label + ': place in a row', q);
-}
-
 function checkData(label, q, maxTotal, simple) {
   let m;
   if ((m = q.question.match(/^Each \|\|\|\|\/ is a group of 5\. How many tally marks\? (.+)$/))) {
@@ -252,8 +242,6 @@ function checkGrade1(topic, q) {
   }
   if (topic === 'shapes') {
     if (q.figure) { if (q.figure.type !== 'polygon' || String(q.figure.sides) !== ans(q) || q.figure.sides < 3 || q.figure.sides > 6 || !/^How many (sides|corners)\?$/.test(text)) fail(label + ': polygon', q); }
-    else if (/^Counting from the left/.test(text)) checkPosition(label, q);
-    else if (/^Which way does the arrow point\?/.test(text)) fail(label + ': direction identification excluded', q);
     else if (/cubes/.test(text)) checkBars(label, q, 12);
     else checkData(label, q, 20, false);
     return;
@@ -266,7 +254,7 @@ const g1ShownByPath = { numbers: 0, all: 0 };
 for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock', 'shapes']) {
   for (let i = 0; i < N; i++) { const q = Q.generateQuestion('grade1', t); if (common('grade1/' + t, q)) { checkGrade1(t, q); if (t === 'numbers' && q.question === 'What number is shown?') g1ShownByPath.numbers++; if (!q.tier) fail('grade1/' + t + ': tier missing', q); g1Seen[q.topic] = (g1Seen[q.topic] || 0) + 1; } }
 }
-['addsub', 'placevalue', 'numbers', 'fractions', 'money', 'shapes', 'position', 'measurement', 'data'].forEach(t => { if (!g1Seen[t]) fail('grade1: topic never generated: ' + t, g1Seen); });
+['addsub', 'placevalue', 'numbers', 'fractions', 'money', 'shapes', 'measurement', 'data'].forEach(t => { if (!g1Seen[t]) fail('grade1: topic never generated: ' + t, g1Seen); });
 // Mixed All draws from every Grade 1 topic and nothing outside Grade 1 scope.
 {
   const seen = {};
@@ -294,6 +282,7 @@ Object.entries(g1ShownByPath).forEach(([path, count]) => { if (!count) fail('gra
   const seen = { arithmetic: 0, numbers: 0, fractions: 0, money: 0, clock: 0, shapes: 0 };
   for (let i = 0; i < sampleSize; i++) {
     const q = Q.generateQuestion('grade1', 'all');
+    common('grade1/all repeated sample', q);
     const category = q.topic === 'addsub' ? 'arithmetic' : q.figure && q.figure.type === 'clock' ? 'clock' : ['numbers', 'placevalue'].includes(q.topic) ? 'numbers' : ['fractions', 'money'].includes(q.topic) ? q.topic : 'shapes';
     seen[category]++;
     if (category === 'arithmetic') checkGrade1('mixed', q);
