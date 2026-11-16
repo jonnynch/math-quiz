@@ -494,7 +494,7 @@ for (const prefix of ['fractions/', 'shapes/', 'tables/', 'patterns/', 'data/', 
 // ============================ GRADE 4 ============================
 const grade4Topics = Q.topicsFor('grade4').map(t => t.value), g4Kinds = {};
 ['numbers', 'patterns', 'tables', 'fractions', 'decimals', 'clock', 'shapes'].forEach(t => { if (!grade4Topics.includes(t)) fail('grade4 topic missing: ' + t, grade4Topics); });
-if (Q.topicsFor('grade3').some(t => t.value === 'decimals') || Q.topicsFor('grade5').some(t => t.value === 'decimals')) fail('decimals topic should be limited to Grade 4', {});
+if (Q.topicsFor('grade3').some(t => t.value === 'decimals') || !Q.topicsFor('grade4').some(t => t.value === 'decimals') || !Q.topicsFor('grade5').some(t => t.value === 'decimals')) fail('decimals topic should be offered in Grades 4 and 5', {});
 function checkGrade4(label, topic, q) {
   if (!q.question || q.question.length > 90 || /quadratic|square root|factorisation|long division/i.test(q.question)) fail(label + ': prompt length or excluded content', q);
   const text = q.question, n = Number(ans(q)); let m;
@@ -602,7 +602,7 @@ for (const g of [1, 2, 3, 4]) {
     }
   }
 }
-// Grades 5-6: Fractions and Mixed All contain decimal-versus-fraction comparisons, and nothing else compares numbers.
+// Grades 5-6 compare within their taught topics; Grade 5 also compares decimals and percentages.
 for (const g of [5, 6]) {
   const level = 'grade' + g;
   if (Q.topicsFor(level).some(t => t.value === 'compare')) fail(level + ': general Comparing numbers topic exposed', {});
@@ -615,7 +615,23 @@ for (const g of [5, 6]) {
       const m = q.question.match(/^Compare: (\S+) \? (\S+)$/);
       if (!m) { if (q.answers.includes(LESS)) fail(level + '/' + t + ': comparison answers on a non-comparison', q); continue; }
       compares++;
-      const tokens = [m[1], m[2]], dec = tokens.filter(x => /^0\.\d{1,2}$/.test(x)), fr = tokens.filter(x => /^[1-9]\d*\/[1-9]\d*$/.test(x));
+      const tokens = [m[1], m[2]], dec = tokens.filter(x => /^\d+\.\d{1,3}$/.test(x)), fr = tokens.filter(x => /^[1-9]\d*\/[1-9]\d*$/.test(x));
+      if (g === 5 && q.topic === 'decimals') {
+        if (dec.length !== 2 || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(Number(tokens[0]), Number(tokens[1]))) fail(level + '/' + t + ': decimal comparison', q);
+        seen[ans(q)]++;
+        continue;
+      }
+      if (g === 5 && q.topic === 'percentages') {
+        const pct = tokens.map(x => x.endsWith('%') ? Number(x.slice(0, -1)) / 100 : Number(x));
+        if (!tokens[0].endsWith('%') || tokens[1].endsWith('%') || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(pct[0], pct[1])) fail(level + '/' + t + ': percentage comparison', q);
+        seen[ans(q)]++;
+        continue;
+      }
+      if (g === 5 && q.topic === 'fractions' && dec.length === 0 && fr.length === 2) {
+        if (q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(fractionValue(tokens[0]), fractionValue(tokens[1]))) fail(level + '/' + t + ': fraction comparison', q);
+        seen[ans(q)]++;
+        continue;
+      }
       if (dec.length !== 1 || fr.length !== 1) { fail(level + '/' + t + ': must compare ONE decimal with ONE fraction', q); continue; }
       const [fn, fd] = fr[0].split('/').map(Number);
       if (fn >= fd) fail(level + '/' + t + ': fraction should be below 1', q);
