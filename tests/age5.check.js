@@ -100,8 +100,7 @@ for (let i = 0; i < N; i++) {
       if (q.kind === 'picture') {
         const flat = g0.rows.join(''), a = (flat.match(/X/g) || []).length, b = (flat.match(/Y/g) || []).length;
         if (!g0.emoji2 || g0.emoji === g0.emoji2 || a + b > 10 || Number(ans) !== a + b || q.resultText !== `${a} + ${b} = ${a + b}`) fail('addition picture', q);
-        if (q.question !== 'How many altogether?' && q.question !== `${a} + ${b} = ?`) fail('addition picture prompt', q);
-        if (q.question === 'How many altogether?' && (a + b > 6 || q.tier !== 1)) fail('words-only prompt is for small sums', q);
+        if (q.question !== `${a} + ${b} = ?`) fail('addition picture prompt uses equation notation', q);
       } else if (q.kind === 'double') {
         const m = q.question.match(/^(\d+) \+ (\d+) = \?$/);
         if (!m || m[1] !== m[2] || Number(ans) !== 2 * m[1]) fail('double', q);
@@ -125,7 +124,7 @@ for (let i = 0; i < N; i++) {
       if (q.kind === 'picture') {
         const all = g0.rows.join(''), a = objs([all], /[^Xx]/g), b = (all.match(/x/g) || []).length;
         if (a > 10 || Number(ans) !== a - b || b < 1 || q.resultText !== `${a} − ${b} = ${a - b}`) fail('subtraction picture', q);
-        if (q.question !== 'How many are left?' && q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt', q);
+        if (q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt uses equation notation', q);
       } else if (q.kind === 'within20' || q.kind === 'cross10') {
         const [, a, b] = q.question.match(/^(\d+) − (\d+) = \?$/).map(Number);
         if (a > 20 || Number(ans) !== a - b || a - b < 1) fail('subtraction within 20', q);

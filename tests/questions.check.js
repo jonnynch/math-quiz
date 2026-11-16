@@ -8,9 +8,19 @@ let total=0; const fails={};
 const fail=(k,msg,q)=>{ (fails[k]=fails[k]||[]).push(msg+' :: '+JSON.stringify(q)); };
 const N=3000;
 const grades=[1,2,3,4,5,6];
+function checkPresentation(level,q,label){
+  const paired=level==='toddler'&&q.question==='Which group has more?';
+  const groupCompare=['age4','age5'].includes(level)&&/^Which group has (more|fewer)\?$/.test(q.question);
+  const fixedCompare=/^Compare: /.test(q.question);
+  const threeCategory=level==='grade2'&&q.question==='Which has the most?';
+  const expected=level==='toddler'?(paired?2:3):paired||groupCompare?2:fixedCompare||threeCategory?3:4;
+  if(q.answers.length!==expected)fail(label,'answer count should be '+expected,q);
+  if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length)fail(label,'invalid or duplicate answer choices',q);
+  if(/^What is \d+ (?:\+|−|×|÷) \d+\?$/.test(q.question))fail(label,'arithmetic should use equation notation',q);
+}
 function checkGrade2Arithmetic(k,q,topic){
   const text=q.question, value=Number(q.answers[q.correct]), allowed=topic==='add'?['+']:topic==='sub'?['−']:topic==='mul'?['×']:topic==='div'?['÷']:topic==='tables'?['×','÷']:['+','−','×','÷']; let m;
-  if((m=text.match(/^What is (\d+) ([+−×÷]) (\d+)\?$/))){const a=+m[1],b=+m[3],op=m[2],result={'+':a+b,'−':a-b,'×':a*b,'÷':a/b}[op];if(!allowed.includes(op)||result!==value||!Number.isInteger(result)||result<0)fail(k,'Grade 2 arithmetic result/operator',q);if(op==='×'&&(![2,5,10].includes(a)&&![2,5,10].includes(b)||Math.max(a,b)>10))fail(k,'Grade 2 multiplication range',q);if(op==='÷'&&a%b!==0)fail(k,'Grade 2 division not exact',q);}
+  if((m=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))){const a=+m[1],b=+m[3],op=m[2],result={'+':a+b,'−':a-b,'×':a*b,'÷':a/b}[op];if(!allowed.includes(op)||result!==value||!Number.isInteger(result)||result<0)fail(k,'Grade 2 arithmetic result/operator',q);if(op==='×'&&(![2,5,10].includes(a)&&![2,5,10].includes(b)||Math.max(a,b)>10))fail(k,'Grade 2 multiplication range',q);if(op==='÷'&&a%b!==0)fail(k,'Grade 2 division not exact',q);}
   else if((m=text.match(/^\? × (2|5|10) = (\d+)$/))){if(value*+m[1]!==+m[2]||value>10||!allowed.includes('×'))fail(k,'missing factor',q);}
   else if((m=text.match(/^(\d+) ÷ \? = (\d+)$/))){if(+m[1]/value!==+m[2]||![2,5,10].includes(value)||!allowed.includes('÷'))fail(k,'missing divisor',q);}
   else if((m=text.match(/^\? \+ (\d+) = (\d+)$/))){if(value+ +m[1]!==+m[2]||!allowed.includes('+'))fail(k,'missing first addend',q);}
@@ -25,6 +35,7 @@ for(const g of grades){
     const k=`g${g}/${t.value}`; const pos={};
     for(let i=0;i<N;i++){
       const q=Q.generateQuestion('grade'+g,t.value); total++;
+      checkPresentation('grade'+g,q,k);
       const a=q.answers, c=q.correct;
       if(!(c>=0&&c<a.length)) {fail(k,'bad correct index',q);continue}
       if(new Set(a).size!==a.length) fail(k,'duplicate answers',q);
@@ -38,11 +49,11 @@ for(const g of grades){
       if(g===1&&t.value!=='clock') continue;   // Grade 1 has its own, stricter checks in curriculum.check.js
       if(t.value==='mixed'||t.value==='add'||t.value==='sub'||t.value==='mul'||t.value==='div'||t.value==='tables'){
         if(g===2) checkGrade2Arithmetic(k,q,t.value);
-        else if((m=text.match(/^What is (\d+) (\+|−|×|÷) (\d+)\?$/))){const x=+m[1],y=+m[3];const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]]; if(r!==Number(ans)||!Number.isInteger(r)) fail(k,'wrong arithmetic',q);
+        else if((m=text.match(/^(\d+) (\+|−|×|÷) (\d+) = \?$/))){const x=+m[1],y=+m[3];const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]]; if(r!==Number(ans)||!Number.isInteger(r)) fail(k,'wrong arithmetic',q);
           const allowed={mixed:g===1?'+−':'+−×÷',add:'+',sub:'−',mul:'×',div:'÷',tables:'×÷'}[t.value]; if(!allowed.includes(m[2])) fail(k,'operator not allowed '+m[2],q);
           if(g>=4){const last=ans.slice(-1); if(!a.some((x,j)=>j!==c&&x.slice(-1)===last)) fail(k,'no same last digit',q);}
         } else if((m=text.match(/^(\d+) × \? = (\d+)$/))){ if(+m[1]*Number(ans)!==+m[2]) fail(k,'wrong missing factor',q);} else fail(k,'unrecognised text',q);
-        if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^What is (\d+) × (\d+)\?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
+        if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^(\d+) × (\d+) = \?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
       }
       if(g===2&&t.value==='numbers'){
         if((m=text.match(/^What number is (\d+) tens and (\d+) ones\?$/))){if(+m[1]*10 + +m[2]!==Number(ans)||Number(ans)<10||Number(ans)>99)fail(k,'two-digit place value',q);}
@@ -65,19 +76,19 @@ for(const g of grades){
           const mins=a.map(x=>{const [h,mm]=x.split(':').map(Number);return (h%12)*60+mm}); if(mins.some((v,j)=>j&&v<=mins[j-1])) fail(k,'clock not sorted',q);
           const step=[0,30,5,5,1][g]; if(f.minute%step!==0) fail(k,'clock minute grid',q);} }
       if(t.value==='shapes'){ if(g===1){ if(!q.figure||q.figure.type!=='polygon'||String(q.figure.sides)!==ans) fail(k,'polygon mismatch',q);}
-        else if(g===2){const f=q.figure;if(q.kind==='polygon'&&(!f||f.type!=='polygon'||String(f.sides)!==ans))fail(k,'polygon mismatch',q);else if(q.kind==='solid'&&(!q.picture||q.picture.label!=='A '+ans))fail(k,'solid mismatch',q);else if(q.kind==='measure'){const mm=text.match(/^Compare: (\d+) (cm|kg|L) \? (\d+) \2$/),exp=+mm?.[1]<+mm?.[3]?0:+mm?.[1]>+mm?.[3]?2:1;if(!mm||c!==exp)fail(k,'measurement compare',q);}else if(q.kind==='perimeter'&&(!f||f.type!=='perimeter'||+ans!==2*(f.length+f.width)))fail(k,'rectangle perimeter',q);else if(q.kind==='symmetry'&&+ans!==({triangle:3,square:4,rectangle:2}[text.match(/a (triangle|square|rectangle)/)?.[1]]))fail(k,'symmetry',q);else if(q.kind==='identify'&&({3:'triangle',4:'square',5:'pentagon',6:'hexagon'}[f?.sides]!==ans))fail(k,'shape identification',q);}
-        else if(g===3 && (m=text.match(/^How many (faces|edges|vertices) does a (.+) have\?$/))){const S={'cube':[6,12,8],'rectangular prism':[6,12,8],'triangular prism':[5,9,6],'square pyramid':[5,8,5],'triangular pyramid':[4,6,4]}[m[2]];const idx={faces:0,edges:1,vertices:2}[m[1]]; if(S[idx]!==+ans) fail(k,'solid wrong',q);}
-        else if(g===3 && (m=text.match(/^How many sides does a (\w+) have\?$/))){const n={triangle:3,square:4,pentagon:5,hexagon:6,heptagon:7,octagon:8,nonagon:9,decagon:10}[m[1]]; if(n!==+ans) fail(k,'polygon name wrong',q);}
-        else if(m=text.match(/third angle/)){ const mm=text.match(/angles of (\d+)° and (\d+)°/); if(180-mm[1]-mm[2]!==+ans||+ans<=0) fail(k,'triangle angle',q);}
-        else if(m=text.match(/^A rectangle is (\d+) cm long and (\d+) cm wide\. What is its (perimeter in cm|area in cm²)\?$/)){ const exp=m[3].startsWith('perimeter')?2*(+m[1]+ +m[2]):m[1]*m[2]; if(exp!==+ans) fail(k,'rect wrong',q);}
-        else if(m=text.match(/^A square has sides of (\d+) cm/)){ if(m[1]*m[1]!==+ans) fail(k,'square wrong',q);}
-        else if(m=text.match(/^A triangle has a base of (\d+) cm and a height of (\d+) cm/)){ if(m[1]*m[2]/2!==+ans||(m[1]*m[2])%2) fail(k,'tri area wrong',q);}
-        else if(m=text.match(/^A parallelogram has a base of (\d+) cm and a height of (\d+) cm/)){ if(m[1]*m[2]!==+ans) fail(k,'para wrong',q);}
-        else if(m=text.match(/^A quadrilateral has angles of (\d+)°, (\d+)° and (\d+)°/)){ if(360-m[1]-m[2]-m[3]!==+ans||+ans<=0) fail(k,'quad wrong',q);}
+        else if(g===2){const f=q.figure;if(q.kind==='polygon'&&(!f||f.type!=='polygon'||String(f.sides)!==ans))fail(k,'polygon mismatch',q);else if(q.kind==='solid'&&(!q.picture||q.picture.label!=='A '+ans))fail(k,'solid mismatch',q);else if(q.kind==='measure'){const mm=text.match(/^Compare: (\d+) (cm|kg|L) \? (\d+) \2$/),exp=+mm?.[1]<+mm?.[3]?0:+mm?.[1]>+mm?.[3]?2:1;if(!mm||c!==exp)fail(k,'measurement compare',q);}else if(q.kind==='perimeter'&&(!f||f.type!=='perimeter'||+ans!==2*(f.length+f.width)))fail(k,'rectangle perimeter',q);else if(q.kind==='symmetry'&&+ans!==({triangle:3,square:4,rectangle:2}[text.match(/^(triangle|square|rectangle): lines of symmetry = \?$/)?.[1]]))fail(k,'symmetry',q);else if(q.kind==='identify'&&({3:'triangle',4:'square',5:'pentagon',6:'hexagon'}[f?.sides]!==ans))fail(k,'shape identification',q);}
+        else if(g===3 && (m=text.match(/^(faces|edges|vertices) of a (.+) = \?$/))){const S={'cube':[6,12,8],'rectangular prism':[6,12,8],'triangular prism':[5,9,6],'square pyramid':[5,8,5],'triangular pyramid':[4,6,4]}[m[2]];const idx={faces:0,edges:1,vertices:2}[m[1]]; if(S[idx]!==+ans) fail(k,'solid wrong',q);}
+        else if(g===3 && (m=text.match(/^Sides of (\w+) = \?$/))){const n={triangle:3,square:4,pentagon:5,hexagon:6,heptagon:7,octagon:8,nonagon:9,decagon:10}[m[1]]; if(n!==+ans) fail(k,'polygon name wrong',q);}
+        else if((m=text.match(/^Third angle = 180° − (\d+)° − (\d+)°$/))){ if(180-m[1]-m[2]!==+ans||+ans<=0) fail(k,'triangle angle',q);}
+        else if(m=text.match(/^(Perimeter|Area) of (\d+) cm × (\d+) cm rectangle = \? cm(²)?$/)){ const exp=m[1]==='Perimeter'?2*(+m[2]+ +m[3]):m[2]*m[3]; if(exp!==+ans) fail(k,'rect wrong',q);}
+        else if(m=text.match(/^Area of square with (\d+) cm sides = \? cm²$/)){ if(m[1]*m[1]!==+ans) fail(k,'square wrong',q);}
+        else if(m=text.match(/^Triangle area: (\d+) cm × (\d+) cm ÷ 2 = \? cm²$/)){ if(m[1]*m[2]/2!==+ans||(m[1]*m[2])%2) fail(k,'tri area wrong',q);}
+        else if(m=text.match(/^Parallelogram area: (\d+) cm × (\d+) cm = \? cm²$/)){ if(m[1]*m[2]!==+ans) fail(k,'para wrong',q);}
+        else if(m=text.match(/^Fourth angle = 360° − (\d+)° − (\d+)° − (\d+)°$/)){ if(360-m[1]-m[2]-m[3]!==+ans||+ans<=0) fail(k,'quad wrong',q);}
         else fail(k,'unrecognised shapes text',q);}
       if(t.value==='fractions'){
-        if(m=text.match(/^What is half of (\d+)\?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
-        else if(m=text.match(/^What is (\d+)\/(\d+) of (\d+)\?$/)){ if(m[1]*m[3]/m[2]!==+ans||!Number.isInteger(m[3]/m[2])) fail(k,'fraction of amount wrong',q);}
+        if(m=text.match(/^1\/2 of (\d+) = \?$/)){ if(m[1]/2!==+ans) fail(k,'half wrong',q);}
+        else if(m=text.match(/^(\d+)\/(\d+) of (\d+) = \?$/)){ if(m[1]*m[3]/m[2]!==+ans||!Number.isInteger(m[3]/m[2])) fail(k,'fraction of amount wrong',q);}
         else if(g===2&&text==='What fraction of the shape is shaded?'){const f=q.figure,match=String(ans).match(/^(\d+)\/(\d+)$/);if(!f||f.type!=='fraction'||!match||Math.abs(+match[1]/+match[2]-f.numerator/f.denominator)>1e-9)fail(k,'fraction diagram wrong',q);}
         else if(g===2&&text==='1/2 = ?/4'){if(+ans!==2)fail(k,'equivalent halves and quarters',q);}
         else if(m=text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/)){ if(m[1]/m[2]!==+ans/m[3]) fail(k,'equiv wrong',q);}
@@ -90,8 +101,8 @@ for(const g of grades){
           const x=m[1]/m[2]; const y=m[5]?m[4]/m[5]:+m[4]; const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[3]]; if(Math.abs(val(ans)-r)>1e-9) fail(k,'frac arithmetic wrong',q);
           const [n,d]=frac(ans); if(gcd(n,d)!==1&&d!==1) fail(k,'not simplest',q); if(r<=0) fail(k,'non-positive result',q);
           const vals=a.map(val); if(vals.some((v,j)=>j&&v<=vals[j-1]+1e-12)) fail(k,'fractions not sorted',q);}
-        else if(m=text.match(/^How many 1\/(\d+)s are in (\d+)\?$/)){ if(m[1]*m[2]!==+ans) fail(k,'howmany wrong',q);}
-        else if(m=text.match(/^What is 1\/(\d+) of (\d+)\?$/)){ if(m[2]/m[1]!==+ans) fail(k,'unit frac wrong',q);}
+        else if(m=text.match(/^(\d+) ÷ \(1\/(\d+)\) = \?$/)){ if(+m[1]*+m[2]!==+ans) fail(k,'unit fraction division wrong',q);}
+        else if(m=text.match(/^1\/(\d+) of (\d+) = \?$/)){ if(m[2]/m[1]!==+ans) fail(k,'unit frac wrong',q);}
         else fail(k,'unrecognised fraction text',q);
       }
     }
@@ -106,6 +117,7 @@ for(const g of grades){
   const avail=new Set(Q.topicsFor('grade'+g).map(t=>t.value)); const k=`g${g}/all`; const seen={};
   for(let i=0;i<3000;i++){
     const q=Q.generateQuestion('grade'+g,'all'); total++; const x=q.question;
+    checkPresentation('grade'+g,q,k);
     if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length) fail(k,'bad question',q);
     if(g===1){ seen.g1=(seen.g1||0)+1; if(/^Compare/.test(x)) fail(k,'Grade 1 has no comparison questions',q); continue; }   // Grade 1 categories: curriculum.check.js
     let cat;
@@ -115,9 +127,9 @@ for(const g of grades){
     else if(/^Compare: /.test(x)) cat='fractions';   // Grades 5-6: decimal versus fraction lives inside Fractions
     else if(/cents/.test(x)) cat='money';
     else if(/\d\/\d|half of/.test(x)) cat='fractions';
-    else if(/cm|°|faces|edges|vertices|sides/.test(x)) cat='shapes';
+    else if(/cm|°|faces|edges|vertices|[Ss]ides/.test(x)) cat='shapes';
     else if(g===2) cat='arithmetic';
-    else if(/^What is \d+ [+−×÷] \d+\?$|^\d+ × \? = \d+$/.test(x)) cat='arithmetic';
+    else if(/^\d+ [+−×÷] \d+ = \?$|^\d+ × \? = \d+$/.test(x)) cat='arithmetic';
     else { fail(k,'unrecognised mixed-all question',q); continue; }
     seen[cat]=(seen[cat]||0)+1;
     if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);
@@ -126,6 +138,13 @@ for(const g of grades){
   (g===2?['arithmetic','tables','numbers','fractions','money','clock','shapes','patterns','data']:['arithmetic','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c))).forEach(c=>{
     if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
   });
+}
+// The same choice-count and equation-format rules cover all age pools, not only grade topics.
+for(const level of ['toddler','age4','age5','age6']){
+  for(let i=0;i<N;i++){
+    const q=Q.generateQuestion(level,'all'); total++;
+    checkPresentation(level,q,level+'/all');
+  }
 }
 // Comparing numbers is not offered at any grade; an old saved selection falls back to Mixed All Questions.
 for(const g of grades){ if(Q.topicsFor('grade'+g).some(t=>t.value==='compare')) fail('g'+g+'/compare','compare topic must not be offered',{}); if(Q.normaliseTopic('grade'+g,'compare')!=='all') fail('g'+g+'/compare','old compare selection must normalise to all',{}); }

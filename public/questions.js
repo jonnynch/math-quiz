@@ -128,7 +128,7 @@
     return { question: text, answers: [answer, ...wrong].map(String), correct: 0 };
   }
 
-  // Builds a multiple-choice arithmetic question.
+  // Builds a four-choice multiple-choice arithmetic question.
   // When `sameLastDigit` is true (Grade 4 and above), at least one wrong answer ends in the
   // same last digit as the correct answer, so the answer cannot be guessed from the last digit alone.
   function makeQuestion(a, operator, b, answer, sameLastDigit = false) {
@@ -140,21 +140,21 @@
     if (sameLastDigit) {
       // Shifting by a multiple of 10 keeps the last digit.
       const sameDigit = [1, 2, 3, 4, 5, 10].flatMap(k => [answer + 10 * k, answer - 10 * k]).filter(v => v >= 0);
-      // Decide first where the correct answer will sit (0-4 wrong answers below it), then put the
+      // Decide first where the correct answer will sit (0-3 wrong answers below it), then put the
       // same-last-digit wrong answer on a side that allows that position.
-      const target = intBetween(0, 4);
+      const target = intBetween(0, 3);
       let sides = sameDigit;
       if (target === 0) sides = sameDigit.filter(v => v > answer);
-      if (target === 4) sides = sameDigit.filter(v => v < answer);
+      if (target === 3) sides = sameDigit.filter(v => v < answer);
       if (sides.length) preferredBelow = target; else sides = sameDigit;
       const pick = choose(sides);
       must.push(pick);
       pool.push(pick);
     }
     for (let i = 0; i < 12; i++) pool.push(answer + intBetween(5, 30)); // safety net
-    const wrong = pickWrongAnswers(answer, pool, 4, must, preferredBelow);
+    const wrong = pickWrongAnswers(answer, pool, 3, must, preferredBelow);
     return {
-      question: `What is ${a} ${operator} ${b}?`,
+      question: `${a} ${operator} ${b} = ?`,
       answers: [answer, ...wrong].map(String),
       correct: 0
     };
@@ -195,7 +195,7 @@
     const kind = weightedChoose([['amount', 30], ['diagram', 30], ['equivalent', 20], ['compare', 20]]);
     if (kind === 'amount') {
       const denominator = choose([2, 4, 8]), whole = denominator * intBetween(2, 10);
-      return Object.assign(makeNumericQuestion(`What is 1/${denominator} of ${whole}?`, whole / denominator, { extras: [whole, whole - whole / denominator] }), { topic: 'fractions', kind });
+      return Object.assign(makeNumericQuestion(`1/${denominator} of ${whole} = ?`, whole / denominator, { extras: [whole, whole - whole / denominator] }), { topic: 'fractions', kind });
     }
     if (kind === 'diagram') {
       const denominator = choose([2, 4, 8]), numerator = intBetween(1, denominator - 1);
@@ -221,12 +221,12 @@
       const num = intBetween(1, den - 1);
       const k = intBetween(2, maxK);
       const n = den * k;
-      return makeNumericQuestion(`What is ${num}/${den} of ${n}?`, num * k, { extras: [k, n - num * k, n] });
+      return makeNumericQuestion(`${num}/${den} of ${n} = ?`, num * k, { extras: [k, n - num * k, n] });
     };
     if (grade === 3) {
       if (Math.random() < 0.5) return ofAmount([2, 3, 4, 5, 6, 8, 10], 10);
       const den = choose([2, 3, 4, 5, 6, 8, 10]), k = intBetween(2, 10);
-      return makeNumericQuestion(`What is 1/${den} of ${den * k}?`, k, { extras: [den * k, den, den * k - k] });
+      return makeNumericQuestion(`1/${den} of ${den * k} = ?`, k, { extras: [den * k, den, den * k - k] });
     }
     if (grade === 4) {
       const kind = choose(['equiv', 'add', 'sub', 'amount']);
@@ -282,7 +282,7 @@
     }
     if (kind === 'howMany') {
       const d = intBetween(2, 8), w = intBetween(2, 9);
-      return makeNumericQuestion(`How many 1/${d}s are in ${w}?`, w * d, { extras: [w, w + d, Math.max(1, Math.round(w / d))] });
+      return makeNumericQuestion(`${w} ÷ (1/${d}) = ?`, w * d, { extras: [w, w + d, Math.max(1, Math.round(w / d))] });
     }
     for (let tries = 0; tries < 300; tries++) {
       const b = choose([2, 3, 4, 5, 6]), d = choose([2, 3, 4, 5, 6]);
@@ -353,7 +353,7 @@
     const product = a * b;
     const kind = choose(['mul', 'mul', 'div', 'missing']);
     if (kind === 'div') return makeQuestion(product, '÷', a, b, grade >= 4);
-    if (kind === 'missing') return makeNumericQuestion(`${a} × ? = ${product}`, b, { count: 5, extras: [a, product - a] });
+    if (kind === 'missing') return makeNumericQuestion(`${a} × ? = ${product}`, b, { extras: [a, product - a] });
     return makeQuestion(a, '×', b, product, grade >= 4);
   }
 
@@ -474,10 +474,10 @@
       const swapped = keyOf(minute / 5, (hour % 12) * 5);
       if (wrap(swapped) !== correctKey && (grade !== 1 || (hour % 12) * 5 % 30 === 0)) must.push(add(swapped));
     }
-    const wrongKeys = pickWithMistake(correctKey, [...cand.keys()], 4, must);
+    const wrongKeys = pickWithMistake(correctKey, [...cand.keys()], 3, must);
     const entries = [[correctKey, label(correctKey)], ...wrongKeys.map(k => [k, cand.get(k)])];
     return {
-      question: 'What time does the clock show?',
+      question: 'Read the time.',
       figure: { type: 'clock', hour, minute },
       answers: entries.map(e => e[1]),
       keys: entries.map(e => e[0]),
@@ -501,7 +501,7 @@
       const kind = weightedChoose([['polygon', 20], ['solid', 15], ['measure', 20], ['perimeter', 15], ['symmetry', 10], ['identify', 20]]);
       if (kind === 'polygon') {
         const n = intBetween(3, 8), word = choose(['sides', 'corners']);
-        const q = makeNumericQuestion(`How many ${word} does this shape have?`, n, { count: 4 });
+        const q = makeNumericQuestion(`How many ${word}?`, n, { count: 4 });
         q.figure = { type: 'polygon', sides: n }; q.topic = 'shapes'; q.kind = kind;
         return q;
       }
@@ -518,13 +518,13 @@
       }
       if (kind === 'perimeter') {
         const length = intBetween(4, 12), width = intBetween(2, 8);
-        const q = makeNumericQuestion('What is the perimeter?', 2 * (length + width), { extras: [length + width, 2 * length, 2 * width] });
+        const q = makeNumericQuestion('Perimeter = ?', 2 * (length + width), { extras: [length + width, 2 * length, 2 * width] });
         q.figure = { type: 'perimeter', length, width }; q.topic = 'shapes'; q.kind = kind;
         return q;
       }
       if (kind === 'symmetry') {
         const shape = choose([{ name: 'triangle', shape: 'triangle', lines: 3 }, { name: 'square', shape: 'square', lines: 4 }, { name: 'rectangle', shape: 'rectangle', lines: 2 }]);
-        const q = { question: `How many lines of symmetry does a ${shape.name} have?`, ...numberChoices(shape.lines, 1, 4, [1, 2, 3, 4]) };
+        const q = { question: `${shape.name}: lines of symmetry = ?`, ...numberChoices(shape.lines, 1, 4, [1, 2, 3, 4]) };
         q.figure = { type: 'shape', shape: shape.shape, ratio: shape.name === 'rectangle' ? 1.7 : 1 }; q.topic = 'shapes'; q.kind = kind;
         return q;
       }
@@ -536,40 +536,40 @@
     if (grade === 3) {
       if (Math.random() < 0.4) {
         const n = intBetween(3, 10);
-        return makeNumericQuestion(`How many sides does a ${POLYGON_NAMES[n]} have?`, n, { count: 4 });
+        return makeNumericQuestion(`Sides of ${POLYGON_NAMES[n]} = ?`, n, { count: 4 });
       }
       const solid = choose(SOLIDS);
       const prop = choose(['faces', 'edges', 'vertices']);
-      return makeNumericQuestion(`How many ${prop} does a ${solid.name} have?`, solid[prop], { count: 4 });
+      return makeNumericQuestion(`${prop} of a ${solid.name} = ?`, solid[prop], { count: 4 });
     }
     if (grade === 4) {
       if (Math.random() < 0.5) {
         const a = intBetween(20, 80), b = intBetween(20, 160 - a);
-        return makeNumericQuestion(`A triangle has angles of ${a}° and ${b}°. What is the third angle?`, 180 - a - b, { extras: [180 - a, 180 - b, a + b] });
+        return makeNumericQuestion(`Third angle = 180° − ${a}° − ${b}°`, 180 - a - b, { extras: [180 - a, 180 - b, a + b] });
       }
       const l = intBetween(4, 15), w = intBetween(2, l);
-      return makeNumericQuestion(`A rectangle is ${l} cm long and ${w} cm wide. What is its perimeter in cm?`, 2 * (l + w), { extras: [l * w, l + w, 2 * l + w] });
+      return makeNumericQuestion(`Perimeter of ${l} cm × ${w} cm rectangle = ? cm`, 2 * (l + w), { extras: [l * w, l + w, 2 * l + w] });
     }
     if (grade === 5) {
       if (Math.random() < 0.7) {
         const l = intBetween(6, 20), w = intBetween(3, 15);
-        return makeNumericQuestion(`A rectangle is ${l} cm long and ${w} cm wide. What is its area in cm²?`, l * w, { extras: [2 * (l + w), l + w] });
+        return makeNumericQuestion(`Area of ${l} cm × ${w} cm rectangle = ? cm²`, l * w, { extras: [2 * (l + w), l + w] });
       }
       const s = intBetween(3, 15);
-      return makeNumericQuestion(`A square has sides of ${s} cm. What is its area in cm²?`, s * s, { extras: [4 * s, 2 * s] });
+      return makeNumericQuestion(`Area of square with ${s} cm sides = ? cm²`, s * s, { extras: [4 * s, 2 * s] });
     }
     const kind = choose(['triangle', 'parallelogram', 'quad']);
     if (kind === 'quad') {
       const a = intBetween(60, 120), b = intBetween(60, 120), c = intBetween(60, 120);
-      return makeNumericQuestion(`A quadrilateral has angles of ${a}°, ${b}° and ${c}°. What is the fourth angle?`, 360 - a - b - c, { extras: [360 - a - b, 180 - c] });
+      return makeNumericQuestion(`Fourth angle = 360° − ${a}° − ${b}° − ${c}°`, 360 - a - b - c, { extras: [360 - a - b, 180 - c] });
     }
     let base = intBetween(3, 24);
     const height = intBetween(3, 20);
     if (kind === 'triangle') {
       if ((base * height) % 2 === 1) base += 1;
-      return makeNumericQuestion(`A triangle has a base of ${base} cm and a height of ${height} cm. What is its area in cm²?`, base * height / 2, { extras: [base * height, base + height] });
+      return makeNumericQuestion(`Triangle area: ${base} cm × ${height} cm ÷ 2 = ? cm²`, base * height / 2, { extras: [base * height, base + height] });
     }
-    return makeNumericQuestion(`A parallelogram has a base of ${base} cm and a height of ${height} cm. What is its area in cm²?`, base * height, { extras: [base * height / 2 | 0, 2 * (base + height)] });
+    return makeNumericQuestion(`Parallelogram area: ${base} cm × ${height} cm = ? cm²`, base * height, { extras: [base * height / 2 | 0, 2 * (base + height)] });
   }
 
   // ---------- counting and age levels ----------
@@ -588,10 +588,10 @@
     { emoji: '🐱', name: 'kittens' }
   ];
 
-  function makeCountingQuestion() {
+  function makeCountingQuestion(choiceCount = 3) {
     const item = choose(COUNT_OBJECTS);
     const count = intBetween(1, 5);
-    const choices = makeNumberChoices(count, 1, 5, 3);
+    const choices = makeNumberChoices(count, 1, 5, choiceCount);
     return {
       question: `How many ${item.name}?`,
       visual: Array(count).fill(item.emoji),
@@ -937,20 +937,20 @@
     const [first, second] = shuffledCopy(COUNT_OBJECTS);
 
     if (kind === 'picture') {
-      // Picture first. Small sums are asked without any numbers ("How many altogether?"); notation comes in with larger sums.
+      // Keep the picture as a teaching aid while using the same equation prompt at every sum size.
       const [a, b] = choose(ADD_PAIRS);
       const sum = a + b, layout = pictureLayout(a, b, sum);
-      const words = sum <= 6 && Math.random() < 0.65;
+      const tier = sum <= 6 && Math.random() < 0.65 ? 1 : 2;
       return tag({
-        question: words ? 'How many altogether?' : `${a} + ${b} = ?`,
+        question: `${a} + ${b} = ?`,
         resultText: `${a} + ${b} = ${sum}`,
         picture: {
           groups: [{ emoji: first.emoji, emoji2: second.emoji, rows: arrangeCells('X'.repeat(a) + 'Y'.repeat(b), layout) }],
           label: `${a} ${first.name} and ${b} ${second.name}`,
-          key: key('add5', a, b, layout, words ? 'words' : 'sum')
+          key: key('add5', a, b, layout)
         },
         ...numberChoices(sum, 1, 10, [a, b])
-      }, 'addition', 'picture', words ? 1 : 2);
+      }, 'addition', 'picture', tier);
     }
 
     if (kind === 'bond') {
@@ -1038,17 +1038,17 @@
 
     if (kind === 'picture10') {
       const [a, b] = choose(SUB_PAIRS), keep = a - b, layout = pictureLayout(a, b, keep);
-      const words = a <= 6 && Math.random() < 0.65;
+      const tier = a <= 6 && Math.random() < 0.65 ? 1 : 2;
       return tag({
-        question: words ? 'How many are left?' : `${a} − ${b} = ?`,
+        question: `${a} − ${b} = ?`,
         resultText: `${a} − ${b} = ${keep}`,
         picture: {
           groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
           label: `${a} ${item.name}, ${b} crossed out`,
-          key: key('sub5', a, b, layout, words ? 'words' : 'sum')
+          key: key('sub5', a, b, layout)
         },
         ...numberChoices(keep, 1, 10, [b, a])
-      }, 'subtraction', 'picture', words ? 1 : 2);
+      }, 'subtraction', 'picture', tier);
     }
 
     if (kind === 'picture20') {
@@ -1453,7 +1453,7 @@
 
   // Quick look at 1-5 objects (subitising).
   function makeSubitisingQuestion() {
-    const q = tag(makeCountingQuestion(), 'subitising', 'quick-look', 1);
+    const q = tag(makeCountingQuestion(4), 'subitising', 'quick-look', 1);
     q.visualLabel = q.question.replace(/^How many (.+)\?$/, 'Some $1');   // the label must not say how many
     return q;
   }
@@ -1468,7 +1468,7 @@
     const a = intBetween(1, 9), b = intBetween(1, 10 - a), answer = a + b;
     const [first, second] = shuffledCopy(COUNT_OBJECTS);
     return tag({
-      question: `What is ${a} + ${b}?`,
+      question: `${a} + ${b} = ?`,
       resultText: `${a} + ${b} = ${answer}`,
       stage: { base: first, baseCount: a, op: 'add', change: b, added: second, delayAdd: true },
       ...makeNumberChoices(answer, 0, 10, 4)
@@ -1480,7 +1480,7 @@
   function makeSubtractionPicture6() {
     const [a, b] = choose(SUB_PAIRS), item = choose(COUNT_OBJECTS), keep = a - b, layout = pictureLayout(a, b, keep);
     return tag({
-      question: `What is ${a} − ${b}?`,
+      question: `${a} − ${b} = ?`,
       resultText: `${a} − ${b} = ${keep}`,
       picture: {
         groups: [{ emoji: item.emoji, rows: arrangeCells('X'.repeat(keep) + 'x'.repeat(b), layout) }],
@@ -1497,7 +1497,7 @@
     if (add) { a = intBetween(1, 9); b = intBetween(1, 10 - a); answer = a + b; }
     else { a = intBetween(2, 10); b = intBetween(1, a - 1); answer = a - b; }
     return tag({
-      question: `What is ${a} ${add ? '+' : '−'} ${b}?`,
+      question: `${a} ${add ? '+' : '−'} ${b} = ?`,
       resultText: `${a} ${add ? '+' : '−'} ${b} = ${answer}`,
       ...makeNumberChoices(answer, 0, 10, 4)
     }, 'addsub', 'symbols', Math.min(3, tierOf(Math.max(a, answer)) + 1));
@@ -1591,7 +1591,7 @@
     return mark({
       question: 'What number is missing?',
       numbers: seq.map((v, i) => i === hole ? '?' : String(v)),
-      ...choicesFrom(answer, near, within120([answer + 1, answer - 1]))
+      ...choicesFrom(answer, [...near, ...within120([answer - 3, answer - 2, answer - 1, answer + 1, answer + 2, answer + 3])], within120([answer + 1, answer - 1]))
     }, 'numbers', skip ? 'skip' : 'missing', skip ? (forward ? 2 : 3) : (first <= 20 ? 1 : 2), false);
   }
 
@@ -1645,7 +1645,7 @@
     const kind = weightedChoose([['half', 80], ['whole', 20]]);
     if (kind === 'half') {
       const n = intBetween(1, 10) * 2;
-      return mark(makeNumericQuestion(`What is half of ${n}?`, n / 2, { extras: [n, n * 2] }), 'fractions', kind, n <= 10 ? 1 : 2, false);
+      return mark(makeNumericQuestion(`1/2 of ${n} = ?`, n / 2, { extras: [n, n * 2] }), 'fractions', kind, n <= 10 ? 1 : 2, false);
     }
     return mark({ question: 'How many halves make one whole?', ...numberChoices(2, 1, 5, [1, 4]) }, 'fractions', kind, 1, false);
   }
@@ -1660,7 +1660,7 @@
     if (kind === 'measure') return makeCubeBarQuestion(false);
     if (kind === 'data') return makeDataQuestion(false, true);
     const n = intBetween(3, 6), word = choose(['sides', 'corners']);
-    const q = makeNumericQuestion(`How many ${word} does this shape have?`, n, { count: 4 });
+    const q = makeNumericQuestion(`How many ${word}?`, n, { count: 4 });
     q.figure = { type: 'polygon', sides: n };
     return mark(q, 'shapes', word, n <= 4 ? 1 : 2, false);
   }
@@ -1771,7 +1771,7 @@
   // ---------- no repeats within a game ----------
   // Identity of a question: its wording, its figure (clock time / polygon, where the wording alone
   // does not say which one) and the correct answer's text. Answer ORDER and wrong options are ignored,
-  // and so are decorative emoji (Age 5/6 stages), so "What is 6 × 7?" generated twice with different
+  // and so are decorative emoji (Age 5/6 stages), so "6 × 7 = ?" generated twice with different
   // wrong answers is the same question.
   function questionKey(q) {
     const identity = [q.question, q.figure || null, q.answers[q.correct]];

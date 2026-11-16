@@ -139,7 +139,7 @@ for (let i = 0; i < N; i++) {
       { const s = q.numbers && readSequence(q.numbers); if (!s || Math.abs(s.step) !== 1 || s.answer !== n || Math.max(...s.values) > 20 || Math.min(...s.values) < 1) fail('age6 sequence', q); }
       break;
     case 'addsub':
-      if (!(m = q.question.match(/^What is (\d+) ([+−]) (\d+)\?$/))) { fail('age6 addsub text', q); break; }
+      if (!(m = q.question.match(/^(\d+) ([+−]) (\d+) = \?$/))) { fail('age6 addsub text', q); break; }
       { const a = Number(m[1]), b = Number(m[3]), r = m[2] === '+' ? a + b : a - b;
         if (r !== n || r < 0 || a > 10 || (m[2] === '+' && r > 10) || q.answers.some(x => Number(x) > 10)) fail('age6 within 10', q);
         if (q.kind === 'objects' && !(m[2] === '+' && q.stage && q.stage.baseCount === a && q.stage.change === b && q.stage.op === 'add' && q.stage.delayAdd && q.stage.added.emoji !== q.stage.base.emoji)) fail('age6 delayed object addition stage lost', q);
@@ -181,7 +181,7 @@ function checkGrade1(topic, q) {
   const label = 'grade1/' + topic, text = q.question, n = Number(ans(q)); let m;
   if (text === 'How many 10s?' || text === 'How many 1s?') fail(label + ': excluded standalone tens/ones question', q);
   if (/[×÷]/.test(text) || /^Compare/.test(text) || q.answers.includes(LESS)) return fail(label + ': multiplication/division/comparison', q);
-  if (/^Which number word is \d+\?$|^Which number is ".+"\?$|^What number comes (after|before) \d+\?$|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b)[a-z]+\?$/.test(text)) fail(label + ': excluded English / standalone question type', q);
+  if (/^Which number word is \d+\?$|^Which number is ".+"\?$|^What number comes (after|before) \d+\?$|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|sides\b|corners\b)[a-z]+\?$/.test(text)) fail(label + ': excluded English / standalone question type', q);
   if (['add', 'sub', 'mixed'].includes(topic) && text.length > 40) fail(label + ': question sentence too long (no stories)', q);
   noBanned(label, q);
   const arithmetic = () => {
@@ -191,7 +191,7 @@ function checkGrade1(topic, q) {
       if (operator === '+' && values[0] + values[1] > 20) fail(label + ': addition above 20', q);
       if (operator === '−' && values[0] < values[1]) fail(label + ': negative subtraction', q);
     };
-    if ((m = text.match(/^What is (\d+) ([+−]) (\d+)\?$/))) {
+    if ((m = text.match(/^(\d+) ([+−]) (\d+) = \?$/))) {
       const a = Number(m[1]), b = Number(m[3]), r = m[2] === '+' ? a + b : a - b;
       if (r !== n || r < 0 || a > 20 || b > 20 || (m[2] === '+' && r > 20)) fail(label + ': arithmetic', q);
       checkOperands([a, b], m[2]);
@@ -238,8 +238,8 @@ function checkGrade1(topic, q) {
     return;
   }
   if (topic === 'fractions') {
-    if (/third|quarter|fourth|\d\/\d|\d\.\d/.test(text + q.answers.join(' '))) return fail(label + ': only halves are allowed', q);
-    if ((m = text.match(/^What is half of (\d+)\?$/))) { if (m[1] % 2 || m[1] > 20 || n !== m[1] / 2) fail(label + ': half', q); }
+    if (/third|quarter|fourth|(?<!1)\/\d|\d\.\d/.test(text + q.answers.join(' '))) return fail(label + ': only halves are allowed', q);
+    if ((m = text.match(/^1\/2 of (\d+) = \?$/))) { if (m[1] % 2 || m[1] > 20 || n !== m[1] / 2) fail(label + ': half', q); }
     else if (text === 'How many halves make one whole?') { if (n !== 2) fail(label + ': halves in a whole', q); }
     else fail(label + ': fractions text', q);
     return;
@@ -251,7 +251,7 @@ function checkGrade1(topic, q) {
     return;
   }
   if (topic === 'shapes') {
-    if (q.figure) { if (q.figure.type !== 'polygon' || String(q.figure.sides) !== ans(q) || q.figure.sides < 3 || q.figure.sides > 6 || !/^How many (sides|corners) does this shape have\?$/.test(text)) fail(label + ': polygon', q); }
+    if (q.figure) { if (q.figure.type !== 'polygon' || String(q.figure.sides) !== ans(q) || q.figure.sides < 3 || q.figure.sides > 6 || !/^How many (sides|corners)\?$/.test(text)) fail(label + ': polygon', q); }
     else if (/^Counting from the left/.test(text)) checkPosition(label, q);
     else if (/^Which way does the arrow point\?/.test(text)) fail(label + ': direction identification excluded', q);
     else if (/cubes/.test(text)) checkBars(label, q, 12);
@@ -275,14 +275,14 @@ for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock'
     if (!common('grade1/all', q)) continue;
     const text = q.question + ' ' + q.answers.join(' ');
     if (/[×÷]/.test(q.question) || /^Compare/.test(q.question) || q.answers.includes(LESS) || NO_SMALL_COINS.test(text)) fail('grade1/all: out of scope question', q);
-    if (/^Which number word is \d+\?|^Which number is ".+"\?|^What number comes (after|before) \d+\?|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b)[a-z]+\?$/.test(q.question)) fail('grade1/all: excluded question type', q);
+    if (/^Which number word is \d+\?|^Which number is ".+"\?|^What number comes (after|before) \d+\?|^Which way does the arrow point\?|^A \w+ is cut into 2 pieces\.|^How many (groups|each)\?$|^How many (?!altogether\b|cents\b|halves\b|sides\b|corners\b)[a-z]+\?$/.test(q.question)) fail('grade1/all: excluded question type', q);
     if (q.topic === 'placevalue' && q.question === 'What number is shown?') g1ShownByPath.all++;
     if (q.topic === 'addsub') checkGrade1('mixed', q);
     else if (q.topic === 'numbers' || q.topic === 'placevalue') checkGrade1('numbers', q);
     const cat = q.figure && q.figure.type === 'clock' ? 'clock' : q.topic === 'money' ? 'money' : q.topic === 'fractions' ? 'fractions' : ['numbers', 'placevalue'].includes(q.topic) ? 'numbers' : ['addsub', 'grouping', 'sharing'].includes(q.topic) ? 'arithmetic' : 'shapes';
     seen[cat] = (seen[cat] || 0) + 1;
     const n = Number(ans(q));
-    if (q.topic === 'addsub' && /^What is \d+ \+ \d+\?$/.test(q.question)) { const [a, b] = q.question.match(/\d+/g).map(Number); if (a + b > 20 || a + b !== n) fail('grade1/all: addition above 20', q); }
+    if (q.topic === 'addsub' && /^\d+ \+ \d+ = \?$/.test(q.question)) { const [a, b] = q.question.match(/\d+/g).map(Number); if (a + b > 20 || a + b !== n) fail('grade1/all: addition above 20', q); }
   }
   ['arithmetic', 'numbers', 'fractions', 'money', 'clock', 'shapes'].forEach(c => { if ((seen[c] || 0) < 200) fail('grade1/all: category too rare: ' + c, seen); });
 }
@@ -311,7 +311,7 @@ const g2Kinds = {};
 const fractionValue = text => { const m = String(text).match(/^(\d+)\/(\d+)$/); return m ? Number(m[1]) / Number(m[2]) : NaN; };
 function checkGrade2Arithmetic(label, q, allowed = ['+', '−', '×', '÷']) {
   const text = q.question, n = Number(ans(q)); let m, op, a, b, expected;
-  if ((m = text.match(/^What is (\d+) ([+−×÷]) (\d+)\?$/))) {
+  if ((m = text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))) {
     a = Number(m[1]); op = m[2]; b = Number(m[3]);
     expected = op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b;
     if (!allowed.includes(op) || expected !== n || !Number.isInteger(expected) || expected < 0) fail(label + ': arithmetic equation', q);
@@ -365,7 +365,7 @@ function checkGrade2(label, topic, q) {
   if (topic === 'fractions') {
     g2Kinds['fractions/' + q.kind] = (g2Kinds['fractions/' + q.kind] || 0) + 1;
     let m;
-    if ((m = text.match(/^What is 1\/(2|4|8) of (\d+)\?$/))) { if (Number(m[2]) / Number(m[1]) !== n || Number(m[2]) % Number(m[1])) fail(label + ': unit fraction amount', q); }
+    if ((m = text.match(/^1\/(2|4|8) of (\d+) = \?$/))) { if (Number(m[2]) / Number(m[1]) !== n || Number(m[2]) % Number(m[1])) fail(label + ': unit fraction amount', q); }
     else if (text === 'What fraction of the shape is shaded?') { if (!q.figure || q.figure.type !== 'fraction' || Math.abs(fractionValue(ans(q)) - q.figure.numerator / q.figure.denominator) > 1e-9) fail(label + ': equal-parts fraction diagram', q); }
     else if (text === '1/2 = ?/4') { if (n !== 2) fail(label + ': equivalent halves and quarters', q); }
     else if ((m = text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/))) { const left = Number(m[1]) / Number(m[2]), right = Number(m[3]) / Number(m[4]), correct = left < right ? LESS : left > right ? MORE : EQUAL; if (ans(q) !== correct) fail(label + ': fraction comparison', q); }
@@ -379,7 +379,7 @@ function checkGrade2(label, topic, q) {
     else if (q.kind === 'solid') { if (!q.picture || q.picture.label !== 'A ' + ans(q)) fail(label + ': 3D solid identification', q); }
     else if (q.kind === 'measure') { const m = text.match(/^Compare: (\d+) (cm|kg|L) \? (\d+) \2$/); if (!m || ans(q) !== (Number(m[1]) < Number(m[3]) ? LESS : Number(m[1]) > Number(m[3]) ? MORE : EQUAL)) fail(label + ': measurement comparison', q); }
     else if (q.kind === 'perimeter') { if (!q.figure || q.figure.type !== 'perimeter' || n !== 2 * (q.figure.length + q.figure.width)) fail(label + ': rectangle perimeter', q); }
-    else if (q.kind === 'symmetry') { const shape = text.match(/a (triangle|square|rectangle)/)?.[1], sides = { triangle: 3, square: 4, rectangle: 2 }[shape]; if (!q.figure || Number(ans(q)) !== sides) fail(label + ': symmetry', q); }
+    else if (q.kind === 'symmetry') { const shape = text.match(/^(triangle|square|rectangle): lines of symmetry = \?$/)?.[1], sides = { triangle: 3, square: 4, rectangle: 2 }[shape]; if (!q.figure || Number(ans(q)) !== sides) fail(label + ': symmetry', q); }
     else if (q.kind === 'identify') { const names = { 3: 'triangle', 4: 'square', 5: 'pentagon', 6: 'hexagon' }; if (!q.figure || names[q.figure.sides] !== ans(q)) fail(label + ': 2D shape identification', q); }
     else fail(label + ': unknown Grade 2 shape/measure question', q);
     return;

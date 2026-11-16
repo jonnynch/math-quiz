@@ -16,7 +16,9 @@ const btns=(i=0)=>[...d.querySelectorAll('.question-board')[i].querySelectorAll(
 const solve=(i=0)=>{ // answers tables questions
   const t=d.querySelectorAll('.question-board')[i].querySelector('.question-text').textContent;
   let m;
-  if(m=t.match(/^What is (\d+) (×|÷) (\d+)\?$/)) return String(m[2]==='×'?+m[1]*+m[3]:+m[1]/+m[3]);
+  if(m=t.match(/^(\d+) ([+−×÷]) (\d+) = \?$/)) return String({'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]*+m[3],'÷':+m[1]/+m[3]}[m[2]]);
+  if(m=t.match(/^\? × (\d+) = (\d+)$/)) return String(+m[2]/+m[1]);
+  if(m=t.match(/^(\d+) ÷ \? = (\d+)$/)) return String(+m[1]/+m[2]);
   if(m=t.match(/^(\d+) × \? = (\d+)$/)) return String(+m[2]/+m[1]);
   throw new Error('cannot solve '+t);
 };

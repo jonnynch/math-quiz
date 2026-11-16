@@ -42,7 +42,7 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     ['age6', 'Age 6 coins', find('age6', q => q.coins)],
     ['grade1', 'Grade 1 coins', find('grade1', q => q.coins, 'money')],
     ['grade2', 'Grade 2 coins', find('grade2', q => q.coins, 'money')],
-    ['grade2', 'Grade 2 multiplication array', find('grade2', q => q.picture && q.question.startsWith('What is') && q.question.includes('×'), 'tables')],
+    ['grade2', 'Grade 2 multiplication array', find('grade2', q => q.picture && q.question.includes('×') && q.question.endsWith('= ?'), 'tables')],
     ['grade2', 'Grade 2 fraction diagram', find('grade2', q => q.figure && q.figure.type === 'fraction', 'fractions')],
     ['grade2', 'Grade 2 perimeter diagram', find('grade2', q => q.figure && q.figure.type === 'perimeter', 'shapes')],
     ['grade2', 'Grade 2 bar chart', find('grade2', q => q.figure && q.figure.type === 'bar-chart', 'data')],
@@ -73,7 +73,7 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
 
   // Age 6 addition: show the first addend, then reveal the added objects after the shared aid delay.
   {
-    const q = find('age6', x => x.kind === 'objects'), m = q.question.match(/^What is (\d+) \+ (\d+)\?$/), a = Number(m[1]), b = Number(m[2]);
+    const q = find('age6', x => x.kind === 'objects'), m = q.question.match(/^(\d+) \+ (\d+) = \?$/), a = Number(m[1]), b = Number(m[2]);
     const r = await render(q, 'age6'), slots = [...r.d.querySelectorAll('.object-stage .slot')];
     const visible = () => slots.filter(slot => slot.textContent && !slot.classList.contains('added')).length;
     ok(slots.length === 10 && visible() === a && r.d.querySelector('.object-stage.aids-pending'), 'Age 6 addition: initially only the first addend is visible in the fixed ten slots');
@@ -88,7 +88,7 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
 
   // Age 6 subtraction: every starting object appears before the shared delay; then taken-away objects are crossed out.
   {
-    const q = find('age6', x => x.kind === 'objects-sub'), m = q.question.match(/^What is (\d+) − (\d+)\?$/), a = Number(m[1]), b = Number(m[2]);
+    const q = find('age6', x => x.kind === 'objects-sub'), m = q.question.match(/^(\d+) − (\d+) = \?$/), a = Number(m[1]), b = Number(m[2]);
     const r = await render(q, 'age6');
     ok(r.d.querySelectorAll('.counting-visual.picture .obj').length === a, 'Age 6 subtraction: all ' + a + ' starting objects are shown');
     ok(r.d.querySelectorAll('.counting-visual.picture .cell.removed').length === b && r.d.querySelector('.picture.aids-pending'), 'Age 6 subtraction: all starting objects appear with cross-outs hidden at first');
