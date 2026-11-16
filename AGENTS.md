@@ -52,7 +52,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - **Add or change a question type** → `docs/QUESTIONS.md` ("Adding a topic"). Run `npm run test:questions`.
 - **Change layout/CSS** → `docs/UI-AND-LAYOUT.md`. Run `npm run test:layout` (needs a browser; see `docs/TESTING.md`).
 - **Change game flow, rewards or profiles** → `docs/ARCHITECTURE.md`. Run `npm run test:flow`.
-- **CI**: `.github/workflows/ci.yml` runs `npm ci && npm test` on every push and pull request; keep `package-lock.json` in step with `package.json` and make sure `npm test` passes before pushing.
+- **CI**: `.github/workflows/ci.yml` runs `npm ci && npm test` on every push and pull request. Full test execution is reserved for GitHub Actions; AI agents must not run it locally.
 - **Run the game locally without Docker**: `cd public && python3 -m http.server 8080`, then open `http://localhost:8080`.
 
 ## Conventions
@@ -60,7 +60,7 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - `questions.js` and `store.js` must stay DOM-free so Node can test them.
 - Small, named functions; comments explain *why* (especially around the answer-position logic and the landscape layout).
 - Keep UI text short and child-friendly. Use rem/clamp/vh for sizes so the text-size setting works.
-- After editing, run the checks in `docs/TESTING.md` rather than assuming; most past bugs were layout or distribution bugs that only tests caught.
+- After editing, inspect relevant tests and update them when necessary. AI agents may run relevant targeted checks only; never run the full test suite locally. GitHub Actions performs full verification.
 
 ## Docs index
 - `docs/ARCHITECTURE.md` — modules, state, round lifecycle, storage schema, DOM structure.
