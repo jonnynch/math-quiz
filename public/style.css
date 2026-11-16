@@ -670,13 +670,15 @@ body.pz-stage .app { padding-top: max(10px, env(safe-area-inset-top)); }
 .pz-big { width: min(100%, 260px); min-height: 220px; justify-content: center; }
 .pz-big .pz-icon { font-size: 5rem; }
 .pz-designer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 16px; align-items: start; }
-.pz-canvas { display: block; width: min(100%, calc(var(--app-h) - 150px)); aspect-ratio: 1; margin: 0 auto; border-radius: 22px; background: #fff4e0; box-shadow: 0 6px 18px rgba(23, 37, 84, .12); touch-action: none; -webkit-user-select: none; user-select: none; }
+.pz-canvas { display: block; width: min(100%, calc(var(--app-h) - 175px)); aspect-ratio: 1; margin: 0 auto; border-radius: 22px; background: #fff4e0; box-shadow: 0 6px 18px rgba(23, 37, 84, .12); touch-action: none; -webkit-user-select: none; user-select: none; }
 .pz-panel { display: grid; gap: 10px; }
 .pz-group-title { margin: 0 0 6px; color: var(--muted); font-size: .78rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .pz-shapes, .pz-swatches, .pz-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.pz-finish-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pz-shapes > button { flex: 0 0 auto; }
 .pz-shapes .on, .pz-swatch.on { border-color: var(--navy); box-shadow: 0 0 0 2px var(--navy); }
 .pz-swatch { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, .25); color: #111; font-weight: 900; font-size: 1.2rem; }
-.pz-decos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pz-decos { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, minmax(78px, auto)); grid-auto-columns: 76px; gap: 8px; overflow-x: auto; overscroll-behavior-inline: contain; padding: 2px 2px 8px; }
 .pz-deco { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 78px; padding: 4px 2px; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: .7rem; font-weight: 800; color: var(--navy); touch-action: none; }
 .pz-deco svg { width: 46px; height: 46px; }
 .pz-item { cursor: grab; }
@@ -689,7 +691,8 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
   .pz-head { grid-template-columns: 1fr; }
   .pz-bank { justify-content: flex-start; }
   .pz-designer { grid-template-columns: 1fr; }
-  .pz-canvas { width: 100%; }
+  .pz-canvas { width: min(100%, 560px); }
+  .pz-decos { grid-auto-columns: 76px; }
 }
 
 /* Playzone: personal bests, player pickers, parent adjustment */

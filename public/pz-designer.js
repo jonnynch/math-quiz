@@ -99,9 +99,7 @@
   // ---------- game ----------
   function mount(host, options) {
     const ctx = (options && options.ctx) || null;                 // the shell's usage session + saved design (absent in some tests)
-    const maxMs = (options && options.maxMs) || 120000;           // two-minute maximum per session
     let editable = true;                                          // false once the session has ended
-    let clockTimer = null;
     let saveTimer = null;
     let state = null;                        // { kind, shape, outer, inner, items[], selected }
     let nextId = 1;
@@ -128,23 +126,11 @@
     function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
     const pageHide = () => saveNow();
     root.addEventListener('pagehide', pageHide);
-    function leftText() {
-      const left = Math.max(0, Math.ceil((maxMs - ctx.seconds() * 1000) / 1000));
-      return `⏱ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left`;
-    }
-    function tickClock() {
-      if (!ctx || !editable) return;
-      if (ctx.seconds() * 1000 >= maxMs) { endSession('timeup'); return; }
-      const node = host.querySelector('.pz-design-clock');
-      if (node) node.textContent = leftText();
-    }
-    function startClock() { if (!ctx || clockTimer) return; clockTimer = setInterval(tickClock, 250); }
-    function stopClock() { clearInterval(clockTimer); clockTimer = null; }
     // Starts (or confirms) the paid session. Returns '' or the reason it cannot start (bank not above 0).
     function beginSession() {
       if (!ctx || !ctx.begin) { editable = true; return ''; }
       const problem = ctx.begin();
-      if (!problem) { editable = true; startClock(); }
+      if (!problem) editable = true;
       return problem;
     }
     // Ends the session: the design is saved first, editing stops, and the shell charges the actual usage.
@@ -152,7 +138,6 @@
       if (!ctx || !editable) return;
       saveNow();
       editable = false;
-      stopClock();
       stopDragListeners();
       drag = null;
       if (ctx.end) ctx.end(reason);
@@ -163,7 +148,7 @@
       if (layout) layout.classList.add('locked');
       host.querySelector('.pz-ended')?.remove();
       const box = el('div', 'pz-ended');
-      box.append(el('h3', '', reason === 'timeup' ? "⏰ Time's up!" : '✅ All done!'),
+      box.append(el('h3', '', '✅ All done!'),
         el('p', 'pz-save-text', state ? 'Your design was saved. You can still save the picture.' : 'Nothing to save this time.'));
       const row = el('div', 'pz-actions');
       const resume = el('button', 'primary-button compact', '▶ Resume my design');
@@ -283,6 +268,7 @@
         const b = el('button', 'secondary-button small', s.label);
         b.type = 'button';
         b.dataset.shape = s.id;
+        b.setAttribute('aria-pressed', 'false');
         b.addEventListener('click', () => { if (!editable) return; state.touched = true; state.shape = s.id; redraw(); });
         shapeRow.append(b);
       });
@@ -319,8 +305,9 @@
       if (ctx) mk('pzDone', '✅ Done', 'secondary-button small', () => endSession('done'));
       mk('pzSave', '💾 Save Image', 'primary-button compact', saveImage);
 
-      if (ctx) { const clockEl = el('p', 'pz-design-clock', leftText()); clockEl.setAttribute('aria-live', 'off'); panel.append(clockEl); }
-      panel.append(shapes, swatchRow(k.outerLabel, k.outer, 'outer'), swatchRow(k.innerLabel, k.inner, 'inner'), decos, actions);
+      const finishes = el('div', 'pz-finish-row');
+      finishes.append(swatchRow(k.outerLabel, k.outer, 'outer'), swatchRow(k.innerLabel, k.inner, 'inner'));
+      panel.append(shapes, finishes, decos, actions);
       layout.append(stage, panel);
       host.append(layout);
     }
@@ -337,7 +324,11 @@
         b.classList.toggle('on', on);
         b.textContent = on ? '✓' : '';
       }));
-      panelParts.shape.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.shape === state.shape));
+      panelParts.shape.querySelectorAll('button').forEach(b => {
+        const on = b.dataset.shape === state.shape;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
       panelParts.remove.disabled = state.selected == null || !editable;
       saveSoon();
     }
@@ -471,7 +462,7 @@
     showChoose();
 
     return {
-      destroy() { saveNow(); alive = false; stopClock(); clearTimeout(saveTimer); root.removeEventListener('pagehide', pageHide); stopDragListeners(); freeSaveUrl(); },
+      destroy() { saveNow(); alive = false; clearTimeout(saveTimer); root.removeEventListener('pagehide', pageHide); stopDragListeners(); freeSaveUrl(); },
       // Read-only helpers for the automated tests.
       _artwork: () => (state ? artworkSvg(state, 1024) : ''),
       _items: () => (state ? state.items.map(it => ({ ...it })) : []),
