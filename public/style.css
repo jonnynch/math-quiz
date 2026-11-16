@@ -118,6 +118,12 @@ html:not([data-read-aloud="on"]) .speak-button { display: none; }
 .lock-badge { margin-left: auto; padding: 3px 9px; border-radius: 999px; background: var(--bad-bg); color: var(--bad-ink); font-size: .72rem; font-weight: 800; }
 .counting-visual { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 14px; min-height: 110px; margin: 0 0 18px; padding: 14px; border-radius: 16px; background: #fffbeb; border: 1px dashed #fcd34d; font-size: clamp(2.8rem, 9vw, 4.6rem); line-height: 1.1; }
 .counting-visual.rows-of-five { display: grid; grid-template-columns: repeat(5, 1fr); justify-items: center; gap: 8px 6px; font-size: clamp(2rem, 5vw, 3.4rem); }
+.counting-visual.coins { gap: .2em .3em; }
+.coin { display: flex; align-items: center; justify-content: center; box-sizing: border-box; flex: none; width: calc(var(--mm, 25) * .045em); aspect-ratio: 1; border-radius: 50%; border: .03em solid; }
+.coin-silver { background: radial-gradient(circle at 35% 30%, #f8fafc, #cbd5e1 60%, #94a3b8); border-color: #64748b; color: #334155; }
+.coin-gold { background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 65%, #b45309); border-color: #92400e; color: #78350f; }
+.coin-50 { border-radius: 0; border: 0; clip-path: polygon(50% 0, 75% 6.7%, 93.3% 25%, 100% 50%, 93.3% 75%, 75% 93.3%, 50% 100%, 25% 93.3%, 6.7% 75%, 0 50%, 6.7% 25%, 25% 6.7%); }
+.coin-label { font-size: .3em; font-weight: 900; line-height: 1; }
 .object-stage { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1.35em); justify-items: center; align-items: center; gap: 8px 6px; margin: 0 0 14px; padding: 14px; border-radius: 16px; background: #fffbeb; border: 1px dashed #fcd34d; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1; }
 .object-stage .slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 1.35em; }
 .object-stage .slot.pop { animation: slot-pop .5s ease-out both; animation-delay: var(--delay, 0s); }

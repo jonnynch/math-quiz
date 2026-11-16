@@ -355,6 +355,27 @@
     return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
   }
 
+  // Australian coins, drawn to scale (diameters in mm): 5c-50c silver (the 50c has 12 sides), $1 and $2 gold.
+  const COIN_MM = { 5: 19.4, 10: 23.6, 20: 28.5, 50: 31.5, 100: 25, 200: 20.5 };
+  function createCoins(values) {
+    const box = document.createElement('div');
+    box.className = 'counting-visual coins';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', values.map(v => v >= 100 ? `${v / 100} dollar coin` : `${v} cent coin`).join(', '));
+    values.forEach(v => {
+      const coin = document.createElement('span');
+      coin.className = `coin ${v >= 100 ? 'coin-gold' : 'coin-silver'}${v === 50 ? ' coin-50' : ''}`;
+      coin.style.setProperty('--mm', String(COIN_MM[v]));
+      coin.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.className = 'coin-label';
+      label.textContent = v >= 100 ? `$${v / 100}` : `${v}c`;
+      coin.append(label);
+      box.append(coin);
+    });
+    return box;
+  }
+
   // Place-value blocks (Age 5): a rectangle marked 10 is one ten, a circle marked 1 is one one. Never money.
   function createBlocks(spec) {
     const box = document.createElement('span');
@@ -505,13 +526,13 @@
     const info = document.createElement('div');
     info.className = 'board-info';
     info.append(topline);
+    // One rule for every level: any illustration comes first, the question sentence underneath it.
     if (question.stage) info.append(createStage(question.stage));
     if (question.figure) info.append(createFigure(question.figure));
-    info.append(text);
-    if (question.numbers) info.append(createNumberSequence(question.numbers));
     if (question.pattern) info.append(createPattern(question.pattern));
     if (question.promptVisual) info.append(createPromptBlocks(question.promptVisual));
     if (question.picture) info.append(createPicture(question.picture));
+    if (question.coins) info.append(createCoins(question.coins));
     if (question.visual) {
       const visual = document.createElement('div');
       visual.className = `counting-visual${question.rowsOfFive ? ' rows-of-five' : ''}`;
@@ -525,6 +546,8 @@
       });
       info.append(visual);
     }
+    info.append(text);
+    if (question.numbers) info.append(createNumberSequence(question.numbers));
     body.append(info, grid);
     board.append(body);
     return board;
@@ -600,7 +623,7 @@
       box.style.setProperty('--tc', String(tc));                          // columns needed in one row
       box.style.setProperty('--wc', String(Math.min(tc, Math.max(maxCols + framed, 6))));   // columns per row when the groups wrap
     }
-    if (picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);
+    if (!picture.immediate && picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);   // `immediate`: crossed-out objects are visible from the start
     return box;
   }
 
