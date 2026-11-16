@@ -9,6 +9,7 @@ const fail=(k,msg,q)=>{ (fails[k]=fails[k]||[]).push(msg+' :: '+JSON.stringify(q
 const N=3000;
 const grades=[1,2,3,4,5,6];
 const grade5Kinds={};
+const grade6Kinds={};
 function checkPresentation(level,q,label){
   const paired=level==='toddler'&&q.question==='Which group has more?';
   const groupCompare=['age4','age5'].includes(level)&&/^Which group has (more|fewer)\?$/.test(q.question);
@@ -16,7 +17,8 @@ function checkPresentation(level,q,label){
   const threeCategory=level==='grade2'&&q.question==='Which has the most?';
   const twoChoice=level==='grade4'&&q.kind==='prime';
   const grade5TwoChoice=level==='grade5'&&['divisible','likely'].includes(q.kind);
-  const expected=level==='toddler'?(paired?2:3):paired||groupCompare||grade5TwoChoice?2:twoChoice?2:fixedCompare||threeCategory?3:4;
+  const grade6TwoChoice=level==='grade6'&&q.kind==='divisible';
+  const expected=level==='toddler'?(paired?2:3):paired||groupCompare||grade5TwoChoice||grade6TwoChoice?2:twoChoice?2:fixedCompare||threeCategory?3:4;
   if(q.answers.length!==expected)fail(label,'answer count should be '+expected,q);
   if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length)fail(label,'invalid or duplicate answer choices',q);
   if(/^What is \d+ (?:\+|−|×|÷) \d+\?$/.test(q.question))fail(label,'arithmetic should use equation notation',q);
@@ -39,6 +41,7 @@ for(const g of grades){
     for(let i=0;i<N;i++){
       const q=Q.generateQuestion('grade'+g,t.value); total++;
       if(g===5&&q.topic)grade5Kinds[`${q.topic}/${q.kind}`]=(grade5Kinds[`${q.topic}/${q.kind}`]||0)+1;
+      if(g===6&&q.topic)grade6Kinds[`${q.topic}/${q.kind}`]=(grade6Kinds[`${q.topic}/${q.kind}`]||0)+1;
       checkPresentation('grade'+g,q,k);
       const a=q.answers, c=q.correct;
       if(!(c>=0&&c<a.length)) {fail(k,'bad correct index',q);continue}
@@ -48,7 +51,7 @@ for(const g of grades){
       const text=q.question, ans=a[c];
       if(g===5&&/quadratic|square root|factorisation|long division|compound probability/i.test(text))fail(k,'Grade 7–10 content appeared',q);
       const numeric=a.every(x=>!isNaN(Number(x)));
-      if(numeric){ const n=a.map(Number); if(n.some((v,j)=>j&&v<=n[j-1])) fail(k,'not ascending',q); if(n.some(v=>v<0)) fail(k,'negative',q); }
+      if(numeric){ const n=a.map(Number); if(n.some((v,j)=>j&&v<=n[j-1])) fail(k,'not ascending',q); if(g!==6&&n.some(v=>v<0)) fail(k,'negative',q); }
       // topic specific verification
       let m;
       if(g===1&&t.value!=='clock') continue;   // Grade 1 has its own, stricter checks in curriculum.check.js
@@ -56,6 +59,17 @@ for(const g of grades){
         if(g===2) checkGrade2Arithmetic(k,q,t.value);
         else if(g===3 && ['mixed','add','sub'].includes(t.value)) { m=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/); if(m){const expected={'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]* +m[3],'÷':+m[1]/+m[3]}[m[2]];if(expected!==Number(ans)||expected<0||!Number.isInteger(expected)||expected>1000||(t.value==='add'&&m[2]!=='+')||(t.value==='sub'&&m[2]!=='−'))fail(k,'Grade 3 arithmetic',q);} else if((m=text.match(/^\? \+ (\d+) = (\d+)$/))){if(Number(ans)+ +m[1]!==+m[2])fail(k,'Grade 3 missing addend',q);} else if((m=text.match(/^(\d+) \+ \? = (\d+)$/))){if(+m[1]+Number(ans)!==+m[2])fail(k,'Grade 3 missing addend',q);} else if((m=text.match(/^(\d+) − \? = (\d+)$/))){if(+m[1]-Number(ans)!==+m[2])fail(k,'Grade 3 missing subtrahend',q);} else if((m=text.match(/^(\d+) × \? = (\d+)$/))){if(+m[1]*Number(ans)!==+m[2])fail(k,'Grade 3 missing factor',q);} else if((m=text.match(/^(\d+) ÷ \? = (\d+)$/))){if(+m[1]/Number(ans)!==+m[2])fail(k,'Grade 3 missing divisor',q);} else if(!/so \d+ [−+] \d+ = \?$/.test(text))fail(k,'unrecognised Grade 3 arithmetic',q); }
         else if(g===3 && (t.value==='mul'||t.value==='div'||t.value==='tables')) { m=text.match(/^(\d+) ([×÷]) (\d+) = \?$/); if(m){const result=m[2]==='×'?+m[1]* +m[3]:+m[1]/+m[3];if(result!==Number(ans)||!Number.isInteger(result))fail(k,'Grade 3 multiplication/division',q);} else if((m=text.match(/^(\d+) × \? = (\d+)$/))){if(+m[1]*Number(ans)!==+m[2])fail(k,'Grade 3 missing factor',q);} else if((m=text.match(/^(\d+) ÷ \? = (\d+)$/))){if(+m[1]/Number(ans)!==+m[2])fail(k,'Grade 3 missing divisor',q);} else fail(k,'unrecognised Grade 3 facts',q); }
+        else if(g===6){
+          const valueOf=s=>Number(s.replace('−','-'));
+          if((m=text.match(/^([−]?\d+) ([+−×÷]) ([−]?\d+) = \?$/))){const x=valueOf(m[1]),y=valueOf(m[3]),expected={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]];if(expected!==Number(ans)||!Number.isInteger(expected)||Math.abs(x)>216||Math.abs(y)>99)fail(k,'Grade 6 arithmetic result/range',q);if(m[2]==='×'&&!((Math.abs(x)>=12&&Math.abs(x)<=35&&Math.abs(y)>=2&&Math.abs(y)<=9)||(Math.abs(y)>=12&&Math.abs(y)<=35&&Math.abs(x)>=2&&Math.abs(x)<=9)))fail(k,'Grade 6 multiplication range',q);if(m[2]==='÷'&&(Math.abs(y)<2||Math.abs(y)>9||Math.abs(Number(ans))<12||Math.abs(Number(ans))>24))fail(k,'Grade 6 division range',q);}
+          else if((m=text.match(/^□ × (\d+) = (\d+)$/))){if(+ans*+m[1]!==+m[2])fail(k,'Grade 6 missing factor',q);}
+          else if((m=text.match(/^□ ÷ (\d+) = (\d+)$/))){if(+ans/+m[1]!==+m[2])fail(k,'Grade 6 missing dividend',q);}
+          else if((m=text.match(/^□ \+ (\d+) = (\d+)$/))){if(+ans+ +m[1]!==+m[2])fail(k,'Grade 6 missing addend',q);}
+          else if((m=text.match(/^(\d+) − □ = (\d+)$/))){if(+m[1]- +ans!==+m[2])fail(k,'Grade 6 missing subtrahend',q);}
+          else if((m=text.match(/^(\d+) ([+−]) (\d+) = (\d+), so (\d+) ([+−]) (\d+) = \?$/))){const expected=m[6]==='+'?+m[5]+ +m[7]:+m[5]- +m[7];if(expected!==+ans||+m[1]+(m[2]==='+'?+m[3]:-m[3])!==+m[4])fail(k,'Grade 6 inverse',q);}
+          else fail(k,'unrecognised Grade 6 arithmetic',q);
+          if(a.every(x=>!isNaN(Number(x)))&&!a.some((x,j)=>j!==c&&x.slice(-1)===ans.slice(-1)))fail(k,'Grade 6 arithmetic lacks same-last-digit distractor',q);
+        }
         else if(g===4||g===5){
           if((m=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))){const x=+m[1],y=+m[3],r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]];if(r!==Number(ans)||!Number.isInteger(r))fail(k,'Grade 4 arithmetic result',q);}
           else if((m=text.match(/^□ × (\d+) = (\d+)$/))){if(Number(ans)* +m[1]!==+m[2])fail(k,'Grade 4 missing factor',q);}
@@ -81,8 +95,11 @@ for(const g of grades){
         } else if((m=text.match(/^(\d+) × \? = (\d+)$/))){ if(+m[1]*Number(ans)!==+m[2]) fail(k,'wrong missing factor',q);} else fail(k,'unrecognised text',q);
         if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^(\d+) × (\d+) = \?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
       }
-      if(g===5&&t.value==='numbers'){
-        if((m=text.match(/^Is (\d+) divisible by (\d+)\?$/))){if((+m[1]%+m[2]===0)!==(ans==='yes'))fail(k,'divisibility',q);}
+      if((g===5||g===6)&&t.value==='numbers'){
+        if(g===6&&(m=text.match(/^Compare: ([−]?\d+) \? ([−]?\d+)$/))){const x=Number(m[1].replace('−','-')),y=Number(m[2].replace('−','-')),expected=x<y?0:x>y?2:1;if(c!==expected)fail(k,'negative number-line comparison',q);}
+        else if(g===6&&(m=text.match(/^−(\d+) \+ (\d+) = \?$/))){if(- +m[1]+ +m[2]!==Number(ans))fail(k,'negative addition',q);}
+        else if(g===6&&(m=text.match(/^(\d+) − (\d+) = \?$/))){if(+m[1]- +m[2]!==Number(ans))fail(k,'negative subtraction',q);}
+        else if((m=text.match(/^Is (\d+) divisible by (\d+)\?$/))){if((+m[1]%+m[2]===0)!==(ans==='yes'))fail(k,'divisibility',q);}
         else if((m=text.match(/^Which list shows all factors of (\d+)\?$/))){const expected=Array.from({length:+m[1]},(_,i)=>i+1).filter(v=>+m[1]%v===0).join(', ');if(ans!==expected)fail(k,'factor list',q);}
         else if((m=text.match(/^First five multiples of (\d+):$/))){if(ans!==Array.from({length:5},(_,i)=>(i+1)*+m[1]).join(', '))fail(k,'multiple list',q);}
         else if((m=text.match(/^Estimate (\d+) \+ (\d+) by rounding each to the nearest 100\.$/))){const round=v=>Math.round(v/100)*100;if(round(+m[1])+round(+m[2])!==+ans)fail(k,'estimation',q);}
@@ -142,6 +159,13 @@ for(const g of grades){
         else if(m=text.match(/^(Perimeter|Area) of (\d+) cm × (\d+) cm rectangle = \? cm(²)?$/)){ const exp=m[1]==='Perimeter'?2*(+m[2]+ +m[3]):m[2]*m[3]; if(exp!==+ans) fail(k,'rect wrong',q);}
         else if(m=text.match(/^Area of square with (\d+) cm sides = \? cm²$/)){ if(m[1]*m[1]!==+ans) fail(k,'square wrong',q);}
         else if(m=text.match(/^Triangle area: (\d+) cm × (\d+) cm ÷ 2 = \? cm²$/)){ if(m[1]*m[2]/2!==+ans||(m[1]*m[2])%2) fail(k,'tri area wrong',q);}
+        else if(m=text.match(/^Triangle perimeter: sides (\d+) cm, (\d+) cm and (\d+) cm = \? cm$/)){if(+m[1]+ +m[2]+ +m[3]!==+ans)fail(k,'triangle perimeter wrong',q);}
+        else if(m=text.match(/^Triangle area: base (\d+) cm × height (\d+) cm ÷ 2 = \? cm²$/)){if(+m[1]*+m[2]/2!==+ans)fail(k,'triangle area wrong',q);}
+        else if(m=text.match(/^Cuboid volume: (\d+) × (\d+) × (\d+) = \? cm³$/)){if(+m[1]*+m[2]*+m[3]!==+ans)fail(k,'cuboid volume wrong',q);}
+        else if(m=text.match(/^Map scale: 1 cm represents (\d+) km\. A route is (\d+) cm\. Real distance = \? km$/)){if(+m[1]*+m[2]!==+ans)fail(k,'scale distance wrong',q);}
+        else if(m=text.match(/^([\d.]+) m = \? cm$/)){if(+m[1]*100!==+ans)fail(k,'metric conversion wrong',q);}
+        else if(m=text.match(/^Angles on a straight line: (\d+)° \+ □ = 180°$/)){if(180- +m[1]!==+ans)fail(k,'straight angle wrong',q);}
+        else if(m=text.match(/^On a coordinate grid, move (\d+) right and (\d+) up from the origin\. What are the coordinates\?$/)){if(ans!==`(${m[1]}, ${m[2]})`)fail(k,'coordinate point wrong',q);}
         else if(m=text.match(/^Parallelogram area: (\d+) cm × (\d+) cm = \? cm²$/)){ if(m[1]*m[2]!==+ans) fail(k,'para wrong',q);}
         else if(m=text.match(/^Fourth angle = 360° − (\d+)° − (\d+)° − (\d+)°$/)){ if(360-m[1]-m[2]-m[3]!==+ans||+ans<=0) fail(k,'quad wrong',q);}
         else fail(k,'unrecognised shapes text',q);}
@@ -152,13 +176,13 @@ for(const g of grades){
         else if(g===4&&text==='What fraction is shown?'){const f=q.figure,match=String(ans).match(/^(\d+)\/(\d+)$/);if(!f||f.type!=='fraction-bar'||!match||Math.abs(+match[1]/+match[2]-f.numerator/f.denominator)>1e-9)fail(k,'Grade 4 fraction bar',q);}
         else if(g===4&&q.kind==='order'){const input=text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(val),ordered=ans.split(', ').map(val);if(!input||input.some((v,i)=>ordered[i]!==[...input].sort((a,b)=>a-b)[i]))fail(k,'Grade 4 fraction order',q);}
         else if(g===4&&q.kind==='mixed'){const m=text.match(/^(\d+) (\d+)\/(\d+) = \?\/(\d+)$/);if(!m||+m[1]* +m[4]+ +m[2]!==Number(ans)||+m[3]!==+m[4])fail(k,'Grade 4 mixed-number equivalence',q);}
-        else if(g===5&&(m=text.match(/^(\d+)\/(\d+) = \? \(simplest form\)$/))){const [n,d]=frac(ans);if(+m[1]/+m[2]!==n/d||gcd(n,d)!==1)fail(k,'simplifying fraction',q);}
+        else if((g===5||g===6)&&(m=text.match(/^(\d+)\/(\d+) = \? \(simplest form\)$/))){const [n,d]=frac(ans);if(+m[1]/+m[2]!==n/d||gcd(n,d)!==1)fail(k,'simplifying fraction',q);}
         else if((g===3||g===4)&&text==='1/2 = ?/4'){if(Number(ans)!==2)fail(k,'equivalent fraction',q);}
         else if(g===2&&text==='1/2 = ?/4'){if(+ans!==2)fail(k,'equivalent halves and quarters',q);}
         else if(m=text.match(/^(\d+)\/(\d+) = \?\/(\d+)$/)){ if(m[1]/m[2]!==+ans/m[3]) fail(k,'equiv wrong',q);}
         else if(m=text.match(/^Compare: (\S+) \? (\S+)$/)){ // Grades 5-6 only: exactly one decimal and one fraction
           const dec=m.slice(1,3).filter(x=>/^0\.\d+$/.test(x)), fr=m.slice(1,3).filter(x=>/^\d+\/\d+$/.test(x));
-          if((g===2||g===3||g===4||g===5)&&dec.length===0&&fr.length===2){const x=val(fr[0]),y=val(fr[1]),exp=x<y?0:x>y?2:1;if(c!==exp)fail(k,'fraction comparison wrong',q);}
+          if((g===2||g===3||g===4||g===5||g===6)&&dec.length===0&&fr.length===2){const x=val(fr[0]),y=val(fr[1]),exp=x<y?0:x>y?2:1;if(c!==exp)fail(k,'fraction comparison wrong',q);}
           else if(g<5||dec.length!==1||fr.length!==1) fail(k,'comparison must be supported by this grade',q);
           else { const [n,d]=frac(fr[0]); const x=+dec[0]; const y=n/d; const dv=m[1]===dec[0]?x-y:y-x; const exp=Math.abs(dv)<1e-12?1:dv<0?0:2; if(c!==exp) fail(k,'decimal/fraction compare wrong',q); } }
         else if(m=text.match(/^(\d+)\/(\d+) ([+−×÷]) (\d+)(?:\/(\d+))? = \? \(simplest form\)$/)){
@@ -169,11 +193,12 @@ for(const g of grades){
         else if(m=text.match(/^1\/(\d+) of (\d+) = \?$/)){ if(m[2]/m[1]!==+ans) fail(k,'unit frac wrong',q);}
         else fail(k,'unrecognised fraction text',q);
       }
-      if(t.value==='decimals'&&(g===4||g===5)){
-        if(g===5&&q.kind==='order'){const input=text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(Number),ordered=ans.split(', ').map(Number);if(!input||ordered.some((v,i)=>v!==[...input].sort((a,b)=>a-b)[i]))fail(k,'decimal ordering',q);}
+      if(t.value==='decimals'&&(g===4||g===5||g===6)){
+        if((g===5||g===6)&&q.kind==='order'){const input=text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(Number),ordered=ans.split(', ').map(Number);if(!input||ordered.some((v,i)=>v!==[...input].sort((a,b)=>a-b)[i]))fail(k,'decimal ordering',q);}
         else if((m=text.match(/^Compare: (\d*\.\d+) \? (\d*\.\d+)$/))){const expected=+m[1]<+m[2]?0:+m[1]>+m[2]?2:1;if(c!==expected)fail(k,'decimal comparison',q);}
         else if((m=text.match(/^(\d+(?:\.\d+)?) ([+−×÷]) (\d+(?:\.\d+)?) = \?$/))){const expected={'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]* +m[3],'÷':+m[1]/+m[3]}[m[2]];if(Math.abs(expected-Number(ans))>1e-9)fail(k,'decimal arithmetic',q);}
         else if((m=text.match(/^(\d+)\/(\d+) = \?$/))){if(Math.abs(+m[1]/+m[2]-Number(ans))>1e-9)fail(k,'fraction/decimal relationship',q);}
+        else if((m=text.match(/^(\d*\.\d+) = \? \(simplest fraction\)$/))){if(Math.abs(+m[1]-val(ans))>1e-9||gcd(...frac(ans))!==1)fail(k,'decimal to fraction conversion',q);}
         else if((m=text.match(/^0\.(\d{3}) = \?\/1000$/))){if(+m[1]!==Number(ans))fail(k,'thousandths place value',q);}
         else if((m=text.match(/^0\.(\d{2}) = \?\/100$/))){if(+m[1]!==Number(ans))fail(k,'hundredths place value',q);}
         else if((m=text.match(/^0\.(\d) = \?\/10$/))){if(+m[1]!==Number(ans))fail(k,'tenths place value',q);}
@@ -181,17 +206,22 @@ for(const g of grades){
         else fail(k,'unrecognised decimal question',q);
       }
       if(t.value==='percentages'){
-        if((m=text.match(/^(\d+)% of (\d+) = \?$/))){if(+m[1]*+m[2]/100!==+ans)fail(k,'percentage of quantity',q);}
+        if((m=text.match(/^(Increase|Decrease) (\d+) by (\d+)%\.$/))){const change=+m[2]*+m[3]/100,expected=m[1]==='Increase'?+m[2]+change:+m[2]-change;if(expected!==+ans)fail(k,'percentage change',q);}
+        else if((m=text.match(/^(\d+)% of (\d+) = \?$/))){if(+m[1]*+m[2]/100!==+ans)fail(k,'percentage of quantity',q);}
         else if((m=text.match(/^(\d+)% = \? \(simplest form\)$/))){if(Math.abs(val(ans)- +m[1]/100)>1e-9||gcd(...frac(ans))!==1)fail(k,'percentage to fraction',q);}
         else if((m=text.match(/^(\d+)% = \?$/))){if(Math.abs(Number(ans)- +m[1]/100)>1e-9)fail(k,'percentage to decimal',q);}
         else if((m=text.match(/^(\d+(?:\.\d+)?) = \?(%)$/))){if(+m[1]*100!==+ans)fail(k,'decimal to percentage',q);}
         else if((m=text.match(/^(\d+)\/(\d+) = \?(%)$/))){if(+m[1]/+m[2]*100!==+ans)fail(k,'fraction to percentage',q);}
         else if((m=text.match(/^Compare: (\d+)% \? (\d*\.\d+)$/))){const expected=+m[1]/100<+m[2]?0:+m[1]/100>+m[2]?2:1;if(c!==expected)fail(k,'percentage comparison',q);}
+        else if((m=text.match(/^P\(A\) = (\d+(?:\.\d+)?)%. P\(not A\) = \?$/))){if(Math.abs(+ans-(1- +m[1]/100))>1e-9)fail(k,'complement percent',q);}
+        else if((m=text.match(/^P\(A\) = (\d*\.\d+)\. P\(not A\) = \?$/))){if(Math.abs(+ans-(1- +m[1]))>1e-9)fail(k,'complement decimal',q);}
+        else if((m=text.match(/^P\(A\) = (\d+)%\. P\(not A\) = \?$/))){if(Math.abs(+ans-(1- +m[1]/100))>1e-9)fail(k,'complement percent',q);}
         else fail(k,'unrecognised percentage question',q);
       }
       if(t.value==='ratio'){
         if((m=text.match(/^Simplify (\d+):(\d+)\.$/))){if(ans!==`${+m[1]/gcd(+m[1],+m[2])}:${+m[2]/gcd(+m[1],+m[2])}`)fail(k,'ratio simplification',q);}
         else if((m=text.match(/^Red : Blue = (\d+):(\d+)\. Total = (\d+)\. How many are red\?$/))){if(+ans!==+m[1]*+m[3]/(+m[1]+ +m[2]))fail(k,'ratio part of total',q);}
+        else if((m=text.match(/^Divide (\d+) in the ratio (\d+):(\d+)\. How many are in the first part\?$/))){if(+ans!==+m[1]*+m[2]/(+m[2]+ +m[3]))fail(k,'ratio sharing',q);}
         else if((m=text.match(/^(\d+):(\d+) = (\d+):□$/))){if(+m[1]*+ans!==+m[2]*+m[3])fail(k,'proportional ratio',q);}
         else fail(k,'unrecognised ratio question',q);
       }
@@ -199,7 +229,42 @@ for(const g of grades){
         if((m=text.match(/^A bag has (\d+) red and (\d+) blue balls\. P\(red\) = \?$/))){if(Math.abs(val(ans)- +m[1]/(+m[1]+ +m[2]))>1e-9)fail(k,'bag probability',q);}
         else if(text==='A fair coin is tossed. P(heads) = ?'||text==='A fair die is rolled. P(even) = ?'){if(ans!=='1/2')fail(k,'fair-event probability',q);}
         else if(text==='A bag has 3 red and 2 blue balls. Which colour is more likely?'){if(ans!=='red')fail(k,'likely event',q);}
+        else if(text==='A fair die is rolled. P(number > 4) = ?'){if(Math.abs(val(ans)-1/3)>1e-9)fail(k,'die probability',q);}
+        else if(text==='A fair spinner has 4 equal sections numbered 1 to 4. P(even) = ?'){if(ans!=='1/2')fail(k,'sample space probability',q);}
+        else if(text==='A coin landed heads 4 times in 10 tosses. Experimental P(heads) = ?'){if(Math.abs(val(ans)-0.4)>1e-9)fail(k,'experimental probability',q);}
+        else if(text==='P(A) = 0.3. What is P(not A)?'){if(Math.abs(+ans-0.7)>1e-9)fail(k,'complementary probability',q);}
+        else if(text==='P(A) = 0.3. Write P(A) as a percent.'){if(+ans!==30)fail(k,'probability percent conversion',q);}
+        else if(text==='P(A) = 35%. What is P(not A)?'){if(+ans!==65)fail(k,'probability percent complement',q);}
+        else if((m=text.match(/^P\(A\) = (\d+)%. What is P\(not A\)\?$/))){if(+ans!==100- +m[1])fail(k,'probability percent complement',q);}
+        else if(text==='A bag has 3 red and 2 blue counters. Which colour is more likely?'){if(ans!=='red')fail(k,'likely event',q);}
         else fail(k,'unrecognised probability question',q);
+      }
+      if(g===6&&t.value==='algebra'){
+        if((m=text.match(/^If x = (\d+), calculate (\d+)x \+ (\d+)\.$/))){if(+ans!==+m[2]*+m[1]+ +m[3])fail(k,'algebra substitution',q);}
+        else if((m=text.match(/^Simplify (\d+)x \+ (\d+)x\.$/))){if(ans!==`${+m[1]+ +m[2]}x`)fail(k,'like terms',q);}
+        else if((m=text.match(/^x \+ (\d+) = (\d+)\. x = \?$/))){if(+ans+ +m[1]!==+m[2])fail(k,'one-step equation',q);}
+        else if((m=text.match(/^(\d+)x = (\d+)\. x = \?$/))){if(+ans*+m[1]!==+m[2])fail(k,'one-step multiplication equation',q);}
+        else if((m=text.match(/^(\d+)x \+ (\d+) = (\d+)\. x = \?$/))){if(+ans*+m[1]+ +m[2]!==+m[3])fail(k,'two-step equation',q);}
+        else if((m=text.match(/^Rule for the sequence (\d+), (\d+), (\d+), (\d+):$/))){if(!/^\d+n \+ \d+$/.test(ans))fail(k,'algebra pattern rule',q);}
+        else fail(k,'unrecognised algebra question',q);
+      }
+      if(g===6&&t.value==='statistics'){
+        if((m=text.match(/^Data: ([\d, ]+)\. Find the (mean|median|mode|range)\.$/))){const values=m[1].split(', ').map(Number).sort((a,b)=>a-b),kind=m[2],expected=kind==='mean'?values.reduce((a,b)=>a+b,0)/values.length:kind==='median'?values.length%2?values[(values.length-1)/2]:(values[values.length/2-1]+values[values.length/2])/2:kind==='range'?values[values.length-1]-values[0]:values.find(v=>values.filter(x=>x===v).length>1);if(+ans!==expected)fail(k,'statistics answer',q);}
+        else fail(k,'unrecognised statistics question',q);
+      }
+      if(g===6&&t.value==='shapes'){
+        if((m=text.match(/^Triangle area: base (\d+) cm × height (\d+) cm ÷ 2 = \? cm²$/))){if(+ans!==+m[1]*+m[2]/2)fail(k,'triangle area',q);}
+        else if((m=text.match(/^Triangle perimeter: sides (\d+) cm, (\d+) cm and (\d+) cm = \? cm$/))){if(+ans!==+m[1]+ +m[2]+ +m[3])fail(k,'triangle perimeter',q);}
+        else if((m=text.match(/^Cuboid volume: (\d+) × (\d+) × (\d+) = \? cm³$/))){if(+ans!==+m[1]*+m[2]*+m[3])fail(k,'cuboid volume',q);}
+        else if((m=text.match(/^Angles on a straight line: (\d+)° \+ □ = 180°$/))){if(+ans!==180- +m[1])fail(k,'straight angle',q);}
+        else if((m=text.match(/^([\d.]+) m = \? cm$/))){if(+ans!==+m[1]*100)fail(k,'metric conversion',q);}
+        else if((m=text.match(/^Map scale: 1 cm represents (\d+) km\. A route is (\d+) cm\. Real distance = \? km$/))){if(+ans!==+m[1]*+m[2])fail(k,'scale distance',q);}
+        else if((m=text.match(/^Area of (\d+) cm × (\d+) cm rectangle = \? cm²$/))){if(+ans!==+m[1]*+m[2])fail(k,'rectangle area',q);}
+        else if((m=text.match(/^Perimeter of (\d+) cm × (\d+) cm rectangle = \? cm$/))){if(+ans!==2*(+m[1]+ +m[2]))fail(k,'rectangle perimeter',q);}
+        else if((m=text.match(/^Parallelogram area: (\d+) cm × (\d+) cm = \? cm²$/))){if(+ans!==+m[1]*+m[2])fail(k,'parallelogram area',q);}
+        else if((m=text.match(/^Fourth angle = 360° − (\d+)° − (\d+)° − (\d+)°$/))){if(+ans!==360- +m[1]- +m[2]- +m[3])fail(k,'quadrilateral angles',q);}
+        else if((m=text.match(/^On a coordinate grid, move (\d+) right and (\d+) up from the origin\. What are the coordinates\?$/))){if(ans!==`(${m[1]}, ${m[2]})`)fail(k,'coordinate point',q);}
+        else fail(k,'unrecognised shapes text',q);
       }
     }
     // position spread check
@@ -209,6 +274,7 @@ for(const g of grades){
 }
 function q0(g,t){return 1}
 for(const kind of ['numbers/round','numbers/estimate','numbers/factors','numbers/multiple','numbers/divisible','numbers/orderOps','numbers/missingFactor','fractions/add','fractions/sub','fractions/amount','fractions/equivalent','fractions/simplify','fractions/multiplyWhole','fractions/compare','fractions/compareFractions','decimals/thousandths','decimals/compare','decimals/order','decimals/add','decimals/subtract','decimals/multiply','decimals/divide','decimals/fractionDecimal','decimals/decimalFraction','percentages/ofAmount','percentages/fraction','percentages/decimal','percentages/decimalToPercent','percentages/fractionToPercent','percentages/compare','ratio/simplify','ratio/partOfTotal','ratio/proportion','probability/bag','probability/coin','probability/die','probability/likely','shapes/area','shapes/squareArea','shapes/perimeter','shapes/compositeArea','shapes/volume','shapes/angle','shapes/convert','shapes/coordinate','shapes/duration']) if((grade5Kinds[kind]||0)<10)fail('g5/kind coverage',kind,{});
+for(const kind of ['numbers/negative','numbers/numberLine','numbers/orderOps','fractions/addUnlike','fractions/subtractUnlike','fractions/multiplyWhole','fractions/mulFractions','fractions/divWhole','fractions/simplify','decimals/decimalFraction','percentages/increase','percentages/decrease','percentages/ofAmount','percentages/fractionToPercent','percentages/decimalToPercent','percentages/complement','ratio/sharing','ratio/simplify','ratio/partOfTotal','ratio/proportion','probability/sampleSpace','probability/complementDecimal','probability/complementPercent','probability/experimental','probability/asPercent','algebra/substitute','algebra/likeTerms','algebra/oneStepAdd','algebra/oneStepMultiply','algebra/twoStep','algebra/patternRule','statistics/mean','statistics/median','statistics/mode','statistics/range','shapes/triangle','shapes/trianglePerimeter','shapes/volume','shapes/angleLine','shapes/coordinate','shapes/scale']) if((grade6Kinds[kind]||0)<10)fail('g6/kind coverage',kind,{});
 // "Mixed All Questions" (topic 'all'): every category the grade offers must appear, and nothing else.
 for(const g of grades){
   const avail=new Set(Q.topicsFor('grade'+g).map(t=>t.value)); const k=`g${g}/all`; const seen={};
@@ -218,7 +284,7 @@ for(const g of grades){
     if(!(q.correct>=0&&q.correct<q.answers.length)||new Set(q.answers).size!==q.answers.length) fail(k,'bad question',q);
     if(g===1){ seen.g1=(seen.g1||0)+1; if(/^Compare/.test(x)) fail(k,'Grade 1 has no comparison questions',q); continue; }   // Grade 1 categories: curriculum.check.js
     let cat;
-    if(g>=2&&['numbers','tables','fractions','decimals','percentages','ratio','probability','shapes','patterns','data','clock'].includes(q.topic)) cat=q.topic;
+    if(g>=2&&['numbers','tables','fractions','decimals','percentages','ratio','probability','algebra','statistics','shapes','patterns','data','clock'].includes(q.topic)) cat=q.topic;
     else if(q.figure&&q.figure.type==='clock') cat='clock';
     else if(q.figure&&q.figure.type==='polygon') cat='shapes';
     else if(/^Compare: /.test(x)) cat='fractions';   // Grades 5-6: decimal versus fraction lives inside Fractions
@@ -227,13 +293,13 @@ for(const g of grades){
     else if(/cm|°|faces|edges|vertices|[Ss]ides/.test(x)) cat='shapes';
     else if(g===2) cat='arithmetic';
     else if(g===3) cat='arithmetic';
-    else if(/^(?:\d+ [+−×÷] \d+ = \?|□ [ +×] \d+ = \d+|\d+ [ +−] □ = \d+|\d+ ÷ □ = \d+|\d+ [+−] \d+ = \d+, so \d+ [−+] \d+ = \?)$/.test(x)) cat='arithmetic';
+    else if(/^(?:[−]?\d+ [+−×÷] [−]?\d+ = \?|□ [ +×÷] \d+ = \d+|\d+ [ +−] □ = \d+|\d+ ÷ □ = \d+|\d+ [+−] \d+ = \d+, so \d+ [−+] \d+ = \?)$/.test(x)) cat='arithmetic';
     else { fail(k,'unrecognised mixed-all question',q); continue; }
     seen[cat]=(seen[cat]||0)+1;
     if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);
   }
     if(g===1) continue;
-  (g===2?['arithmetic','tables','numbers','fractions','money','clock','shapes','patterns','data']:g===3?['arithmetic','numbers','patterns','data','tables','fractions','money','clock','shapes']:g===4?['arithmetic','tables','numbers','fractions','decimals','money','clock','shapes','patterns']:g===5?['arithmetic','numbers','fractions','decimals','percentages','ratio','probability','shapes']:['arithmetic','fractions','money','clock','shapes'].filter(c=>c==='arithmetic'||avail.has(c))).forEach(c=>{
+  (g===2?['arithmetic','tables','numbers','fractions','money','clock','shapes','patterns','data']:g===3?['arithmetic','numbers','patterns','data','tables','fractions','money','clock','shapes']:g===4?['arithmetic','tables','numbers','fractions','decimals','money','clock','shapes','patterns']:g===5?['arithmetic','numbers','fractions','decimals','percentages','ratio','probability','shapes']:['arithmetic','numbers','fractions','decimals','percentages','ratio','probability','algebra','statistics','shapes']).forEach(c=>{
     if((seen[c]||0)<150) fail(k,`category "${c}" too rare (${seen[c]||0}/3000)`,{});
   });
 }

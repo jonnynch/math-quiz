@@ -25,13 +25,15 @@
     { value: 'mul', label: 'Multiplication only', grades: [2, 3, 4, 5, 6] },
     { value: 'div', label: 'Division only', grades: [2, 3, 4, 5, 6] },
     { value: 'tables', label: 'Times tables', grades: [2, 3, 4] },
-    { value: 'numbers', label: 'Numbers & place value', grades: [1, 2, 3, 4, 5] },
+    { value: 'numbers', label: 'Numbers & place value', grades: [1, 2, 3, 4, 5, 6] },
     { value: 'patterns', label: 'Patterns', grades: [2, 3, 4] },
     { value: 'data', label: 'Data', grades: [2, 3] },
-    { value: 'decimals', label: 'Decimals', grades: [4, 5] },
-    { value: 'percentages', label: 'Percentages', grades: [5] },
-    { value: 'ratio', label: 'Ratio', grades: [5] },
-    { value: 'probability', label: 'Probability', grades: [5] },
+    { value: 'decimals', label: 'Decimals', grades: [4, 5, 6] },
+    { value: 'percentages', label: 'Percentages', grades: [5, 6] },
+    { value: 'ratio', label: 'Ratio', grades: [5, 6] },
+    { value: 'probability', label: 'Probability', grades: [5, 6] },
+    { value: 'algebra', label: 'Algebra', grades: [6] },
+    { value: 'statistics', label: 'Statistics', grades: [6] },
     // Kept for old saved games and reports; Grade 2 comparisons live inside Numbers and Fractions.
     { value: 'compare', label: 'Comparing numbers', grades: [] },
     { value: 'fractions', label: 'Fractions', grades: ALL },
@@ -137,6 +139,15 @@
       ? pickWrongAnswers(answer, pool, count - 1, [sameDigit])
       : pickWithMistake(answer, pool, count - 1, extras);
     return { question: text, answers: [answer, ...wrong].map(String), correct: 0 };
+  }
+
+  // Signed choices keep negative integer facts ordered while placing the correct option randomly.
+  function makeSignedNumericQuestion(text, answer, extras = []) {
+    const sameDigit = answer < 0 ? answer - 10 : answer + 10;
+    const pool = [...new Set([...Array.from({ length: 60 }, (_, i) => answer + i - 30), ...extras, sameDigit])].filter(value => Number.isInteger(value) && value !== answer);
+    const wrong = pickWrongAnswers(answer, pool, 3, [sameDigit], intBetween(0, 3));
+    const values = [...wrong, answer].sort((a, b) => a - b);
+    return { question: text, answers: values.map(String), keys: values, correct: values.indexOf(answer) };
   }
 
   function makeDecimalQuestion(text, answer, places = 1) {
@@ -330,31 +341,41 @@
       return Object.assign(ofAmount([3, 4, 5, 6, 8, 10, 12], 12), { topic: 'fractions', kind: 'amount' });
     }
     // Grade 6
-    const kind = choose(['mul', 'divWhole', 'howMany', 'addUnlike', 'compare']);
-    if (kind === 'compare') return makeDecimalFractionCompare(6);
-    if (kind === 'mul') {
+    const kind = weightedChoose([['mulFractions', 12], ['divWhole', 10], ['multiplyWhole', 14], ['addUnlike', 14], ['subtractUnlike', 14], ['simplify', 12], ['compareFractions', 12], ['compareDecimalFraction', 12], ['howMany', 10]]);
+    if (kind === 'compareDecimalFraction') return Object.assign(makeDecimalFractionCompare(6), { topic: 'fractions', kind });
+    if (kind === 'mulFractions') {
       const b = intBetween(2, 9), d = intBetween(2, 9);
       const a = intBetween(1, b - 1), c = intBetween(1, d - 1);
-      return makeFractionQuestion(`${a}/${b} × ${c}/${d} = ? (simplest form)`, [a * c, b * d], [[a + c, b + d]]);
+      return Object.assign(makeFractionQuestion(`${a}/${b} × ${c}/${d} = ? (simplest form)`, [a * c, b * d], [[a + c, b + d]]), { topic: 'fractions', kind });
     }
     if (kind === 'divWhole') {
       const b = intBetween(2, 9), a = intBetween(1, b - 1), w = intBetween(2, 6);
-      return makeFractionQuestion(`${a}/${b} ÷ ${w} = ? (simplest form)`, [a, b * w], [[a * w, b]]);
+      return Object.assign(makeFractionQuestion(`${a}/${b} ÷ ${w} = ? (simplest form)`, [a, b * w], [[a * w, b]]), { topic: 'fractions', kind });
+    }
+    if (kind === 'multiplyWhole') {
+      const [n, d] = choose([[2, 3], [3, 4], [1, 2], [3, 8]]), whole = choose([2, 3, 4, 6]);
+      return Object.assign(makeFractionQuestion(`${n}/${d} × ${whole} = ? (simplest form)`, [n * whole, d]), { topic: 'fractions', kind });
+    }
+    if (kind === 'simplify') {
+      const [n, d] = choose([[12, 18], [15, 20], [14, 21], [18, 24], [16, 20]]);
+      return Object.assign(makeFractionQuestion(`${n}/${d} = ? (simplest form)`, [n, d]), { topic: 'fractions', kind });
+    }
+    if (kind === 'compareFractions') {
+      const pairs = [[1, 2], [2, 3], [3, 4], [3, 8], [5, 8], [7, 10], [4, 5], [5, 6]];
+      const [a, b] = choose(pairs), [c, d] = choose(pairs);
+      return Object.assign(makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, Math.sign(a * d - c * b)), { topic: 'fractions', kind });
     }
     if (kind === 'howMany') {
       const d = intBetween(2, 8), w = intBetween(2, 9);
-      return makeNumericQuestion(`${w} ÷ (1/${d}) = ?`, w * d, { extras: [w, w + d, Math.max(1, Math.round(w / d))] });
+      return Object.assign(makeNumericQuestion(`${w} ÷ (1/${d}) = ?`, w * d, { extras: [w, w + d, Math.max(1, Math.round(w / d))] }), { topic: 'fractions', kind });
     }
     for (let tries = 0; tries < 300; tries++) {
-      const b = choose([2, 3, 4, 5, 6]), d = choose([2, 3, 4, 5, 6]);
-      if (b === d || b % d === 0 || d % b === 0) continue;
-      const a = intBetween(1, b - 1), c = intBetween(1, d - 1);
-      const total = a * d + c * b;
-      if (total < b * d) {
-        return makeFractionQuestion(`${a}/${b} + ${c}/${d} = ? (simplest form)`, [total, b * d], [[a + c, b + d]]);
-      }
+      const b = choose([2, 3, 4, 5, 6]), multiplier = intBetween(2, 4), d = b * multiplier;
+      const a = intBetween(1, b - 1), c = intBetween(1, d - 1), total = a * multiplier + c, difference = a * multiplier - c;
+      if (kind === 'addUnlike' && total < d) return Object.assign(makeFractionQuestion(`${a}/${b} + ${c}/${d} = ? (simplest form)`, [total, d], [[a + c, b + d]]), { topic: 'fractions', kind });
+      if (kind === 'subtractUnlike' && difference > 0) return Object.assign(makeFractionQuestion(`${a}/${b} − ${c}/${d} = ? (simplest form)`, [difference, d], [[Math.abs(a - c), Math.abs(b - d) || d]]), { topic: 'fractions', kind });
     }
-    return makeFractionQuestion('1/2 × 1/3 = ? (simplest form)', [1, 6], [[2, 5]]);
+    return Object.assign(makeFractionQuestion(kind === 'subtractUnlike' ? '3/4 − 1/2 = ? (simplest form)' : '1/2 + 1/4 = ? (simplest form)', kind === 'subtractUnlike' ? [1, 4] : [3, 4]), { topic: 'fractions', kind });
   }
 
   // ---------- times tables ----------
@@ -802,6 +823,132 @@
     return makeQuestion(dividend, '÷', divisor, quotient, true);
   }
 
+  function makeGrade6NumbersQuestion() {
+    const kind = weightedChoose([['negative', 28], ['numberLine', 14], ['round', 8], ['estimate', 8], ['factors', 8], ['multiple', 8], ['divisible', 8], ['orderOps', 10], ['missingFactor', 8]]);
+    if (kind === 'negative') {
+      if (Math.random() < 0.5) {
+        const a = intBetween(1, 9), b = intBetween(5, 15);
+        return Object.assign(makeSignedNumericQuestion(`−${a} + ${b} = ?`, b - a), { topic: 'numbers', kind });
+      }
+      const a = intBetween(2, 8), b = intBetween(9, 15);
+      return Object.assign(makeSignedNumericQuestion(`${a} − ${b} = ?`, a - b), { topic: 'numbers', kind });
+    }
+    if (kind === 'numberLine') {
+      const [a, b] = choose([[-5, 2], [-3, 8], [-7, -2], [4, -6]]);
+      return Object.assign(makeCompareQuestion(`Compare: ${a < 0 ? `−${Math.abs(a)}` : a} ? ${b < 0 ? `−${Math.abs(b)}` : b}`, Math.sign(a - b)), { topic: 'numbers', kind });
+    }
+    const q = makeGrade5NumbersQuestion();
+    return Object.assign(q, { topic: 'numbers' });
+  }
+
+  function makeGrade6DecimalQuestion() {
+    if (Math.random() < 0.2) {
+      const [decimal, n, d] = choose([[0.375, 3, 8], [0.125, 1, 8], [0.625, 5, 8], [0.2, 1, 5], [0.75, 3, 4]]);
+      return Object.assign(makeFractionQuestion(`${decimal} = ? (simplest fraction)`, [n, d]), { topic: 'decimals', kind: 'decimalFraction' });
+    }
+    return makeGrade5DecimalsQuestion();
+  }
+
+  function makeGrade6PercentQuestion() {
+    const kind = weightedChoose([['increase', 16], ['decrease', 16], ['ofAmount', 20], ['fractionToPercent', 16], ['decimalToPercent', 16], ['complement', 16]]);
+    if (kind === 'increase' || kind === 'decrease') {
+      const base = choose([40, 60, 80, 100, 120, 160]), pct = choose([10, 20, 25, 50]), change = base * pct / 100, answer = kind === 'increase' ? base + change : base - change;
+      return Object.assign(makeNumericQuestion(`${kind === 'increase' ? 'Increase' : 'Decrease'} ${base} by ${pct}%.`, answer, { extras: [base, change, base + (kind === 'increase' ? 1 : -1)] }), { topic: 'percentages', kind });
+    }
+    if (kind === 'ofAmount') {
+      const pct = choose([15, 20, 25, 35, 50, 75]), base = choose([40, 60, 80, 100, 120, 200]);
+      return Object.assign(makeNumericQuestion(`${pct}% of ${base} = ?`, pct * base / 100, { extras: [base, pct, base - pct * base / 100] }), { topic: 'percentages', kind });
+    }
+    if (kind === 'fractionToPercent') {
+      const [f, pct] = choose([['3/8', 37.5], ['1/4', 25], ['3/4', 75], ['2/5', 40], ['7/10', 70]]);
+      if (Number.isInteger(pct)) return Object.assign(makeNumericQuestion(`${f} = ?%`, pct, { extras: [pct - 10, pct + 10] }), { topic: 'percentages', kind });
+      return Object.assign(makeDecimalQuestion(`${f} = ?%`, pct, 1), { topic: 'percentages', kind });
+    }
+    if (kind === 'decimalToPercent') {
+      const [decimal, pct] = choose([[0.35, 35], [0.125, 12.5], [0.6, 60], [0.75, 75], [0.4, 40]]);
+      return Object.assign(Number.isInteger(pct) ? makeNumericQuestion(`${decimal} = ?%`, pct, { extras: [pct - 10, pct + 10] }) : makeDecimalQuestion(`${decimal} = ?%`, pct, 1), { topic: 'percentages', kind });
+    }
+    const [pct, answer] = choose([[30, 0.7], [65, 0.35], [25, 0.75], [80, 0.2]]);
+    return Object.assign(makeDecimalQuestion(`P(A) = ${pct}%. P(not A) = ?`, answer, 2), { topic: 'percentages', kind: 'complement' });
+  }
+
+  function makeGrade6RatioQuestion() {
+    if (Math.random() < 0.35) {
+      const [a, b, total] = choose([[2, 3, 30], [3, 5, 40], [1, 2, 24], [4, 5, 45]]), first = a * total / (a + b);
+      return Object.assign(makeNumericQuestion(`Divide ${total} in the ratio ${a}:${b}. How many are in the first part?`, first, { extras: [total - first, a, b] }), { topic: 'ratio', kind: 'sharing' });
+    }
+    return makeGrade5RatioQuestion();
+  }
+
+  function makeGrade6AlgebraQuestion() {
+    const kind = weightedChoose([['substitute', 22], ['likeTerms', 20], ['oneStepAdd', 14], ['oneStepMultiply', 14], ['twoStep', 18], ['patternRule', 12]]);
+    if (kind === 'substitute') {
+      const x = intBetween(2, 6), a = choose([2, 3, 4]), b = choose([1, 2, 3]), answer = a * x + b;
+      return Object.assign(makeNumericQuestion(`If x = ${x}, calculate ${a}x + ${b}.`, answer), { topic: 'algebra', kind });
+    }
+    if (kind === 'likeTerms') {
+      const a = intBetween(2, 5), b = intBetween(1, 4);
+      return Object.assign(textChoices(`${a + b}x`, [`${a * b}x`, `${a + b}`, `${a}x + ${b}`, `${a + b + 1}x`]), { question: `Simplify ${a}x + ${b}x.`, topic: 'algebra', kind });
+    }
+    if (kind === 'oneStepAdd') {
+      const x = intBetween(5, 18), n = intBetween(2, 9);
+      return Object.assign(makeNumericQuestion(`x + ${n} = ${x + n}. x = ?`, x), { topic: 'algebra', kind });
+    }
+    if (kind === 'oneStepMultiply') {
+      const x = intBetween(3, 12), a = choose([2, 3, 4, 5]);
+      return Object.assign(makeNumericQuestion(`${a}x = ${a * x}. x = ?`, x), { topic: 'algebra', kind });
+    }
+    if (kind === 'twoStep') {
+      const x = intBetween(3, 9), a = choose([2, 3]), b = choose([3, 5, 7]);
+      return Object.assign(makeNumericQuestion(`${a}x + ${b} = ${a * x + b}. x = ?`, x), { topic: 'algebra', kind });
+    }
+    const multiplier = choose([2, 3, 4]), offset = choose([1, 2, 3]);
+    return Object.assign(textChoices(`${multiplier}n + ${offset}`, [`n + ${multiplier + offset}`, `${multiplier + offset}n`, `${multiplier}n − ${offset}`]), { question: `Rule for the sequence ${multiplier + offset}, ${2 * multiplier + offset}, ${3 * multiplier + offset}, ${4 * multiplier + offset}:`, topic: 'algebra', kind });
+  }
+
+  function makeGrade6StatisticsQuestion() {
+    const kind = choose(['mean', 'median', 'mode', 'range']);
+    const values = kind === 'mode' ? choose([[3, 5, 5, 7, 10], [2, 3, 3, 6, 11]]) : choose([[3, 5, 5, 7, 10], [4, 6, 8, 10], [2, 3, 3, 6, 11], [5, 7, 8, 9, 11]]);
+    const sorted = [...values].sort((a, b) => a - b), middle = Math.floor(sorted.length / 2), answer = kind === 'mean' ? values.reduce((sum, value) => sum + value, 0) / values.length : kind === 'median' ? sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2 : kind === 'mode' ? values.find(value => values.filter(item => item === value).length > 1) : sorted[sorted.length - 1] - sorted[0];
+    return Object.assign(makeNumericQuestion(`Data: ${values.join(', ')}. Find the ${kind}.`, answer, { extras: [sorted[0], sorted[middle], sorted[sorted.length - 1]] }), { topic: 'statistics', kind });
+  }
+
+  function makeGrade6ProbabilityQuestion() {
+    const kind = weightedChoose([['coin', 12], ['die', 16], ['sampleSpace', 14], ['complementDecimal', 14], ['complementPercent', 10], ['experimental', 12], ['asPercent', 12], ['likely', 10]]);
+    if (kind === 'coin') return Object.assign(makeFractionQuestion('A fair coin is tossed. P(heads) = ?', [1, 2]), { topic: 'probability', kind });
+    if (kind === 'die') return Object.assign(makeFractionQuestion('A fair die is rolled. P(number > 4) = ?', [2, 6]), { topic: 'probability', kind });
+    if (kind === 'sampleSpace') return Object.assign(makeFractionQuestion('A fair spinner has 4 equal sections numbered 1 to 4. P(even) = ?', [2, 4]), { topic: 'probability', kind });
+    if (kind === 'complementDecimal') return Object.assign(makeDecimalQuestion('P(A) = 0.3. What is P(not A)?', 0.7, 1), { topic: 'probability', kind });
+    if (kind === 'complementPercent') return Object.assign(makeNumericQuestion('P(A) = 35%. What is P(not A)?', 65, { extras: [35, 75, 55] }), { topic: 'probability', kind });
+    if (kind === 'experimental') return Object.assign(makeFractionQuestion('A coin landed heads 4 times in 10 tosses. Experimental P(heads) = ?', [4, 10]), { topic: 'probability', kind });
+    if (kind === 'asPercent') return Object.assign(makeNumericQuestion('P(A) = 0.3. Write P(A) as a percent.', 30, { extras: [3, 70, 33] }), { topic: 'probability', kind });
+    return Object.assign(textChoices('red', ['blue', 'equally likely', 'neither']), { question: 'A bag has 3 red and 2 blue counters. Which colour is more likely?', topic: 'probability', kind });
+  }
+
+  function makeGrade6ArithmeticQuestion(operator) {
+    if (operator === '+' || operator === '−') {
+      const kind = weightedChoose([['plain', 60], ['missing', 22], ['inverse', 18]]);
+      if (kind === 'plain' && Math.random() < 0.35) {
+        if (operator === '+') {
+          const a = intBetween(1, 9), b = intBetween(5, 15);
+          return makeSignedNumericQuestion(`−${a} + ${b} = ?`, b - a);
+        }
+        const a = intBetween(2, 8), b = intBetween(9, 15);
+        return makeSignedNumericQuestion(`${a} − ${b} = ?`, a - b);
+      }
+      const a = intBetween(50, 99), b = intBetween(10, Math.min(40, a - 10)), answer = operator === '+' ? a + b : a - b;
+      if (kind === 'inverse') return makeNumericQuestion(`${a} ${operator} ${b} = ${answer}, so ${answer} ${operator === '+' ? '−' : '+'} ${operator === '+' ? a : b} = ?`, operator === '+' ? b : a, { sameLastDigit: true });
+      if (kind === 'missing') return operator === '+' ? makeNumericQuestion(`□ + ${b} = ${answer}`, a, { sameLastDigit: true }) : makeNumericQuestion(`${a} − □ = ${answer}`, b, { sameLastDigit: true });
+      return makeQuestion(a, operator, b, answer, true);
+    }
+    if (operator === '×') {
+      const a = intBetween(12, 35), b = intBetween(2, 9), product = a * b;
+      return Math.random() < 0.25 ? makeNumericQuestion(`□ × ${b} = ${product}`, a, { sameLastDigit: true }) : makeQuestion(a, '×', b, product, true);
+    }
+    const divisor = intBetween(2, 9), quotient = intBetween(12, 24), dividend = divisor * quotient;
+    return Math.random() < 0.25 ? makeNumericQuestion(`□ ÷ ${divisor} = ${quotient}`, dividend, { sameLastDigit: true }) : makeQuestion(dividend, '÷', divisor, quotient, true);
+  }
+
   // ---------- money (answers are in cents) ----------
   const coinText = (c) => c >= 100 ? `$${c / 100}` : `${c}c`;
   const moneyTotalText = (c) => c >= 100 ? `$${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}` : `${c}c`;
@@ -1012,18 +1159,45 @@
       const hours = intBetween(1, 2), minutes = choose([15, 20, 25, 30, 35, 40, 45]), extra = choose([15, 20, 30, 35, 40, 45]);
       return Object.assign(makeNumericQuestion(`${hours} h ${minutes} min + ${extra} min = ? min`, hours * 60 + minutes + extra, { extras: [hours * 60 + minutes, minutes + extra] }), { topic: 'shapes', kind: 'duration' });
     }
-    const kind = choose(['triangle', 'parallelogram', 'quad']);
+    const kind = weightedChoose([['triangle', 12], ['trianglePerimeter', 4], ['parallelogram', 8], ['quad', 8], ['rectangleArea', 12], ['perimeter', 10], ['volume', 12], ['angleLine', 12], ['coordinate', 10], ['convert', 8], ['scale', 4]]);
     if (kind === 'quad') {
       const a = intBetween(60, 120), b = intBetween(60, 120), c = intBetween(60, 120);
-      return makeNumericQuestion(`Fourth angle = 360° − ${a}° − ${b}° − ${c}°`, 360 - a - b - c, { extras: [360 - a - b, 180 - c] });
+      return Object.assign(makeNumericQuestion(`Fourth angle = 360° − ${a}° − ${b}° − ${c}°`, 360 - a - b - c, { extras: [360 - a - b, 180 - c] }), { topic: 'shapes', kind });
     }
-    let base = intBetween(3, 24);
-    const height = intBetween(3, 20);
     if (kind === 'triangle') {
-      if ((base * height) % 2 === 1) base += 1;
-      return makeNumericQuestion(`Triangle area: ${base} cm × ${height} cm ÷ 2 = ? cm²`, base * height / 2, { extras: [base * height, base + height] });
+      const base = choose([6, 8, 10, 12]), height = choose([4, 5, 6, 8]);
+      return Object.assign(makeNumericQuestion(`Triangle area: base ${base} cm × height ${height} cm ÷ 2 = ? cm²`, base * height / 2, { extras: [base * height, base + height] }), { topic: 'shapes', kind });
     }
-    return makeNumericQuestion(`Parallelogram area: ${base} cm × ${height} cm = ? cm²`, base * height, { extras: [base * height / 2 | 0, 2 * (base + height)] });
+    if (kind === 'trianglePerimeter') {
+      const [a, b, c] = choose([[3, 4, 5], [5, 5, 6], [6, 7, 8], [4, 6, 7]]);
+      return Object.assign(makeNumericQuestion(`Triangle perimeter: sides ${a} cm, ${b} cm and ${c} cm = ? cm`, a + b + c, { extras: [a + b, a + c, b + c] }), { topic: 'shapes', kind });
+    }
+    if (kind === 'parallelogram') {
+      const base = intBetween(4, 12), height = intBetween(3, 9);
+      return Object.assign(makeNumericQuestion(`Parallelogram area: ${base} cm × ${height} cm = ? cm²`, base * height, { extras: [base * height / 2 | 0, 2 * (base + height)] }), { topic: 'shapes', kind });
+    }
+    if (kind === 'rectangleArea' || kind === 'perimeter') {
+      const length = intBetween(5, 14), width = intBetween(3, 10), area = kind === 'rectangleArea';
+      return Object.assign(makeNumericQuestion(`${area ? 'Area' : 'Perimeter'} of ${length} cm × ${width} cm rectangle = ? ${area ? 'cm²' : 'cm'}`, area ? length * width : 2 * (length + width), { extras: [area ? length + width : length * width, 2 * length, 2 * width] }), { topic: 'shapes', kind });
+    }
+    if (kind === 'volume') {
+      const [length, width, height] = choose([[4, 3, 2], [5, 2, 3], [3, 3, 4], [6, 2, 2]]);
+      return Object.assign(makeNumericQuestion(`Cuboid volume: ${length} × ${width} × ${height} = ? cm³`, length * width * height, { extras: [length * width, 2 * (length + width + height)] }), { topic: 'shapes', kind });
+    }
+    if (kind === 'angleLine') {
+      const given = choose([45, 55, 65, 70, 115, 125]);
+      return Object.assign(makeNumericQuestion(`Angles on a straight line: ${given}° + □ = 180°`, 180 - given, { extras: [given, 180, 180 - given + 10] }), { topic: 'shapes', kind });
+    }
+    if (kind === 'coordinate') {
+      const x = intBetween(1, 8), rawY = intBetween(1, 8), y = rawY === x ? rawY % 8 + 1 : rawY, answer = `(${x}, ${y})`;
+      return Object.assign(textChoices(answer, [`(${y}, ${x})`, `(${x + 1}, ${y})`, `(${x}, ${y + 1})`]), { question: `On a coordinate grid, move ${x} right and ${y} up from the origin. What are the coordinates?`, topic: 'shapes', kind });
+    }
+    if (kind === 'convert') {
+      const metres = choose([1.5, 2.4, 3.5, 4.2]);
+      return Object.assign(makeNumericQuestion(`${metres} m = ? cm`, metres * 100, { extras: [metres * 10, metres * 100 + 10, metres * 100 - 10] }), { topic: 'shapes', kind });
+    }
+    const mapCm = choose([3, 4, 5]), kmPerCm = choose([2, 3, 5]);
+    return Object.assign(makeNumericQuestion(`Map scale: 1 cm represents ${kmPerCm} km. A route is ${mapCm} cm. Real distance = ? km`, mapCm * kmPerCm, { extras: [mapCm + kmPerCm, mapCm * kmPerCm + kmPerCm] }), { topic: 'shapes', kind: 'scale' });
   }
 
   // ---------- counting and age levels ----------
@@ -2129,6 +2303,7 @@
     if (grade === 3 && (operator === '×' || operator === '÷')) return makeGrade3FactQuestion(operator);
     if (grade === 4) return makeGrade4ArithmeticQuestion(operator);
     if (grade === 5) return makeGrade5ArithmeticQuestion(operator);
+    if (grade === 6) return makeGrade6ArithmeticQuestion(operator);
     let a, b, answer;
 
     // Number ranges and multiplication/division complexity increase by level.
@@ -2163,7 +2338,7 @@
 
   // "Mixed All Questions" draws each question from one of these categories (only those the grade offers).
   // 'mixed' covers + − × ÷ (÷ and × from Grade 2); add/sub/mul/div are not listed so arithmetic is not over-weighted.
-  const ALL_MIX_TOPICS = ['mixed', 'numbers', 'tables', 'fractions', 'decimals', 'percentages', 'ratio', 'probability', 'money', 'clock', 'shapes', 'patterns', 'data'];
+  const ALL_MIX_TOPICS = ['mixed', 'numbers', 'tables', 'fractions', 'decimals', 'percentages', 'ratio', 'probability', 'algebra', 'statistics', 'money', 'clock', 'shapes', 'patterns', 'data'];
 
   function generateRawQuestion(difficulty, topic) {
     if (difficulty === 'toddler') return makeToddlerQuestion();
@@ -2180,13 +2355,15 @@
     }
     let q;
     switch (name) {
-      case 'numbers': q = grade === 1 ? makeGrade1NumbersQuestion() : grade === 2 ? makeGrade2NumbersQuestion() : grade === 3 ? makeGrade3NumbersQuestion() : grade === 4 ? makeGrade4NumbersQuestion() : grade === 5 ? makeGrade5NumbersQuestion() : makeGrade2NumbersQuestion(); break;
+      case 'numbers': q = grade === 1 ? makeGrade1NumbersQuestion() : grade === 2 ? makeGrade2NumbersQuestion() : grade === 3 ? makeGrade3NumbersQuestion() : grade === 4 ? makeGrade4NumbersQuestion() : grade === 5 ? makeGrade5NumbersQuestion() : grade === 6 ? makeGrade6NumbersQuestion() : makeGrade2NumbersQuestion(); break;
       case 'tables': q = makeTablesQuestion(grade); if (grade === 2 || grade === 4) Object.assign(q, { topic: 'tables', kind: 'fact' }); break;
       case 'fractions': q = makeFractionsQuestion(grade); break;
-      case 'decimals': q = grade === 5 ? makeGrade5DecimalsQuestion() : makeGrade4DecimalsQuestion(); break;
-      case 'percentages': q = makeGrade5PercentQuestion(); break;
-      case 'ratio': q = makeGrade5RatioQuestion(); break;
-      case 'probability': q = makeGrade5ProbabilityQuestion(); break;
+      case 'decimals': q = grade === 6 ? makeGrade6DecimalQuestion() : grade === 5 ? makeGrade5DecimalsQuestion() : makeGrade4DecimalsQuestion(); break;
+      case 'percentages': q = grade === 6 ? makeGrade6PercentQuestion() : makeGrade5PercentQuestion(); break;
+      case 'ratio': q = grade === 6 ? makeGrade6RatioQuestion() : makeGrade5RatioQuestion(); break;
+      case 'probability': q = grade === 6 ? makeGrade6ProbabilityQuestion() : makeGrade5ProbabilityQuestion(); break;
+      case 'algebra': q = makeGrade6AlgebraQuestion(); break;
+      case 'statistics': q = makeGrade6StatisticsQuestion(); break;
       case 'money': q = makeMoneyQuestion(grade); break;
       case 'clock': q = makeClockQuestion(grade); break;
       case 'patterns': q = grade === 4 ? makeGrade4PatternQuestion() : grade === 3 ? makeGrade3PatternQuestion() : makeGrade2PatternQuestion(); break;

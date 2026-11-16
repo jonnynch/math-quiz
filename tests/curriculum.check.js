@@ -25,7 +25,7 @@ function common(label, q) {
   if (!Array.isArray(a) || a.length < 2 || a.length > 5) return fail(label + ': answer count', q), false;
   if (!(q.correct >= 0 && q.correct < a.length)) return fail(label + ': bad correct index', q), false;
   if (new Set(a).size !== a.length || a.some(x => typeof x !== 'string' || x.trim() === '')) return fail(label + ': duplicate/empty answer slot', q), false;
-  if (a.every(isNum)) { const n = a.map(Number); if (n.some((v, i) => v < 0 || (i && v <= n[i - 1]))) fail(label + ': numeric answers negative/not ascending', q); }
+  if (a.every(isNum)) { const n = a.map(Number); if (n.some((v, i) => (v < 0 && !label.startsWith('grade6')) || (i && v <= n[i - 1]))) fail(label + ': numeric answers negative/not ascending', q); }
   return true;
 }
 
@@ -583,6 +583,34 @@ for (let i = 0; i < 12000; i++) {
 for (const topic of ['mixed', 'numbers', 'patterns', 'tables', 'fractions', 'decimals', 'money', 'clock', 'shapes']) if ((g4Seen[topic] || 0) < 500) fail('grade4/all category too rare: ' + topic, g4Seen);
 for (const [kind, count] of Object.entries(g4Kinds)) if (count < 10) fail('grade4 question type too rare: ' + kind, count);
 
+// ============================ GRADE 6 ============================
+const grade6Topics = Q.topicsFor('grade6').map(t => t.value);
+const requiredGrade6Topics = ['all', 'mixed', 'add', 'sub', 'mul', 'div', 'numbers', 'decimals', 'percentages', 'ratio', 'probability', 'algebra', 'statistics', 'fractions', 'shapes'];
+for (const topic of requiredGrade6Topics) if (!grade6Topics.includes(topic)) fail('grade6 topic missing: ' + topic, grade6Topics);
+for (const topic of ['patterns', 'data', 'tables', 'money', 'clock']) if (grade6Topics.includes(topic)) fail('grade6 unrelated topic exposed: ' + topic, grade6Topics);
+const g6Seen = {}, g6Kinds = {};
+for (const topic of grade6Topics.filter(t => t !== 'all')) {
+  for (let i = 0; i < 1200; i++) {
+    const q = Q.generateQuestion('grade6', topic), text = q.question;
+    if (!q.question || /quadratic|square root|factorisation|long division|compound probability|trigonometry/i.test(text)) fail('grade6 excluded concept', q);
+    if (/\d{4,}/.test(text) && !/rounded|estimate|\?\/1000/.test(text)) fail('grade6 oversized operand', q);
+    if (q.answers.length < 2 || new Set(q.answers).size !== q.answers.length || q.correct < 0 || q.correct >= q.answers.length) fail('grade6 invalid choices', q);
+    if (q.topic) { g6Seen[q.topic] = (g6Seen[q.topic] || 0) + 1; g6Kinds[q.topic + '/' + q.kind] = (g6Kinds[q.topic + '/' + q.kind] || 0) + 1; }
+    if (q.topic === 'numbers' && q.kind === 'negative' && !/[−] \d+ = \?|−\d+ \+ \d+ = \?/.test(text)) fail('grade6 negative numbers missing', q);
+    if (q.topic === 'algebra' && !/x|n|Simplify|Rule for the sequence/.test(text)) fail('grade6 algebra not symbolic', q);
+    if (q.topic === 'statistics' && !/Find the (mean|median|mode|range)/.test(text)) fail('grade6 statistics missing', q);
+    if (q.topic === 'ratio' && !/ratio|\d+:\d+/.test(text)) fail('grade6 ratio missing', q);
+    if (q.topic === 'percentages' && !/%/.test(text)) fail('grade6 percentage missing', q);
+    if (q.topic === 'probability' && !/P\(|likely/.test(text)) fail('grade6 probability missing', q);
+  }
+}
+for (const topic of ['numbers', 'fractions', 'decimals', 'percentages', 'ratio', 'probability', 'algebra', 'statistics', 'shapes']) if (!g6Seen[topic]) fail('grade6 topic generates no questions: ' + topic, g6Seen);
+const g6MixedSample = Array.from({ length: 18000 }, () => Q.generateQuestion('grade6', 'all'));
+for (const topic of ['numbers', 'fractions', 'decimals', 'percentages', 'ratio', 'probability', 'algebra', 'statistics', 'shapes']) {
+  const count = g6MixedSample.filter(q => q.topic === topic).length;
+  if (count < 100) fail('grade6 mixed pool topic too rare: ' + topic, { count });
+}
+
 // ============================ COMPARISONS ============================
 // Grade 4 compares decimals and angles within their topics; the other comparisons stay embedded in their curriculum.
 for (const g of [1, 2, 3, 4]) {
@@ -616,7 +644,13 @@ for (const g of [5, 6]) {
       if (!m) { if (q.answers.includes(LESS)) fail(level + '/' + t + ': comparison answers on a non-comparison', q); continue; }
       compares++;
       const tokens = [m[1], m[2]], dec = tokens.filter(x => /^\d+\.\d{1,3}$/.test(x)), fr = tokens.filter(x => /^[1-9]\d*\/[1-9]\d*$/.test(x));
-      if (g === 5 && q.topic === 'decimals') {
+      if (g === 6 && q.topic === 'numbers') {
+        const signed = tokens.map(x => Number(x.replace('−', '-')));
+        if (signed.some(x => !Number.isInteger(x)) || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(signed[0], signed[1])) fail(level + '/' + t + ': negative number comparison', q);
+        seen[ans(q)]++;
+        continue;
+      }
+      if ((g === 5 || g === 6) && q.topic === 'decimals') {
         if (dec.length !== 2 || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(Number(tokens[0]), Number(tokens[1]))) fail(level + '/' + t + ': decimal comparison', q);
         seen[ans(q)]++;
         continue;
@@ -627,7 +661,7 @@ for (const g of [5, 6]) {
         seen[ans(q)]++;
         continue;
       }
-      if (g === 5 && q.topic === 'fractions' && dec.length === 0 && fr.length === 2) {
+      if ((g === 5 || g === 6) && q.topic === 'fractions' && dec.length === 0 && fr.length === 2) {
         if (q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(fractionValue(tokens[0]), fractionValue(tokens[1]))) fail(level + '/' + t + ': fraction comparison', q);
         seen[ans(q)]++;
         continue;
