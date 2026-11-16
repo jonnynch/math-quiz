@@ -333,6 +333,44 @@
     return svg;
   }
 
+  function createFractionSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-fraction', role: 'img', 'aria-label': `${spec.numerator} of ${spec.denominator} equal parts shaded` });
+    const cx = 50, cy = 50, r = 40;
+    for (let i = 0; i < spec.denominator; i++) {
+      const a1 = (-90 + i * 360 / spec.denominator) * Math.PI / 180;
+      const a2 = (-90 + (i + 1) * 360 / spec.denominator) * Math.PI / 180;
+      const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1), x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+      const large = 360 / spec.denominator > 180 ? 1 : 0;
+      const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+      svg.append(svgEl('path', { d, fill: i < spec.numerator ? '#60a5fa' : '#f8fafc', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    }
+    return svg;
+  }
+
+  function createPerimeterSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-perimeter', role: 'img', 'aria-label': `Rectangle, ${spec.length} centimetres by ${spec.width} centimetres` });
+    svg.append(svgEl('rect', { x: 18, y: 31, width: 64, height: 38, fill: '#dbeafe', stroke: '#1f2937', 'stroke-width': 2 }));
+    const top = svgEl('text', { x: 50, y: 25, 'text-anchor': 'middle', class: 'figure-label' }); top.textContent = `${spec.length} cm`;
+    const side = svgEl('text', { x: 84, y: 53, 'text-anchor': 'middle', class: 'figure-label', transform: 'rotate(90 84 53)' }); side.textContent = `${spec.width} cm`;
+    svg.append(top, side);
+    return svg;
+  }
+
+  function createBarChartSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-bar-chart', role: 'img', 'aria-label': `Bar chart: ${spec.labels.map((label, i) => `${label} ${spec.values[i]}`).join(', ')}` });
+    svg.append(svgEl('path', { d: 'M 12 12 V 76 H 94', fill: 'none', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    const colors = ['#60a5fa', '#f59e0b', '#34d399'];
+    spec.values.forEach((value, i) => {
+      const x = 22 + i * 24, h = value * 6;
+      svg.append(svgEl('rect', { x, y: 76 - h, width: 14, height: h, fill: colors[i], stroke: '#1f2937', 'stroke-width': 1 }));
+      const number = svgEl('text', { x: x + 7, y: 72 - h, 'text-anchor': 'middle', class: 'figure-label' }); number.textContent = String(value);
+      const shortLabels = { Books: 'Bk', Games: 'Gm', Balls: 'Bl' };
+      const label = svgEl('text', { x: x + 7, y: 88, 'text-anchor': 'middle', class: 'figure-label' }); label.textContent = shortLabels[spec.labels[i]] || spec.labels[i].slice(0, 2);
+      svg.append(number, label);
+    });
+    return svg;
+  }
+
   // 2D shape (Age 5): drawn inside a 100 x 100 box; every outline stays within 50 units of the centre, so it never
   // clips when turned. `scale`, `rotate`, `ratio` (rectangles) and `variant` (triangles) vary size and orientation.
   const TRIANGLES = ['50,14 88,80 12,80', '50,10 78,88 22,88', '20,16 20,84 80,84'];
@@ -351,6 +389,9 @@
   }
 
   function createFigure(figure) {
+    if (figure.type === 'fraction') return createFractionSvg(figure);
+    if (figure.type === 'perimeter') return createPerimeterSvg(figure);
+    if (figure.type === 'bar-chart') return createBarChartSvg(figure);
     if (figure.type === 'shape') return createShapeSvg(figure, 'figure figure-shape', 'A shape');
     return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
   }

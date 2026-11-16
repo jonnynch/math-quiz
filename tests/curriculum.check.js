@@ -1,4 +1,4 @@
-// Curriculum scope: Age 6 and Grade 1 question pools, no standalone number comparisons for Grades 1-4,
+// Curriculum scope: Age 6 and Grade 1, the expanded Grade 2 pool, embedded Grade 2 comparisons,
 // decimal-versus-fraction comparisons for Grades 5-6, and Age 2-5 left exactly as they were.
 // Every answer is recomputed here from the question text / picture data; the generators' own answers are never trusted.
 const path = require('path');
@@ -304,12 +304,128 @@ Object.entries(g1ShownByPath).forEach(([path, count]) => { if (!count) fail('gra
   Object.entries(seen).forEach(([category, count]) => { if (count < 1000) fail('grade1/all frequency: category missing or too rare: ' + category, seen); });
 }
 
+// ============================ GRADE 2 ============================
+const grade2Topics = Q.topicsFor('grade2').map(t => t.value);
+['numbers', 'patterns', 'data', 'tables', 'fractions', 'clock', 'shapes'].forEach(t => { if (!grade2Topics.includes(t)) fail('grade2 topic missing: ' + t, grade2Topics); });
+const g2Kinds = {};
+const fractionValue = text => { const m = String(text).match(/^(\d+)\/(\d+)$/); return m ? Number(m[1]) / Number(m[2]) : NaN; };
+function checkGrade2Arithmetic(label, q, allowed = ['+', '−', '×', '÷']) {
+  const text = q.question, n = Number(ans(q)); let m, op, a, b, expected;
+  if ((m = text.match(/^What is (\d+) ([+−×÷]) (\d+)\?$/))) {
+    a = Number(m[1]); op = m[2]; b = Number(m[3]);
+    expected = op === '+' ? a + b : op === '−' ? a - b : op === '×' ? a * b : a / b;
+    if (!allowed.includes(op) || expected !== n || !Number.isInteger(expected) || expected < 0) fail(label + ': arithmetic equation', q);
+    if (op === '+' && !((a >= 10 && b >= 10 && a < 100 && b < 100 && expected <= 150) || (a % 10 === 0 && b % 10 === 0 && expected <= 800))) fail(label + ': addition outside mental range', q);
+    if (op === '−' && (a < b || !((a >= 10 && b >= 10 && a < 100 && b < 100) || (a % 10 === 0 && b % 10 === 0)))) fail(label + ': subtraction outside mental range', q);
+    if ((op === '×' || op === '÷') && (Math.max(a, b) > 100 || (op === '×' && ![2, 5, 10].includes(a) && ![2, 5, 10].includes(b)) || (op === '÷' && a % b !== 0))) fail(label + ': fact outside Grade 2 tables', q);
+  } else if ((m = text.match(/^\? × (2|5|10) = (\d+)$/))) {
+    b = Number(m[1]); expected = Number(m[2]); if (n * b !== expected || n > 10) fail(label + ': missing factor', q);
+  } else if ((m = text.match(/^(\d+) ÷ \? = (\d+)$/))) {
+    a = Number(m[1]); expected = Number(m[2]); if (a / n !== expected || ![2, 5, 10].includes(n)) fail(label + ': missing divisor', q);
+  } else if ((m = text.match(/^(\d+) \+ \? = (\d+)$/))) {
+    a = Number(m[1]); expected = Number(m[2]); if (a + n !== expected) fail(label + ': missing addend', q);
+  } else if ((m = text.match(/^\? \+ (\d+) = (\d+)$/))) {
+    b = Number(m[1]); expected = Number(m[2]); if (n + b !== expected) fail(label + ': missing first addend', q);
+  } else if ((m = text.match(/^(\d+) − \? = (\d+)$/))) {
+    a = Number(m[1]); expected = Number(m[2]); if (a - n !== expected || n < 0) fail(label + ': missing subtrahend', q);
+  } else if ((m = text.match(/^(\d+) \+ (\d+) = (\d+), so (\d+) − (\d+) = \?$/))) {
+    a = Number(m[1]); b = Number(m[2]); expected = Number(m[3]); if (a + b !== expected || Number(m[4]) - Number(m[5]) !== n) fail(label + ': addition/subtraction inverse', q);
+  } else if ((m = text.match(/^(\d+) − (\d+) = (\d+), so (\d+) \+ (\d+) = \?$/))) {
+    a = Number(m[1]); b = Number(m[2]); expected = Number(m[3]); if (a - b !== expected || Number(m[4]) + Number(m[5]) !== n || n !== a) fail(label + ': subtraction/addition inverse', q);
+  } else fail(label + ': unrecognised arithmetic wording', q);
+  if (text.length > 80) fail(label + ': arithmetic prompt too long', q);
+}
+function checkGrade2(label, topic, q) {
+  if (!q.question || q.question.length > 80) fail(label + ': prompt too long or missing', q);
+  if (/[√²³]|probability|quadratic|decimal/i.test(q.question)) fail(label + ': excluded higher-grade content', q);
+  const n = Number(ans(q)), text = q.question;
+  if (['mixed', 'add', 'sub', 'mul', 'div'].includes(topic)) return checkGrade2Arithmetic(label, q, topic === 'add' ? ['+'] : topic === 'sub' ? ['−'] : topic === 'mul' ? ['×'] : topic === 'div' ? ['÷'] : undefined);
+  if (topic === 'tables') {
+    checkGrade2Arithmetic(label, q, ['×', '÷']);
+    if (q.picture) {
+      const rows = q.picture.groups[0].rows;
+      if (!rows.length || rows.some(row => row.length !== rows[0].length) || rows.join('').length !== n) fail(label + ': array does not represent product', q);
+    }
+    return;
+  }
+  if (topic === 'numbers') {
+    g2Kinds['numbers/' + q.kind] = (g2Kinds['numbers/' + q.kind] || 0) + 1;
+    let m;
+    if ((m = text.match(/^What number is (\d+) tens and (\d+) ones\?$/))) { if (Number(m[1]) * 10 + Number(m[2]) !== n || n < 20 || n > 99) fail(label + ': two-digit place value', q); }
+    else if ((m = text.match(/^What number is (\d+) hundreds, (\d+) tens and (\d+) ones\?$/))) { if (Number(m[1]) * 100 + Number(m[2]) * 10 + Number(m[3]) !== n || n < 100 || n > 999) fail(label + ': three-digit place value', q); }
+    else if ((m = text.match(/^(\d+) = \?$/))) { if (q.answers[q.correct].split(' + ').reduce((s, x) => s + Number(x), 0) !== Number(m[1])) fail(label + ': expanded notation', q); }
+    else if ((m = text.match(/^□00 \+ (\d+) \+ (\d+) = (\d+)$/))) { if (n * 100 + Number(m[1]) + Number(m[2]) !== Number(m[3])) fail(label + ': missing hundreds', q); }
+    else if ((m = text.match(/^(\d+) \+ □0 \+ (\d+) = (\d+)$/))) { if (Number(m[1]) + n * 10 + Number(m[2]) !== Number(m[3])) fail(label + ': missing tens', q); }
+    else if ((m = text.match(/^Compare: (\d+) \? (\d+)$/))) { if (ans(q) !== (Number(m[1]) < Number(m[2]) ? LESS : Number(m[1]) > Number(m[2]) ? MORE : EQUAL)) fail(label + ': number comparison', q); }
+    else if (text === 'Order from smallest to largest.') { const values = ans(q).split(',').map(Number); if (values.length !== 3 || values.some((v, i) => i && v <= values[i - 1])) fail(label + ': number ordering', q); }
+    else if (q.numbers) { const s = readSequence(q.numbers); if (!s || s.answer !== n || Math.abs(s.step) > 50 || Math.max(...s.values) > 999) fail(label + ': number sequence', q); }
+    else fail(label + ': unknown number/place-value question', q);
+    return;
+  }
+  if (topic === 'fractions') {
+    g2Kinds['fractions/' + q.kind] = (g2Kinds['fractions/' + q.kind] || 0) + 1;
+    let m;
+    if ((m = text.match(/^What is 1\/(2|4|8) of (\d+)\?$/))) { if (Number(m[2]) / Number(m[1]) !== n || Number(m[2]) % Number(m[1])) fail(label + ': unit fraction amount', q); }
+    else if (text === 'What fraction of the shape is shaded?') { if (!q.figure || q.figure.type !== 'fraction' || Math.abs(fractionValue(ans(q)) - q.figure.numerator / q.figure.denominator) > 1e-9) fail(label + ': equal-parts fraction diagram', q); }
+    else if (text === '1/2 = ?/4') { if (n !== 2) fail(label + ': equivalent halves and quarters', q); }
+    else if ((m = text.match(/^Compare: (\d+)\/(\d+) \? (\d+)\/(\d+)$/))) { const left = Number(m[1]) / Number(m[2]), right = Number(m[3]) / Number(m[4]), correct = left < right ? LESS : left > right ? MORE : EQUAL; if (ans(q) !== correct) fail(label + ': fraction comparison', q); }
+    else fail(label + ': unknown Grade 2 fraction question', q);
+    return;
+  }
+  if (topic === 'clock') { if (!q.figure || q.figure.type !== 'clock' || q.figure.minute % 5 || ans(q) !== `${q.figure.hour}:${String(q.figure.minute).padStart(2, '0')}`) fail(label + ': five-minute clock reading', q); return; }
+  if (topic === 'shapes') {
+    g2Kinds['shapes/' + q.kind] = (g2Kinds['shapes/' + q.kind] || 0) + 1;
+    if (q.kind === 'polygon') { if (!q.figure || q.figure.type !== 'polygon' || String(q.figure.sides) !== ans(q)) fail(label + ': 2D shape', q); }
+    else if (q.kind === 'solid') { if (!q.picture || q.picture.label !== 'A ' + ans(q)) fail(label + ': 3D solid identification', q); }
+    else if (q.kind === 'measure') { const m = text.match(/^Compare: (\d+) (cm|kg|L) \? (\d+) \2$/); if (!m || ans(q) !== (Number(m[1]) < Number(m[3]) ? LESS : Number(m[1]) > Number(m[3]) ? MORE : EQUAL)) fail(label + ': measurement comparison', q); }
+    else if (q.kind === 'perimeter') { if (!q.figure || q.figure.type !== 'perimeter' || n !== 2 * (q.figure.length + q.figure.width)) fail(label + ': rectangle perimeter', q); }
+    else if (q.kind === 'symmetry') { const shape = text.match(/a (triangle|square|rectangle)/)?.[1], sides = { triangle: 3, square: 4, rectangle: 2 }[shape]; if (!q.figure || Number(ans(q)) !== sides) fail(label + ': symmetry', q); }
+    else if (q.kind === 'identify') { const names = { 3: 'triangle', 4: 'square', 5: 'pentagon', 6: 'hexagon' }; if (!q.figure || names[q.figure.sides] !== ans(q)) fail(label + ': 2D shape identification', q); }
+    else fail(label + ': unknown Grade 2 shape/measure question', q);
+    return;
+  }
+  if (topic === 'patterns') {
+    g2Kinds['patterns/' + q.kind] = (g2Kinds['patterns/' + q.kind] || 0) + 1;
+    const period = q.kind.length, base = q.pattern && q.pattern.slice(0, period).map(v => v.label);
+    if (!q.pattern || q.pattern.length !== 6 || q.pattern[5] !== null || !q.answerVisuals || q.answerVisuals[q.correct].label !== base[5 % period]) fail(label + ': repeating visual pattern', q);
+    return;
+  }
+  if (topic === 'data') {
+    g2Kinds['data/' + q.kind] = (g2Kinds['data/' + q.kind] || 0) + 1;
+    const f = q.figure; if (!f || f.type !== 'bar-chart' || f.values.length !== 3) return fail(label + ': bar chart missing', q);
+    let expected;
+    if (q.kind === 'read') { const word = text.match(/^How many (books|games|balls)\?$/)?.[1]; expected = f.values[f.labels.findIndex(x => x.toLowerCase() === word)]; }
+    else if (q.kind === 'most') expected = f.labels[f.values.indexOf(Math.max(...f.values))];
+    else if (q.kind === 'total') expected = f.values.reduce((a, b) => a + b, 0);
+    else expected = Math.max(...f.values) - Math.min(...f.values);
+    if (String(expected) !== ans(q)) fail(label + ': bar chart answer', q);
+    return;
+  }
+}
+if (grade2Topics.includes('numbers')) {
+  for (const topic of grade2Topics.filter(t => t !== 'all')) {
+    for (let i = 0; i < 1000; i++) checkGrade2('grade2/' + topic, topic, Q.generateQuestion('grade2', topic));
+  }
+  const seen = { arithmetic: 0, tables: 0, numbers: 0, fractions: 0, money: 0, clock: 0, shapes: 0, patterns: 0, data: 0 };
+  for (let i = 0; i < 12000; i++) {
+    const q = Q.generateQuestion('grade2', 'all');
+    const category = q.topic === 'numbers' || q.topic === 'patterns' || q.topic === 'data' || q.topic === 'tables' || q.topic === 'fractions' || q.topic === 'shapes'
+      ? q.topic : q.figure && q.figure.type === 'clock' ? 'clock' : /cents/.test(q.question) ? 'money' : 'arithmetic';
+    seen[category]++;
+    if (q.topic === 'numbers' || q.topic === 'patterns' || q.topic === 'data' || q.topic === 'shapes' || q.topic === 'fractions') checkGrade2('grade2/all', q.topic, q);
+    else if (category === 'arithmetic') checkGrade2Arithmetic('grade2/all', q);
+  }
+  Object.entries(seen).forEach(([category, count]) => { if (count < 150) fail('grade2/all: category missing or too rare: ' + category, seen); });
+  Object.entries(g2Kinds).forEach(([kind, count]) => { if (!count) fail('grade2: question kind never generated: ' + kind, g2Kinds); });
+}
+
 // ============================ COMPARISONS ============================
-// Grades 1-4: no standalone number comparison, no `compare` topic; an old saved selection falls back to Mixed All Questions.
+// Grades 1, 3 and 4 have no comparison questions; Grade 2 compares within Numbers, Fractions and Measurement.
 for (const g of [1, 2, 3, 4]) {
   const level = 'grade' + g;
   if (Q.topicsFor(level).some(t => t.value === 'compare')) fail(level + ': compare topic is still offered', Q.topicsFor(level).map(t => t.value));
   if (Q.normaliseTopic(level, 'compare') !== 'all') fail(level + ': old compare selection not normalised', Q.normaliseTopic(level, 'compare'));
+  if (g === 2) continue;
   for (const t of [...Q.topicsFor(level).map(x => x.value), 'compare']) {   // 'compare' = an old saved selection reaching the generator
     for (let i = 0; i < 1500; i++) {
       const q = Q.generateQuestion(level, t);
