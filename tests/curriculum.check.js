@@ -95,11 +95,18 @@ function checkBars(label, q, max) {
   else fail(label + ': measurement must be a numeric task', q);
 }
 
-// Every money question draws its coins (q.coins, rendered by game.js) and uses Australian coins only.
+// Money questions draw Australian coins; Grade 1 totals use child-friendly currency labels.
 function checkMoney(label, q, limit, totalValues) {
   if (NO_SMALL_COINS.test([q.question, ...q.answers].join(' '))) return fail(label + ': 1c/2c coin', q);
   if (!Array.isArray(q.coins) || !q.coins.length || q.coins.some(c => ![5, 10, 20, 50, 100, 200].includes(c))) return fail(label + ': coin illustration missing or not Australian', q);
-  if (q.question === 'How many cents altogether?') {
+  if (q.question === 'How much money is there altogether?') {
+    const total = sum(q.coins), value = a => {
+      if (/^\$\d+\.\d{2}$/.test(a)) return Math.round(Number(a.slice(1)) * 100);
+      if (/^\d+c$/.test(a)) return Number(a.slice(0, -1));
+      return NaN;
+    };
+    if (q.coins.length < 2 || q.coins.length > 3 || q.coins.some(c => !totalValues.includes(c)) || total !== value(ans(q)) || total > limit || q.answers.some(a => !Number.isFinite(value(a)) || value(a) % 5 !== 0) || q.answers.some((a, i) => i && value(a) <= value(q.answers[i - 1]))) fail(label + ': Grade 1 money total', q);
+  } else if (q.question === 'How many cents altogether?') {
     const total = sum(q.coins);
     if (q.coins.length < 2 || q.coins.length > 3 || q.coins.some(c => !totalValues.includes(c)) || total !== Number(ans(q)) || total > limit || q.answers.some(a => Number(a) % 5 !== 0)) fail(label + ': coin total', q);
   } else if (q.question === 'How many cents is this coin?') { if (q.coins.length !== 1 || q.coins[0] !== Number(ans(q))) fail(label + ': coin value', q); }

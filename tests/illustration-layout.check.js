@@ -41,6 +41,9 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     ['age6', 'Age 6 crossed-out subtraction', find('age6', q => q.kind === 'objects-sub')],
     ['age6', 'Age 6 coins', find('age6', q => q.coins)],
     ['grade1', 'Grade 1 coins', find('grade1', q => q.coins, 'money')],
+    ['grade2', 'Grade 2 coins', find('grade2', q => q.coins, 'money')],
+    ['grade3', 'Grade 3 coins', find('grade3', q => q.coins, 'money')],
+    ['grade4', 'Grade 4 banknote', find('grade4', q => q.notes, 'money')],
     ['grade1', 'Grade 1 place-value blocks', find('grade1', q => q.promptVisual, 'numbers')],
     ['grade1', 'Grade 1 picture (bars, graphs, position)', find('grade1', q => q.picture, 'shapes')],
     ['grade3', 'Grade 3 clock', find('grade3', q => q.figure, 'clock')],
@@ -50,6 +53,10 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     const r = await render(question, level);
     ok(r.pictures.length >= 1 && r.pictures.every(p => above(r.w, p, r.text)), `${name}: the illustration is above the question sentence`);
     ok(r.text && r.text.textContent === question.question, `${name}: the question sentence is still shown`);
+    if (question.notes) {
+      const notes = [...r.info.querySelectorAll('.banknote')];
+      ok(notes.length === question.notes.length && notes.map(n => n.textContent).join() === question.notes.map(v => '$' + v / 100).join(), `${name}: Australian banknotes use the shared money illustration`);
+    }
   }
 
   // No illustration: no empty illustration container is left behind, at several levels.
@@ -91,6 +98,10 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     const labels = [...r.d.querySelectorAll('.counting-visual.coins .coin-label')].map(e => e.textContent);
     const want = q.coins.map(v => v >= 100 ? '$' + v / 100 : v + 'c');
     ok(labels.join() === want.join() && labels.every(l => /^(5c|10c|20c|50c|\$1|\$2)$/.test(l)), 'Grade 1 money: coins drawn ' + labels.join(' '));
+    if (q.kind === 'total') {
+      ok(q.question === 'How much money is there altogether?' && /^\$\d+\.\d{2}$|^\d+c$/.test(q.answers[q.correct]), 'Grade 1 money total: natural question with a currency-value answer');
+      ok(above(r.w, r.pictures[0], r.text), 'Grade 1 money total: coin illustration appears above the question');
+    }
   }
   process.exit(failures ? 1 : 0);
 })();

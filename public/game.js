@@ -357,11 +357,11 @@
 
   // Australian coins, drawn to scale (diameters in mm): 5c-50c silver (the 50c has 12 sides), $1 and $2 gold.
   const COIN_MM = { 5: 19.4, 10: 23.6, 20: 28.5, 50: 31.5, 100: 25, 200: 20.5 };
-  function createCoins(values) {
+  function createCoins(values, notes = []) {
     const box = document.createElement('div');
     box.className = 'counting-visual coins';
     box.setAttribute('role', 'img');
-    box.setAttribute('aria-label', values.map(v => v >= 100 ? `${v / 100} dollar coin` : `${v} cent coin`).join(', '));
+    box.setAttribute('aria-label', [...values.map(v => v >= 100 ? `${v / 100} dollar coin` : `${v} cent coin`), ...notes.map(v => `$${v / 100} note`)].join(', '));
     values.forEach(v => {
       const coin = document.createElement('span');
       coin.className = `coin ${v >= 100 ? 'coin-gold' : 'coin-silver'}${v === 50 ? ' coin-50' : ''}`;
@@ -372,6 +372,13 @@
       label.textContent = v >= 100 ? `$${v / 100}` : `${v}c`;
       coin.append(label);
       box.append(coin);
+    });
+    notes.forEach(v => {
+      const note = document.createElement('span');
+      note.className = `banknote banknote-${v}`;
+      note.setAttribute('aria-hidden', 'true');
+      note.textContent = `$${v / 100}`;
+      box.append(note);
     });
     return box;
   }
@@ -532,7 +539,7 @@
     if (question.pattern) info.append(createPattern(question.pattern));
     if (question.promptVisual) info.append(createPromptBlocks(question.promptVisual));
     if (question.picture) info.append(createPicture(question.picture));
-    if (question.coins) info.append(createCoins(question.coins));
+    if (question.coins || question.notes) info.append(createCoins(question.coins || [], question.notes || []));
     if (question.visual) {
       const visual = document.createElement('div');
       visual.className = `counting-visual${question.rowsOfFive ? ' rows-of-five' : ''}`;

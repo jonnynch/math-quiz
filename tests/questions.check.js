@@ -31,7 +31,7 @@ for(const g of grades){
         } else if((m=text.match(/^(\d+) × \? = (\d+)$/))){ if(+m[1]*Number(ans)!==+m[2]) fail(k,'wrong missing factor',q);} else fail(k,'unrecognised text',q);
         if(t.value==='tables'){ /* tables restricted ranges */ if((m=text.match(/^What is (\d+) × (\d+)\?$/))&&g===2&&![2,5,10].includes(+m[1])&&![2,5,10].includes(+m[2])) fail(k,'g2 table out of range',q);}
       }
-      if(t.value==='money'){ const nn=Number(ans); if(m=text.match(/^You have (.+)\. How many cents altogether\?$/)){const s=m[1].split(', ').reduce((s,x)=>s+(x.startsWith('$')?100*+x.slice(1):+x.slice(0,-1)),0); if(s!==nn) fail(k,'coins wrong',q);}
+      if(t.value==='money'){ const nn=Number(ans); if((!Array.isArray(q.coins)||!q.coins.length)&&(!Array.isArray(q.notes)||!q.notes.length)) fail(k,'money illustration missing',q); if((q.coins||[]).some(v=>![5,10,20,50,100,200].includes(v))||(q.notes||[]).some(v=>![500,1000].includes(v))) fail(k,'invalid Australian money illustration',q); if(m=text.match(/^You have (.+)\. How many cents altogether\?$/)){const s=m[1].split(', ').reduce((s,x)=>s+(x.startsWith('$')?100*+x.slice(1):+x.slice(0,-1)),0); if(s!==nn) fail(k,'coins wrong',q);}
         else if(m=text.match(/^Something costs (\d+)c\. You pay (\S+)\. How many cents change\?$/)){const pay=m[2].startsWith('$')?100*+m[2].slice(1):+m[2].slice(0,-1); if(pay-m[1]!==nn||pay-m[1]<=0) fail(k,'change wrong',q);}
         else if(m=text.match(/^A pen costs (\d+)c and a rubber costs (\d+)c/)){ if(+m[1]+ +m[2]!==nn) fail(k,'sum wrong',q);}
         else if(m=text.match(/^(\d+) stickers cost (\d+)c each/)){ if(m[1]*m[2]!==nn) fail(k,'qty wrong',q);}

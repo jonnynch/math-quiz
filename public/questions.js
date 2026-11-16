@@ -293,6 +293,12 @@
 
   // ---------- money (answers are in cents) ----------
   const coinText = (c) => c >= 100 ? `$${c / 100}` : `${c}c`;
+  const moneyTotalText = (c) => c >= 100 ? `$${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}` : `${c}c`;
+  const coinBreakdown = cents => {
+    const coins = [];
+    for (const value of AU_COINS.slice().reverse()) while (cents >= value) { coins.push(value); cents -= value; }
+    return coins;
+  };
   function makeMoneyQuestion(grade) {
     if (grade === 1) return makeGrade1MoneyQuestion();
     if (grade === 2) {
@@ -301,23 +307,23 @@
       do { coins = Array.from({ length: intBetween(2, 4) }, () => choose(values)); }
       while (coins.reduce((s, c) => s + c, 0) > 250);
       const total = coins.reduce((s, c) => s + c, 0);
-      return makeNumericQuestion(`You have ${coins.map(coinText).join(', ')}. How many cents altogether?`, total, { extras: [Math.max(...coins), coins.length] });
+      return Object.assign(makeNumericQuestion(`You have ${coins.map(coinText).join(', ')}. How many cents altogether?`, total, { extras: [Math.max(...coins), coins.length] }), { coins });
     }
     if (grade === 3) {
       if (Math.random() < 0.5) {
         const pay = choose([50, 100]);
         const price = pay === 50 ? intBetween(1, 9) * 5 : intBetween(1, 19) * 5;
-        return makeNumericQuestion(`Something costs ${price}c. You pay ${coinText(pay)}. How many cents change?`, pay - price, { extras: [price, pay + price] });
+        return Object.assign(makeNumericQuestion(`Something costs ${price}c. You pay ${coinText(pay)}. How many cents change?`, pay - price, { extras: [price, pay + price] }), { coins: [pay] });
       }
       const a = intBetween(1, 19) * 5, b = intBetween(1, 19) * 5;
-      return makeNumericQuestion(`A pen costs ${a}c and a rubber costs ${b}c. How many cents altogether?`, a + b, { extras: [Math.abs(a - b), a] });
+      return Object.assign(makeNumericQuestion(`A pen costs ${a}c and a rubber costs ${b}c. How many cents altogether?`, a + b, { extras: [Math.abs(a - b), a] }), { coins: coinBreakdown(a + b) });
     }
     if (Math.random() < 0.5) {
       const qty = intBetween(2, 9), each = intBetween(2, 19) * 5;
-      return makeNumericQuestion(`${qty} stickers cost ${each}c each. How many cents in total?`, qty * each, { extras: [qty + each, each] });
+      return Object.assign(makeNumericQuestion(`${qty} stickers cost ${each}c each. How many cents in total?`, qty * each, { extras: [qty + each, each] }), { coins: coinBreakdown(qty * each) });
     }
     const price = intBetween(5, 99) * 5, pay = choose([500, 1000]);
-    return makeNumericQuestion(`A book costs ${price}c. You pay ${coinText(pay)}. How many cents change?`, pay - price, { extras: [price, pay + price] });
+    return Object.assign(makeNumericQuestion(`A book costs ${price}c. You pay ${coinText(pay)}. How many cents change?`, pay - price, { extras: [price, pay + price] }), { notes: [pay] });
   }
 
   // ---------- clock reading (analogue clock figure, answers sorted by time) ----------
@@ -1192,10 +1198,16 @@
     return { answers: [total, ...wrong].map(String), correct: 0 };
   }
 
-  function makeCoinTotalQuestion(values, limit, simple) {
+  function makeCoinTotalQuestion(values, limit, simple, grade1Total = false) {
     let coins, total;
     do { coins = Array.from({ length: intBetween(2, 3) }, () => choose(values)); total = coins.reduce((s, c) => s + c, 0); } while (total > limit);
-    return mark({ question: 'How many cents altogether?', coins, ...totalChoices(total, coins) }, 'money', 'total', total <= 30 ? 1 : total <= 100 ? 2 : 3, simple);
+    const choices = totalChoices(total, coins);
+    if (grade1Total) {
+      const cents = choices.answers.map(Number);
+      choices.answers = cents.map(moneyTotalText);
+      choices.keys = cents;
+    }
+    return mark({ question: grade1Total ? 'How much money is there altogether?' : 'How many cents altogether?', coins, ...choices }, 'money', 'total', total <= 30 ? 1 : total <= 100 ? 2 : 3, simple);
   }
 
   // One coin is drawn; the child says what it is worth.
@@ -1491,7 +1503,7 @@
   }
 
   function makeGrade1MoneyQuestion() {
-    return Math.random() < 0.65 ? makeCoinTotalQuestion(AU_COINS, 300, false) : makeCoinValueQuestion(false);
+    return Math.random() < 0.65 ? makeCoinTotalQuestion(AU_COINS, 300, false, true) : makeCoinValueQuestion(false);
   }
 
   function makeGrade1ShapesQuestion() {
