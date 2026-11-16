@@ -755,3 +755,12 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
     font-size: min(1.8rem, 5vh, calc((var(--app-h) - 137px - 40px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1)));
   }
 }
+/* Same for tablets held sideways (more chrome above and below the board than on a phone). */
+@media (orientation: landscape) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing .question-boards.solo .counting-visual.picture.tall {
+    font-size: min(3.4rem, 9vh, calc((var(--app-h) - 214px - 30px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 24px) / (var(--tc, 5) * 1.3 + 1.5)));
+  }
+  body.playing .question-boards.versus .counting-visual.picture.tall {
+    font-size: min(2.6rem, 7vh, calc((var(--app-h) - 214px - 30px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1)));
+  }
+}
