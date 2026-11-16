@@ -546,8 +546,8 @@
       });
       info.append(visual);
     }
-    info.append(text);
     if (question.numbers) info.append(createNumberSequence(question.numbers));
+    info.append(text);
     body.append(info, grid);
     board.append(body);
     return board;

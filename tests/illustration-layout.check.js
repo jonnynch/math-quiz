@@ -11,7 +11,7 @@ const ok = (cond, msg) => { console.log((cond ? 'PASS ' : 'FAIL ') + msg); if (!
 const Q = require(path.join(dir, 'questions.js'));
 const find = (level, pred, topic) => { for (let i = 0; i < 20000; i++) { const q = Q.generateQuestion(level, topic); if (pred(q)) return q; } throw new Error('no question found for ' + level); };
 
-const ILLUSTRATION = '.object-stage, .figure, .pattern-row, .prompt-visual, .counting-visual';
+const ILLUSTRATION = '.object-stage, .figure, .pattern-row, .number-sequence, .prompt-visual, .counting-visual';
 
 // Renders exactly this question in a fresh page (the game caches banks per level, so a bank of one repeats it).
 async function render(question, level) {
@@ -34,6 +34,7 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
     ['toddler', 'Age 2-3 objects', find('toddler', q => q.visual)],
     ['age4', 'Age 4 picture', find('age4', q => q.picture)],
     ['age5', 'Age 5 pattern', find('age5', q => q.pattern)],
+    ['age5', 'Age 5 number sequence', find('age5', q => q.numbers)],
     ['age5', 'Age 5 place-value blocks', find('age5', q => q.promptVisual)],
     ['age5', 'Age 5 shape figure', find('age5', q => q.figure)],
     ['age6', 'Age 6 object stage', find('age6', q => q.stage)],
