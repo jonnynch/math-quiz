@@ -707,7 +707,6 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
 .pz-usage { font-weight: 800; margin: 6px 0; }
 .pz-usage.good { color: var(--good, #15803d); }
 .pz-usage.error { color: var(--bad, #b91c1c); }
-.pz-design-clock { font-weight: 800; margin: 0 0 6px; text-align: center; }
 .pz-designer.locked .pz-panel button:not(#pzSave), .pz-designer.locked .pz-canvas-wrap { pointer-events: none; opacity: .55; }
 .pz-ended { margin: 10px auto 0; max-width: 520px; text-align: center; display: grid; gap: 8px; justify-items: center; }
 

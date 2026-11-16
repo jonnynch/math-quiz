@@ -1,9 +1,9 @@
 // Playzone game 1: Pizza & Cake Designer (creative, no score). Everything is drawn as local SVG; "Save Image"
 // turns the finished artwork (only the creation, no buttons) into a PNG with a canvas. No server, no libraries.
 // Tap a decoration to add it, or drag it onto the canvas. Drag a placed decoration to move it; tap it, then Remove.
-// Each design runs in a paid session of at most two minutes (the shell charges the ACTUAL time, rounded up to whole
-// minutes). The design is saved automatically; when the session ends (time up, Done, or leaving) editing stops, the
-// design stays saved, and Resume / Start again each begin a NEW session. Saving the picture (PNG) always works.
+// Each design runs in an unlimited session; the shell charges ACTUAL usage, rounded up to whole minutes. The design
+// is saved automatically; Done or leaving ends the session. Resume / Start again each begin a NEW session. Saving
+// the picture (PNG) always works.
 (() => {
   'use strict';
 
