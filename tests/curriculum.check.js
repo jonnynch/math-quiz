@@ -283,6 +283,22 @@ for (const t of ['mixed', 'add', 'sub', 'numbers', 'fractions', 'money', 'clock'
   ['arithmetic', 'numbers', 'fractions', 'money', 'clock', 'shapes'].forEach(c => { if ((seen[c] || 0) < 200) fail('grade1/all: category too rare: ' + c, seen); });
 }
 
+// A larger sample guards the Grade 1 mixed-pool arithmetic weighting against random noise.
+{
+  const sampleSize = 24000;
+  const seen = { arithmetic: 0, numbers: 0, fractions: 0, money: 0, clock: 0, shapes: 0 };
+  for (let i = 0; i < sampleSize; i++) {
+    const q = Q.generateQuestion('grade1', 'all');
+    const category = q.topic === 'addsub' ? 'arithmetic' : q.figure && q.figure.type === 'clock' ? 'clock' : ['numbers', 'placevalue'].includes(q.topic) ? 'numbers' : ['fractions', 'money'].includes(q.topic) ? q.topic : 'shapes';
+    seen[category]++;
+    if (category === 'arithmetic') checkGrade1('mixed', q);
+  }
+  const arithmeticShare = seen.arithmetic / sampleSize;
+  const increaseFromCurrentEqualWeight = arithmeticShare / (1 / Object.keys(seen).length);
+  if (increaseFromCurrentEqualWeight < 1.4 || increaseFromCurrentEqualWeight > 1.6) fail('grade1/all: arithmetic frequency should be about 50% above equal weighting', { seen, increaseFromCurrentEqualWeight });
+  Object.entries(seen).forEach(([category, count]) => { if (count < 1000) fail('grade1/all frequency: category missing or too rare: ' + category, seen); });
+}
+
 // ============================ COMPARISONS ============================
 // Grades 1-4: no standalone number comparison, no `compare` topic; an old saved selection falls back to Mixed All Questions.
 for (const g of [1, 2, 3, 4]) {
