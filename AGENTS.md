@@ -68,3 +68,14 @@ These came directly from the owner (details and reasons in `docs/REQUIREMENTS.md
 - `docs/UI-AND-LAYOUT.md` — design tokens, palettes, text scale, landscape-phone layout, modals, figures.
 - `docs/TESTING.md` — what each check does, how to run it, acceptable known limits, manual checklist.
 - `docs/REQUIREMENTS.md` — the owner's requests in order, with the reasoning, so changes stay consistent.
+
+
+## Full Test Suite Restrictions
+
+- AI coding agents must NEVER execute `npm test` or `npm run test`.
+- Do not execute any alternative command that triggers the complete test suite.
+- Full test execution is reserved for GitHub Actions CI.
+- Targeted tests may be run only if they are confirmed not to trigger the full suite.
+- If uncertain whether a command triggers the full suite, do not execute it.
+- Do not ask an AI agent to run the full suite as part of its normal implementation workflow.
+- Always report that full test execution was left to GitHub Actions.
