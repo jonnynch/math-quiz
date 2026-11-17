@@ -190,6 +190,21 @@ Parent.lock();
   const oldLoaded = freshStore(old.mem);
   ok(oldLoaded.S.getProfiles()[0].stickers.join() === '🦄,🚀', 'previously earned stickers stay intact; unknown ones are dropped');
 }
+// --- sticker categories
+{
+  const st = freshStore();
+  const { STICKERS, STICKER_CATEGORIES, STICKER_CATEGORY } = st.S;
+  const listed = STICKER_CATEGORIES.flatMap(c => c.stickers);
+  ok(STICKERS.length === 100, 'exactly 100 stickers remain');
+  ok(STICKER_CATEGORIES.length >= 6 && STICKER_CATEGORIES.length <= 8, 'sticker categories: ' + STICKER_CATEGORIES.length);
+  ok(new Set(STICKER_CATEGORIES.map(c => c.id)).size === STICKER_CATEGORIES.length && STICKER_CATEGORIES.every(c => c.id && c.name && c.icon && c.stickers.length > 0), 'categories have unique ids, names, icons and stickers');
+  ok(STICKERS.every(s => typeof STICKER_CATEGORY[s] === 'string' && STICKER_CATEGORIES.some(c => c.id === STICKER_CATEGORY[s])), 'every sticker has a valid category');
+  ok(listed.length === STICKERS.length && new Set(listed).size === listed.length && listed.every(s => STICKERS.includes(s)), 'every sticker is in exactly one category and no unknown stickers are listed');
+  ok(Object.keys(STICKER_CATEGORY).length === STICKERS.length, 'category lookup covers exactly the existing stickers');
+  const kid = st.S.addProfile('Cat', '🦊').profile;
+  kid.stickers = ['🦄', '🚀', '🍕']; st.S.save();
+  ok(freshStore(st.mem).S.getProfiles()[0].stickers.join() === '🦄,🚀,🍕', 'earned stickers and saved profiles are unchanged by categories');
+}
 // --- screen-time reward bank
 {
   const rs = freshStore();
