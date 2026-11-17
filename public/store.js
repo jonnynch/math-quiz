@@ -20,7 +20,119 @@
     '🦥', '🦦', '🦩', '🦚', '🐿', '🦔', '🦫', '🦡', '🐺', '🐻',
     '🌸', '🌺', '🌹', '🌱', '🍀', '🍄', '🪻', '🪷', '🌷',
     '🍒', '🍑', '🍍', '🍌', '🍊', '🍋', '🍐', '🥝', '🥑',
-    '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇'];
+    '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇',
+    // Expansion from 100 to 200 stickers (appended to preserve existing IDs).
+    '🐳', '🦉', '🐝', '🐞', '🦀',              // new animals (5)
+    '🌻', '🌼', '🌲', '🌴', '🍁', '🍃', '🌾', '🌵', '🌊', '🌋', '🪴', '🎋', '☀️', '❄️', '🐚', // new nature (15)
+    '🍎', '🍇', '🥕', '🌽', '🍔', '🍟', '🌮', '🍣', '🍜', '🍿', // new food (10)
+    '🚲', '🛵', '🚜', '🚑', '🚓', '🚕', '🚌', '🚤', '🚢', '🚠', '🛹', '🛴', '🛶', '🛺', '✈️', // new vehicles (15)
+    '🪐', '☄️', '🔭', '🔬', '🧬', '🧪', '🧫', '📡', '🛰️', '🧲', '💡', '🔋', '🤖', '🌌', // new space & science (14)
+    '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🏸', '🎳', '🥊', '🥋', '🪁', '🪀', '🥁', '🏹', // new sports & activities (14)
+    '🧙', '🧝', '🧞', '🧜', '👻', '🎃', '🪄', '⚔️', '🛡️', '🗿', '🎪', '🦸', // new fantasy & characters (12)
+    '🎒', '📚', '✏️', '✂️', '🔔', '🔑', '🕶️', '🧢', '👟', '🧦', '☂️', '⏰', '📷', '🧩', '🪙']; // new everyday objects (15)
+
+  // 8 intuitive categories grouping all 200 stickers for compact browsing.
+  const STICKER_CATEGORIES = [
+    {
+      id: 'animals',
+      name: 'Animals',
+      icon: '🐾',
+      stickers: [
+        '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵', '🐰', '🐨', '🐧', '🐬',
+        '🐹', '🐭', '🐮', '🐷', '🐣', '🐦', '🐴', '🦓', '🦒', '🦘', '🦥', '🦦', '🦩', '🦚', '🐿',
+        '🦔', '🦫', '🦡', '🐺', '🐻', '🐳', '🦉', '🐝', '🐞', '🦀'
+      ]
+    },
+    {
+      id: 'nature',
+      name: 'Nature',
+      icon: '🌿',
+      stickers: [
+        '🌈', '🌸', '🌺', '🌹', '🌱', '🍀', '🍄', '🪻', '🪷', '🌷',
+        '🌻', '🌼', '🌲', '🌴', '🍁', '🍃', '🌾', '🌵', '🌊', '🌋', '🪴', '🎋', '☀️', '❄️', '🐚'
+      ]
+    },
+    {
+      id: 'food',
+      name: 'Food',
+      icon: '🍎',
+      stickers: [
+        '🍦', '🍕', '🍩', '🍓', '🍉', '🧁', '🍪', '🍒', '🍑', '🍍', '🍌', '🍊', '🍋', '🍐', '🥝',
+        '🥑', '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇',
+        '🍎', '🍇', '🥕', '🌽', '🍔', '🍟', '🌮', '🍣', '🍜', '🍿'
+      ]
+    },
+    {
+      id: 'vehicles',
+      name: 'Vehicles',
+      icon: '🚗',
+      stickers: [
+        '🚁', '🚂', '🚗', '🚒', '⛵',
+        '🚲', '🛵', '🚜', '🚑', '🚓', '🚕', '🚌', '🚤', '🚢', '🚠', '🛹', '🛴', '🛶', '🛺', '✈️'
+      ]
+    },
+    {
+      id: 'space-science',
+      name: 'Space and Science',
+      icon: '🚀',
+      stickers: [
+        '🚀', '🌟', '👽', '🛸', '🌙', '🌍',
+        '🪐', '☄️', '🔭', '🔬', '🧬', '🧪', '🧫', '📡', '🛰️', '🧲', '💡', '🔋', '🤖', '🌌'
+      ]
+    },
+    {
+      id: 'sports-activities',
+      name: 'Sports and Activities',
+      icon: '⚽',
+      stickers: [
+        '🏆', '🎨', '⚽', '🎸', '🥇', '🎯',
+        '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🏸', '🎳', '🥊', '🥋', '🪁', '🪀', '🥁', '🏹'
+      ]
+    },
+    {
+      id: 'fantasy-characters',
+      name: 'Fantasy and Characters',
+      icon: '✨',
+      stickers: [
+        '🦄', '🦖', '🦕', '🐉', '🧚', '🔮', '🏰', '🥳',
+        '🧙', '🧝', '🧞', '🧜', '👻', '🎃', '🪄', '⚔️', '🛡️', '🗿', '🎪', '🦸'
+      ]
+    },
+    {
+      id: 'everyday-objects',
+      name: 'Everyday Objects',
+      icon: '🎁',
+      stickers: [
+        '🎈', '🧸', '🎁', '👑', '💎',
+        '🎒', '📚', '✏️', '✂️', '🔔', '🔑', '🕶️', '🧢', '👟', '🧦', '☂️', '⏰', '📷', '🧩', '🪙'
+      ]
+    }
+  ];
+
+  const stickerCategoryMap = new Map();
+  STICKER_CATEGORIES.forEach(cat => {
+    cat.stickers.forEach(s => stickerCategoryMap.set(s, cat));
+  });
+
+  function getStickerCategory(sticker) {
+    return stickerCategoryMap.get(sticker) || null;
+  }
+
+  function getStickersByCategory(categoryId) {
+    const cat = STICKER_CATEGORIES.find(c => c.id === categoryId);
+    return cat ? [...cat.stickers] : [];
+  }
+
+  function getCategoryProgress(profile, categoryId) {
+    const cat = STICKER_CATEGORIES.find(c => c.id === categoryId);
+    if (!cat) return { owned: 0, total: 0 };
+    const ownedSet = new Set(Array.isArray(profile && profile.stickers) ? profile.stickers : []);
+    let owned = 0;
+    cat.stickers.forEach(s => {
+      if (ownedSet.has(s)) owned++;
+    });
+    return { owned, total: cat.stickers.length };
+  }
   const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐙', '🐢', '🦁', '🐶', '🐱', '🚀', '🌟'];
   const MAX_PROFILES = 8;
   const MAX_HISTORY = 30;
@@ -386,7 +498,8 @@
   }
 
   const api = {
-    STICKERS, AVATARS, MAX_PROFILES, MAX_HISTORY, NAME_LENGTH, SCHEMA,
+    STICKERS, STICKER_CATEGORIES, getStickerCategory, getStickersByCategory, getCategoryProgress,
+    AVATARS, MAX_PROFILES, MAX_HISTORY, NAME_LENGTH, SCHEMA,
     isAvailable: () => available,
     getSettings: () => data.settings,
     setSetting(name, value) {

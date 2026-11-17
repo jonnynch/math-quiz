@@ -151,7 +151,15 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));
   const detailsBtn=[...d.querySelectorAll('.profile-card .secondary-button')].find(b=>b.textContent==='Details'); click(detailsBtn);
-  ok(d.querySelectorAll('.sticker-book .sticker').length===w.MQStore.STICKERS.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows every sticker, 1 collected');
+  ok(d.querySelector('.profile-details .detail-title').textContent.includes('1 / 200 collected'),'overall sticker progress displayed: 1 / 200 collected');
+  ok(d.querySelectorAll('.sticker-cat-button').length===w.MQStore.STICKER_CATEGORIES.length,'category tabs exist for all 8 categories');
+  const activeCatBtn=d.querySelector('.sticker-cat-button.selected');
+  ok(activeCatBtn&&activeCatBtn.dataset.category==='animals'&&activeCatBtn.querySelector('.cat-count').textContent.includes('1 / 40'),'animals category tab selected by default with 1 / 40 progress');
+  ok(d.querySelectorAll('.sticker-book .sticker').length===40&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book filters to animals category (40 stickers, 1 collected)');
+  const foodBtn=[...d.querySelectorAll('.sticker-cat-button')].find(b=>b.dataset.category==='food'); click(foodBtn);
+  ok(foodBtn.classList.contains('selected')&&d.querySelectorAll('.sticker-book .sticker').length===35&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===0,'switching category filters sticker book to food (35 stickers, 0 collected)');
+  const animBtn=[...d.querySelectorAll('.sticker-cat-button')].find(b=>b.dataset.category==='animals'); click(animBtn);
+  ok(animBtn.classList.contains('selected')&&d.querySelectorAll('.sticker-book .sticker').length===40&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'switching back filters sticker book back to animals');
   ok(d.querySelector('.detail-list').textContent.length>0,'recent games listed');
   const delBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][1];
   click(delBtn()); ok(delBtn().textContent.includes('again'),'delete asks for a second tap');

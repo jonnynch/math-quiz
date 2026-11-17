@@ -176,15 +176,52 @@ Parent.lock();
 {
   const ORIGINAL = ['🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
     '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟'];
+  const PREVIOUS_100 = [
+    '🦄', '🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
+    '🚀', '🚁', '🚂', '🏆', '🎈', '🌈', '🍦', '🍕', '🎨', '⚽', '🎸', '🌟',
+    '🐰', '🦖', '🦕', '🐨', '🐧', '🐬',
+    '🍩', '🍓', '🍉', '🧁', '🍪',
+    '👽', '🛸', '🌙', '🌍',
+    '🐉', '🧚', '🔮', '🏰',
+    '🚗', '🚒', '🧸', '🎁', '⛵',
+    '🥇', '🥳', '👑', '💎', '🎯',
+    '🐹', '🐭', '🐮', '🐷', '🐣', '🐦', '🐴', '🦓', '🦒', '🦘',
+    '🦥', '🦦', '🦩', '🦚', '🐿', '🦔', '🦫', '🦡', '🐺', '🐻',
+    '🌸', '🌺', '🌹', '🌱', '🍀', '🍄', '🪻', '🪷', '🌷',
+    '🍒', '🍑', '🍍', '🍌', '🍊', '🍋', '🍐', '🥝', '🥑',
+    '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇'
+  ];
   const st = freshStore();
   ok(ORIGINAL.every((s, i) => st.S.STICKERS[i] === s), 'original 24 stickers keep their identity and order');
-  ok(new Set(st.S.STICKERS).size === st.S.STICKERS.length, 'no duplicate stickers');
-  ok(st.S.STICKERS.length >= 44, 'sticker collection has grown: ' + st.S.STICKERS.length);
+  ok(PREVIOUS_100.every((s, i) => st.S.STICKERS[i] === s), 'all 100 previous stickers keep their identity and order');
+  ok(st.S.STICKERS.length === 200, 'sticker collection expanded to exactly 200 stickers: ' + st.S.STICKERS.length);
+  ok(new Set(st.S.STICKERS).size === 200, 'all 200 stickers have unique IDs (no duplicates)');
   ok(st.S.STICKERS.every(s => /^\p{Extended_Pictographic}\u{FE0F}?$/u.test(s)), 'every sticker is a single emoji');
+
+  // Categories
+  ok(Array.isArray(st.S.STICKER_CATEGORIES) && st.S.STICKER_CATEGORIES.length === 8, '8 sticker categories exist');
+  ok(st.S.STICKER_CATEGORIES.every(c => c.id && c.name && c.icon && Array.isArray(c.stickers)), 'every category has id, name, icon and stickers array');
+  const catStickers = st.S.STICKER_CATEGORIES.flatMap(c => c.stickers);
+  ok(catStickers.length === 200, 'categories contain exactly 200 stickers in total');
+  ok(new Set(catStickers).size === 200, 'no sticker belongs to multiple categories');
+  ok(st.S.STICKERS.every(s => st.S.getStickerCategory(s) !== null), 'every sticker belongs to a valid category');
+  ok(st.S.getStickerCategory('🐶').id === 'animals', 'dog maps to animals category');
+  ok(st.S.getStickersByCategory('animals').length === 40, 'animals category has 40 stickers');
+
+  // Progress helpers
   const kid = st.S.addProfile('Stick', '🦊').profile;
+  kid.stickers = ['🐶', '🐱', '🍎']; st.S.save();
+  const animProg = st.S.getCategoryProgress(kid, 'animals');
+  ok(animProg.owned === 2 && animProg.total === 40, 'animals category progress is 2 / 40');
+  const foodProg = st.S.getCategoryProgress(kid, 'food');
+  ok(foodProg.owned === 1 && foodProg.total === 35, 'food category progress is 1 / 35');
+  const vegProg = st.S.getCategoryProgress(kid, 'vehicles');
+  ok(vegProg.owned === 0 && vegProg.total === 20, 'vehicles category progress is 0 / 20');
+
+  // Persistence and compatibility
   kid.stickers = [...st.S.STICKERS]; st.S.save();
   const again = freshStore(st.mem);
-  ok(again.S.getProfiles()[0].stickers.length === st.S.STICKERS.length, 'every sticker (old and new) survives save and reload');
+  ok(again.S.getProfiles()[0].stickers.length === 200, 'every sticker (all 200) survives save and reload');
   const old = freshStore();
   old.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 1, profiles: [{ id: 'o1', name: 'Old', stickers: ['🦄', '🚀', '❌'] }] });
   const oldLoaded = freshStore(old.mem);

@@ -176,18 +176,73 @@
     return card;
   }
 
+  let selectedStickerCategory = 'animals';
+
   function profileDetails(profile) {
     const box = element('div', 'profile-details');
 
-    box.append(element('p', 'detail-title', `Sticker book (${profile.stickers.length}/${Store.STICKERS.length})`));
+    const totalCollected = profile.stickers.length;
+    const totalStickers = Store.STICKERS.length;
+    box.append(element('p', 'detail-title', `Sticker book (${totalCollected} / ${totalStickers} collected)`));
+
+    const categories = Store.STICKER_CATEGORIES || [];
+    if (!categories.some(c => c.id === selectedStickerCategory) && categories.length) {
+      selectedStickerCategory = categories[0].id;
+    }
+
+    const catNav = element('div', 'sticker-categories');
+    catNav.setAttribute('role', 'tablist');
+    catNav.setAttribute('aria-label', 'Sticker categories');
+
     const book = element('div', 'sticker-book');
-    Store.STICKERS.forEach(sticker => {
-      const owned = profile.stickers.includes(sticker);
-      const item = element('span', `sticker${owned ? '' : ' locked'}`, sticker);
-      item.setAttribute('aria-label', owned ? 'Collected sticker' : 'Sticker not collected yet');
-      book.append(item);
+    book.setAttribute('role', 'tabpanel');
+
+    function renderStickers() {
+      book.innerHTML = '';
+      const cat = categories.find(c => c.id === selectedStickerCategory) || categories[0];
+      if (!cat) return;
+      book.setAttribute('aria-label', `${cat.name} stickers`);
+      cat.stickers.forEach(sticker => {
+        const owned = profile.stickers.includes(sticker);
+        const item = element('span', `sticker${owned ? '' : ' locked'}`, sticker);
+        item.setAttribute('aria-label', owned ? `Collected sticker: ${sticker}` : 'Sticker not collected yet');
+        book.append(item);
+      });
+    }
+
+    function updateNav() {
+      catNav.querySelectorAll('.sticker-cat-button').forEach(btn => {
+        const isSelected = btn.dataset.category === selectedStickerCategory;
+        btn.classList.toggle('selected', isSelected);
+        btn.setAttribute('aria-selected', String(isSelected));
+      });
+      renderStickers();
+    }
+
+    categories.forEach(cat => {
+      const prog = Store.getCategoryProgress(profile, cat.id);
+      const isSelected = cat.id === selectedStickerCategory;
+      const btn = element('button', `sticker-cat-button${isSelected ? ' selected' : ''}`);
+      btn.type = 'button';
+      btn.dataset.category = cat.id;
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(isSelected));
+      btn.setAttribute('aria-label', `${cat.name}: ${prog.owned} of ${prog.total} collected`);
+      btn.append(element('span', 'cat-icon', cat.icon));
+      btn.append(element('span', 'cat-name', cat.name));
+      btn.append(element('span', 'cat-count', `${prog.owned} / ${prog.total}`));
+      btn.addEventListener('click', () => {
+        if (selectedStickerCategory !== cat.id) {
+          selectedStickerCategory = cat.id;
+          updateNav();
+        }
+      });
+      catNav.append(btn);
     });
+
+    box.append(catNav);
     box.append(book);
+    renderStickers();
 
     // Playzone personal bests: the same saved records the games use (profile.playzone), shown for this profile only.
     box.append(element('p', 'detail-title', 'Playzone records'));
