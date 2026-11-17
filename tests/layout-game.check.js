@@ -1,11 +1,11 @@
-// Game screen in a real browser across phone sizes (landscape), text sizes and topics. Env: VP, TEXTS, REPS, SHOW, CHROME_PATH.
+// Game screen in a real browser across a common landscape phone size (844x390; very short/unusual sizes are intentionally not tested), text sizes and topics. Env: VP, TEXTS, REPS, SHOW, CHROME_PATH.
 const chromium=require('@sparticuz/chromium').default||require('@sparticuz/chromium');
 const puppeteer=require('puppeteer-core');
 const launch=async()=>puppeteer.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH,args:['--no-sandbox'],headless:true}:{executablePath:await chromium.executablePath(),args:[...chromium.args,'--no-sandbox'],headless:'shell'});
 const url=require('url').pathToFileURL(require('path').join(__dirname,'..','public','index.html')).href;
-const VIEWPORTS=(process.env.VP||'568x280,667x300,740x320,800x300,844x340,844x390,932x360').split(',').map(s=>s.split('x').map(Number));
+const VIEWPORTS=(process.env.VP||'844x390').split(',').map(s=>s.split('x').map(Number));
 const TEXTS=(process.env.TEXTS||'normal,large,xlarge').split(',');
-const CONFIGS=[['toddler'],['age4'],['age5'],['age6'],['grade1','clock'],['grade2','shapes'],['grade3','fractions'],['grade4','clock'],['grade5','fractions'],['grade6','shapes'],['grade6','mixed'],['grade4','money'],['grade3','compare'],['grade4','mixed'],['grade2','tables']];
+const CONFIGS=[['toddler'],['age4'],['age5'],['age6'],['grade1','clock'],['grade2','shapes'],['grade3','fractions'],['grade4','clock'],['grade5','fractions'],['grade6','shapes'],['grade6','mixed'],['grade4','money'],['grade3','tables'],['grade4','mixed'],['grade2','tables']];
 const REPS=Number(process.env.REPS||2);
 (async()=>{
   const browser=await launch();

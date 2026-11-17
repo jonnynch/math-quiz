@@ -118,13 +118,24 @@ html:not([data-read-aloud="on"]) .speak-button { display: none; }
 .lock-badge { margin-left: auto; padding: 3px 9px; border-radius: 999px; background: var(--bad-bg); color: var(--bad-ink); font-size: .72rem; font-weight: 800; }
 .counting-visual { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 14px; min-height: 110px; margin: 0 0 18px; padding: 14px; border-radius: 16px; background: #fffbeb; border: 1px dashed #fcd34d; font-size: clamp(2.8rem, 9vw, 4.6rem); line-height: 1.1; }
 .counting-visual.rows-of-five { display: grid; grid-template-columns: repeat(5, 1fr); justify-items: center; gap: 8px 6px; font-size: clamp(2rem, 5vw, 3.4rem); }
+.counting-visual.coins { gap: .2em .3em; }
+.coin { display: flex; align-items: center; justify-content: center; box-sizing: border-box; flex: none; width: calc(var(--mm, 25) * .045em); aspect-ratio: 1; border-radius: 50%; border: .03em solid; }
+.coin-silver { background: radial-gradient(circle at 35% 30%, #f8fafc, #cbd5e1 60%, #94a3b8); border-color: #64748b; color: #334155; }
+.coin-gold { background: radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 65%, #b45309); border-color: #92400e; color: #78350f; }
+.coin-50 { border-radius: 0; border: 0; clip-path: polygon(50% 0, 75% 6.7%, 93.3% 25%, 100% 50%, 93.3% 75%, 75% 93.3%, 50% 100%, 25% 93.3%, 6.7% 75%, 0 50%, 6.7% 25%, 25% 6.7%); }
+.coin-label { font-size: .3em; font-weight: 900; line-height: 1; }
+.banknote { display: flex; flex: none; align-items: center; justify-content: center; width: 2.4em; aspect-ratio: 2; box-sizing: border-box; border: .08em solid #475569; border-radius: .16em; color: #172554; font-size: .38em; font-weight: 900; box-shadow: inset 0 0 0 .08em rgba(255,255,255,.65); }
+.banknote-500 { background: #c4b5fd; }
+.banknote-1000 { background: #93c5fd; }
 .object-stage { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(2, 1.35em); justify-items: center; align-items: center; gap: 8px 6px; margin: 0 0 14px; padding: 14px; border-radius: 16px; background: #fffbeb; border: 1px dashed #fcd34d; font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1; }
 .object-stage .slot { display: flex; align-items: center; justify-content: center; width: 100%; height: 1.35em; }
+.object-stage.aids-pending .slot.added { visibility: hidden; }
+.object-stage.aids-flash .slot.added { animation: aid-flash .8s ease-in-out 2; }
 .object-stage .slot.pop { animation: slot-pop .5s ease-out both; animation-delay: var(--delay, 0s); }
 .object-stage .slot.leaving { animation: slot-leave .5s ease-in forwards; animation-delay: var(--delay, 0s); }
 @keyframes slot-pop { 0% { transform: scale(0); opacity: 0; } 70% { transform: scale(1.3); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
 @keyframes slot-leave { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(.2); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .object-stage .slot.pop, .object-stage .slot.leaving { animation-duration: .01s; animation-delay: 0s; } }
+@media (prefers-reduced-motion: reduce) { .object-stage .slot.pop, .object-stage .slot.leaving, .object-stage.aids-flash .slot.added { animation-duration: .01s; animation-delay: 0s; } }
 .question-board.toddler .question-text { min-height: auto; justify-content: center; text-align: center; }
 .question-board.groups .answer-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
 .question-board.groups .answer-button { min-height: 150px; font-size: clamp(1.8rem, 7vw, 2.8rem); line-height: 1.25; text-align: center; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; }
@@ -194,6 +205,7 @@ body.playing #profilesButton, body.playing #achievementsButton { display: none; 
 .clock-hand.minute { stroke-width: 2.8; stroke: var(--blue); }
 .clock-center { fill: var(--navy); }
 .poly { fill: var(--figure-fill); stroke: var(--figure-line); stroke-width: 3; stroke-linejoin: round; }
+.figure-label { fill: #1f2937; font-size: 7px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 
 /* ---------- windows (Settings, Profiles) ---------- */
 body.modal-open { overflow: hidden; }
@@ -223,6 +235,13 @@ body.modal-open { overflow: hidden; }
 .profile-details { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .detail-title { margin: 10px 0 6px; font-size: .85rem; font-weight: 800; color: #5c6780; }
 .detail-list { margin: 0; padding-left: 18px; font-size: .85rem; line-height: 1.5; }
+.sticker-progress { margin-top: 0; font-size: 1.05rem; color: var(--navy); }
+.sticker-tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.sticker-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 48px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 12px; background: white; color: var(--ink); font: inherit; font-size: .85rem; text-align: left; }
+.sticker-tab-name { font-weight: 700; overflow-wrap: anywhere; }
+.sticker-tab-count { font-size: .78rem; color: var(--muted); }
+.sticker-tab.selected { border-color: var(--blue); background: var(--blue-light); box-shadow: 0 2px 8px #15254a12; }
+.sticker-tab.selected .sticker-tab-name { font-weight: 800; color: var(--navy); }
 .sticker-book { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
 .sticker { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 10px; background: var(--orange-light); border: 1px solid var(--orange-line); font-size: 1.5rem; }
 .sticker.locked { filter: grayscale(1); opacity: .28; background: #eef2f8; border-color: var(--line); }
@@ -732,3 +751,23 @@ a.pz-save-link { display: inline-flex; align-items: center; text-decoration: non
 .pz-sky[data-env="night"] .pz-hazard.spiky { background: #e2e8f0; color: #0f172a; }
 @keyframes pz-drift { from { background-position: 0 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .pz-sky[data-env="cloudy"]::before { animation: none; } .pz-sky { transition: none; } }
+
+/* Tall arrays (5+ rows, times tables) on a phone held sideways: size the objects by row count so the board, answers and
+   feedback fit the height. Only ever shrinks the object size chosen above; other screens are unchanged. */
+@media (orientation: landscape) and (max-height: 520px) {
+  body.playing .question-boards.solo .counting-visual.picture.tall {
+    font-size: min(2.4rem, 9vh, calc((var(--app-h) - 137px - 40px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 24px) / (var(--tc, 5) * 1.3 + 1.5)));
+  }
+  body.playing .question-boards.versus .counting-visual.picture.tall {
+    font-size: min(1.8rem, 5vh, calc((var(--app-h) - 137px - 40px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1)));
+  }
+}
+/* Same for tablets held sideways (more chrome above and below the board than on a phone). */
+@media (orientation: landscape) and (pointer: coarse) and (min-width: 681px) and (min-height: 521px) {
+  body.playing .question-boards.solo .counting-visual.picture.tall {
+    font-size: min(3.4rem, 9vh, calc((var(--app-h) - 214px - 30px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 24px) / (var(--tc, 5) * 1.3 + 1.5)));
+  }
+  body.playing .question-boards.versus .counting-visual.picture.tall {
+    font-size: min(2.6rem, 7vh, calc((var(--app-h) - 214px - 30px * var(--ts)) / (var(--rows, 5) * 1.3)), calc((100cqw - 22px) / (var(--wc, 6) * 1.2 + 1)));
+  }
+}

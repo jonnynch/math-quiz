@@ -333,6 +333,68 @@
     return svg;
   }
 
+  function createFractionSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-fraction', role: 'img', 'aria-label': `${spec.numerator} of ${spec.denominator} equal parts shaded` });
+    const cx = 50, cy = 50, r = 40;
+    for (let i = 0; i < spec.denominator; i++) {
+      const a1 = (-90 + i * 360 / spec.denominator) * Math.PI / 180;
+      const a2 = (-90 + (i + 1) * 360 / spec.denominator) * Math.PI / 180;
+      const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1), x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
+      const large = 360 / spec.denominator > 180 ? 1 : 0;
+      const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+      svg.append(svgEl('path', { d, fill: i < spec.numerator ? '#60a5fa' : '#f8fafc', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    }
+    return svg;
+  }
+
+  function createFractionBarSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-fraction', role: 'img', 'aria-label': `${spec.numerator} of ${spec.denominator} equal parts shaded` });
+    const x = 12, y = 38, width = 76, height = 24, cell = width / spec.denominator;
+    for (let i = 0; i < spec.denominator; i++) svg.append(svgEl('rect', { x: x + i * cell, y, width: cell, height, fill: i < spec.numerator ? '#60a5fa' : '#f8fafc', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    return svg;
+  }
+
+  function createPerimeterSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-perimeter', role: 'img', 'aria-label': `Rectangle, ${spec.length} centimetres by ${spec.width} centimetres` });
+    svg.append(svgEl('rect', { x: 18, y: 31, width: 64, height: 38, fill: '#dbeafe', stroke: '#1f2937', 'stroke-width': 2 }));
+    const top = svgEl('text', { x: 50, y: 25, 'text-anchor': 'middle', class: 'figure-label' }); top.textContent = `${spec.length} cm`;
+    const side = svgEl('text', { x: 84, y: 53, 'text-anchor': 'middle', class: 'figure-label', transform: 'rotate(90 84 53)' }); side.textContent = `${spec.width} cm`;
+    svg.append(top, side);
+    return svg;
+  }
+
+  function createBarChartSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-bar-chart', role: 'img', 'aria-label': `Bar chart: ${spec.labels.map((label, i) => `${label} ${spec.values[i]}`).join(', ')}` });
+    svg.append(svgEl('path', { d: 'M 12 12 V 76 H 94', fill: 'none', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    const colors = ['#60a5fa', '#f59e0b', '#34d399', '#c084fc'];
+    const legacyThreeBars = spec.values.length === 3, slot = legacyThreeBars ? 24 : 76 / spec.values.length, barWidth = legacyThreeBars ? 14 : Math.min(14, slot - 4);
+    spec.values.forEach((value, i) => {
+      const x = legacyThreeBars ? 22 + i * 24 : 14 + i * slot + (slot - barWidth) / 2, h = value * (spec.values.length > 3 ? 4.5 : 6), center = x + barWidth / 2;
+      svg.append(svgEl('rect', { x, y: 76 - h, width: barWidth, height: h, fill: colors[i % colors.length], stroke: '#1f2937', 'stroke-width': 1 }));
+      const number = svgEl('text', { x: center, y: 72 - h, 'text-anchor': 'middle', class: 'figure-label' }); number.textContent = String(value);
+      const shortLabels = { Books: 'Bk', Games: 'Gm', Balls: 'Bl' };
+      const label = svgEl('text', { x: center, y: 88, 'text-anchor': 'middle', class: 'figure-label' }); label.textContent = shortLabels[spec.labels[i]] || spec.labels[i].slice(0, 2);
+      svg.append(number, label);
+    });
+    return svg;
+  }
+
+  function createGridAreaSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-grid-area', role: 'img', 'aria-label': `Grid with ${spec.rows} rows and ${spec.cols} columns of unit squares` });
+    const cell = Math.min(64 / spec.cols, 64 / spec.rows), width = cell * spec.cols, height = cell * spec.rows, left = (100 - width) / 2, top = (100 - height) / 2;
+    for (let row = 0; row < spec.rows; row++) for (let col = 0; col < spec.cols; col++) svg.append(svgEl('rect', { x: left + col * cell, y: top + row * cell, width: cell, height: cell, fill: '#dbeafe', stroke: '#1f2937', 'stroke-width': 1.5 }));
+    return svg;
+  }
+
+  function createAngleSvg(spec) {
+    const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'figure figure-angle', role: 'img', 'aria-label': `An angle measuring ${spec.degrees} degrees` });
+    const a = spec.degrees * Math.PI / 180, cx = 42, cy = 72, r = 36, x = cx + r * Math.cos(a), y = cy - r * Math.sin(a);
+    svg.append(svgEl('line', { x1: cx, y1: cy, x2: 88, y2: cy, stroke: '#1f2937', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+    svg.append(svgEl('line', { x1: cx, y1: cy, x2: x, y2: y, stroke: '#1f2937', 'stroke-width': 4, 'stroke-linecap': 'round' }));
+    svg.append(svgEl('path', { d: `M ${cx + 18} ${cy} A 18 18 0 0 0 ${cx + 18 * Math.cos(a)} ${cy - 18 * Math.sin(a)}`, fill: 'none', stroke: '#2563eb', 'stroke-width': 2 }));
+    return svg;
+  }
+
   // 2D shape (Age 5): drawn inside a 100 x 100 box; every outline stays within 50 units of the centre, so it never
   // clips when turned. `scale`, `rotate`, `ratio` (rectangles) and `variant` (triangles) vary size and orientation.
   const TRIANGLES = ['50,14 88,80 12,80', '50,10 78,88 22,88', '20,16 20,84 80,84'];
@@ -351,8 +413,43 @@
   }
 
   function createFigure(figure) {
+    if (figure.type === 'fraction') return createFractionSvg(figure);
+    if (figure.type === 'fraction-bar') return createFractionBarSvg(figure);
+    if (figure.type === 'perimeter') return createPerimeterSvg(figure);
+    if (figure.type === 'rectangle-measure') return createPerimeterSvg(figure);
+    if (figure.type === 'bar-chart') return createBarChartSvg(figure);
+    if (figure.type === 'grid-area') return createGridAreaSvg(figure);
+    if (figure.type === 'angle') return createAngleSvg(figure);
     if (figure.type === 'shape') return createShapeSvg(figure, 'figure figure-shape', 'A shape');
     return figure.type === 'clock' ? createClockSvg(figure.hour, figure.minute) : createPolygonSvg(figure.sides);
+  }
+
+  // Australian coins, drawn to scale (diameters in mm): 5c-50c silver (the 50c has 12 sides), $1 and $2 gold.
+  const COIN_MM = { 5: 19.4, 10: 23.6, 20: 28.5, 50: 31.5, 100: 25, 200: 20.5 };
+  function createCoins(values, notes = []) {
+    const box = document.createElement('div');
+    box.className = 'counting-visual coins';
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', [...values.map(v => v >= 100 ? `${v / 100} dollar coin` : `${v} cent coin`), ...notes.map(v => `$${v / 100} note`)].join(', '));
+    values.forEach(v => {
+      const coin = document.createElement('span');
+      coin.className = `coin ${v >= 100 ? 'coin-gold' : 'coin-silver'}${v === 50 ? ' coin-50' : ''}`;
+      coin.style.setProperty('--mm', String(COIN_MM[v]));
+      coin.setAttribute('aria-hidden', 'true');
+      const label = document.createElement('span');
+      label.className = 'coin-label';
+      label.textContent = v >= 100 ? `$${v / 100}` : `${v}c`;
+      coin.append(label);
+      box.append(coin);
+    });
+    notes.forEach(v => {
+      const note = document.createElement('span');
+      note.className = `banknote banknote-${v}`;
+      note.setAttribute('aria-hidden', 'true');
+      note.textContent = `$${v / 100}`;
+      box.append(note);
+    });
+    return box;
   }
 
   // Place-value blocks (Age 5): a rectangle marked 10 is one ten, a circle marked 1 is one one. Never money.
@@ -505,13 +602,13 @@
     const info = document.createElement('div');
     info.className = 'board-info';
     info.append(topline);
+    // One rule for every level: any illustration comes first, the question sentence underneath it.
     if (question.stage) info.append(createStage(question.stage));
     if (question.figure) info.append(createFigure(question.figure));
-    info.append(text);
-    if (question.numbers) info.append(createNumberSequence(question.numbers));
     if (question.pattern) info.append(createPattern(question.pattern));
     if (question.promptVisual) info.append(createPromptBlocks(question.promptVisual));
     if (question.picture) info.append(createPicture(question.picture));
+    if (question.coins || question.notes) info.append(createCoins(question.coins || [], question.notes || []));
     if (question.visual) {
       const visual = document.createElement('div');
       visual.className = `counting-visual${question.rowsOfFive ? ' rows-of-five' : ''}`;
@@ -525,6 +622,8 @@
       });
       info.append(visual);
     }
+    if (question.numbers) info.append(createNumberSequence(question.numbers));
+    info.append(text);
     body.append(info, grid);
     board.append(body);
     return board;
@@ -539,13 +638,14 @@
   const AID_DELAY_MS = 1200;
   const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  function scheduleAids(box) {
-    if (prefersReducedMotion()) return;
+  function scheduleAids(box, onReveal) {
+    if (prefersReducedMotion()) { if (onReveal) onReveal(); return; }
     box.classList.add('aids-pending');
     setTimeout(() => {
       if (!box.classList.contains('aids-pending')) return;
       box.classList.remove('aids-pending');
       box.classList.add('aids-flash');
+      if (onReveal) onReveal();
     }, AID_DELAY_MS);
   }
 
@@ -600,7 +700,12 @@
       box.style.setProperty('--tc', String(tc));                          // columns needed in one row
       box.style.setProperty('--wc', String(Math.min(tc, Math.max(maxCols + framed, 6))));   // columns per row when the groups wrap
     }
-    if (picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);
+    const rowCount = Math.max(...picture.groups.map(g => g.rows.length));
+    if (rowCount >= 5) {   // tall arrays (e.g. 9 rows of 2): CSS sizes them by row count so they fit short landscape screens
+      box.classList.add('tall');
+      box.style.setProperty('--rows', String(rowCount));
+    }
+    if (!picture.immediate && picture.groups.some(g => g.rows.some(row => /[xO]/.test(row)))) scheduleAids(box);   // `immediate`: crossed-out objects are visible from the start
     return box;
   }
 
@@ -625,9 +730,14 @@
       const slot = document.createElement('span');
       slot.className = 'slot';
       slot.setAttribute('aria-hidden', 'true');
-      slot.textContent = i < stage.baseCount ? stage.base.emoji : '';
+      if (i < stage.baseCount) slot.textContent = stage.base.emoji;
+      else if (stage.delayAdd && i < stage.baseCount + stage.change) {
+        slot.classList.add('added');
+        slot.textContent = stage.added.emoji;
+      }
       box.append(slot);
     }
+    if (stage.delayAdd) scheduleAids(box, () => box.setAttribute('aria-label', stageLabel(stage, true)));
     return box;
   }
 
@@ -640,6 +750,7 @@
     const slots = box ? box.querySelectorAll('.slot') : [];
     for (let i = 0; stage && i < stage.change; i++) {
       if (stage.op === 'add') {
+        if (stage.delayAdd) continue;
         const slot = slots[stage.baseCount + i];
         if (!slot) continue;
         slot.textContent = stage.added.emoji;

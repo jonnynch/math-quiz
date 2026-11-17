@@ -20,7 +20,42 @@
     '🦥', '🦦', '🦩', '🦚', '🐿', '🦔', '🦫', '🦡', '🐺', '🐻',
     '🌸', '🌺', '🌹', '🌱', '🍀', '🍄', '🪻', '🪷', '🌷',
     '🍒', '🍑', '🍍', '🍌', '🍊', '🍋', '🍐', '🥝', '🥑',
-    '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇'];
+    '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇',
+    // Collection expanded from 100 to 200. Appended after the original 100 (never reorder); grouped by category.
+    '🦀', '🐠', '🐳', '🦈', '🐡', '🦭', '🐝', '🐞', '🦉', '🦅', '🦆', '🦢', '🐘', '🦏', '🦛', '🐫', '🦙', '🐆', '🦍', '🐊', '🦎', '🦜',        // animals
+    '🌻', '🌼', '🌵', '🌴', '🌳', '🌲', '🍁', '🍂', '🌿', '🌊', '🔥', '🌋', '💧', '🌾',        // nature
+    '🍎', '🍇', '🥭', '🥥', '🍅', '🥕', '🌽', '🥦', '🥐', '🍞', '🧀', '🍔', '🍟', '🌮', '🍿', '🍫', '🍣', '🥞',        // food
+    '🚌', '🚕', '🚓', '🚑', '🚜', '🚲', '🚢', '🚤', '🚄', '🛴',        // vehicles
+    '🪐', '🌠', '🔭', '🔬', '🧪', '🧲', '🌕', '🧬', '💡', '🌌',        // space
+    '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🥊', '🎳', '🏹', '🎮', '🥁', '🛹',        // sports
+    '🧙', '🧜', '🤖', '👻', '🧞', '🦸',        // fantasy
+    '🎒', '🔑', '📚', '🧩', '🪁', '🔔', '⏰', '📷']; // objects
+  // Sticker categories (display grouping only). Every sticker in STICKERS belongs to exactly one category.
+  // STICKERS itself is unchanged: saved profiles keep storing the emoji, so IDs, order and unlocks are unaffected.
+  // New stickers must be added to STICKERS (append) and to one category here.
+  const STICKER_CATEGORIES = [
+    { id: 'animals', name: 'Animals', icon: '🐶', stickers: ['🐶', '🐱', '🐼', '🦊', '🐸', '🐙', '🦋', '🐢', '🦁', '🐯', '🐵',
+      '🐰', '🦖', '🦕', '🐨', '🐧', '🐬', '🐹', '🐭', '🐮', '🐷', '🐣', '🐦', '🐴', '🦓', '🦒', '🦘',
+      '🦥', '🦦', '🦩', '🦚', '🐿', '🦔', '🦫', '🦡', '🐺', '🐻',
+      '🦀', '🐠', '🐳', '🦈', '🐡', '🦭', '🐝', '🐞', '🦉', '🦅', '🦆', '🦢', '🐘', '🦏', '🦛', '🐫', '🦙', '🐆', '🦍', '🐊', '🦎', '🦜'] },
+    { id: 'nature', name: 'Nature', icon: '🌸', stickers: ['🌈', '🌸', '🌺', '🌹', '🌱', '🍀', '🍄', '🪻', '🪷', '🌷',
+      '🌻', '🌼', '🌵', '🌴', '🌳', '🌲', '🍁', '🍂', '🌿', '🌊', '🔥', '🌋', '💧', '🌾'] },
+    { id: 'food', name: 'Food', icon: '🍓', stickers: ['🍦', '🍕', '🍩', '🍓', '🍉', '🧁', '🍪',
+      '🍒', '🍑', '🍍', '🍌', '🍊', '🍋', '🍐', '🥝', '🥑', '🥨', '🍬', '🍰', '🍮', '🍯', '🍡', '🧋', '🌰', '🧇',
+      '🍎', '🍇', '🥭', '🥥', '🍅', '🥕', '🌽', '🥦', '🥐', '🍞', '🧀', '🍔', '🍟', '🌮', '🍿', '🍫', '🍣', '🥞'] },
+    { id: 'vehicles', name: 'Vehicles', icon: '🚗', stickers: ['🚁', '🚂', '🚗', '🚒', '⛵',
+      '🚌', '🚕', '🚓', '🚑', '🚜', '🚲', '🚢', '🚤', '🚄', '🛴'] },
+    { id: 'space', name: 'Space and Science', icon: '🚀', stickers: ['🚀', '🌟', '👽', '🛸', '🌙', '🌍',
+      '🪐', '🌠', '🔭', '🔬', '🧪', '🧲', '🌕', '🧬', '💡', '🌌'] },
+    { id: 'sports', name: 'Sports and Activities', icon: '⚽', stickers: ['🏆', '⚽', '🎸', '🎨', '🥇', '🥳', '🎯',
+      '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🥊', '🎳', '🏹', '🎮', '🥁', '🛹'] },
+    { id: 'fantasy', name: 'Fantasy and Characters', icon: '🦄', stickers: ['🦄', '🐉', '🧚', '🔮', '🏰', '👑', '💎',
+      '🧙', '🧜', '🤖', '👻', '🧞', '🦸'] },
+    { id: 'objects', name: 'Everyday Objects', icon: '🎁', stickers: ['🎈', '🧸', '🎁',
+      '🎒', '🔑', '📚', '🧩', '🪁', '🔔', '⏰', '📷'] }
+  ];
+  const STICKER_CATEGORY = {};   // emoji -> category id
+  STICKER_CATEGORIES.forEach(category => category.stickers.forEach(sticker => { STICKER_CATEGORY[sticker] = category.id; }));
   const AVATARS = ['🦊', '🐼', '🐯', '🐸', '🦄', '🐙', '🐢', '🦁', '🐶', '🐱', '🚀', '🌟'];
   const MAX_PROFILES = 8;
   const MAX_HISTORY = 30;
@@ -386,7 +421,7 @@
   }
 
   const api = {
-    STICKERS, AVATARS, MAX_PROFILES, MAX_HISTORY, NAME_LENGTH, SCHEMA,
+    STICKERS, STICKER_CATEGORIES, STICKER_CATEGORY, AVATARS, MAX_PROFILES, MAX_HISTORY, NAME_LENGTH, SCHEMA,
     isAvailable: () => available,
     getSettings: () => data.settings,
     setSetting(name, value) {

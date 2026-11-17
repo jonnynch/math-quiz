@@ -3,7 +3,7 @@
 The owner built this game with an AI assistant over many iterations. These are their requests in order, with the reasoning, so future changes stay consistent. "Must keep" items are also summarised in `AGENTS.md`.
 
 ## Original game
-Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + Docker, `docker-compose.yml`, port 8080). Questions are generated in the browser (no JSON files/API). Grade 1–6 with increasing complexity.
+Solo and 1 vs 1 maths quiz for a shared touch screen on a home network. The static application is served by Cloudflare Workers; questions are generated in the browser (no JSON files/API). Grade 1–6 with increasing complexity.
 
 ## Iteration log
 1. **Counting level for ages 2–3** – show objects, ask how many. *(Now lays them out in a row of 5.)*
@@ -27,14 +27,16 @@ Solo and 1 vs 1 maths quiz for a shared touch screen on a home network (Nginx + 
 - Score = number of correct answers. Streaks/stickers/stars are celebration only, so 1 vs 1 fairness is unaffected.
 - Accuracy counts every tapped answer; average time is first tap per question.
 - Empty slots in the object stage are invisible (outlines would let a child count the gaps to get the answer).
-- Money answers are in cents and there are no decimals anywhere (decimal division was rejected earlier).
+- Money values are represented in cents internally. Decimal questions are excluded from Age 2–6 and Grades 1–3; Grade 4 onwards may include decimals according to the curriculum. Decimal division was rejected for the removed Adult level.
 - Profiles live in `localStorage` (this device/browser only) because the server is static; there is no backend by design. Moving them between devices is done with Export/Import, not a cloud account (avoids storing children's data online).
 - Topics are filtered per grade so a Grade 1 child never sees times tables, etc.
 - Long-press/double-tap/selection are suppressed on buttons (`touch-action: manipulation`, `user-select: none`) for kids tapping quickly.
 - Text-size scaling is capped slightly on very short landscape screens so all answers still fit.
 
 ## Ideas not done (from the owner's suggestion list)
-Read-aloud / sound effects for young children, automatic level-up, review of missed questions / mistake history, avoiding repeated questions within a game, keyboard shortcuts for laptops, wake lock, parent CSV export, focus trapping in windows, GitHub Actions CI + lockfile, security headers, race-to-N / best-of-N for 1 vs 1.
+Automatic level-up, review of missed questions / mistake history, keyboard shortcuts for laptops, wake lock, focus trapping in windows, security headers, and race-to-N / best-of-N for 1 vs 1.
+
+Implemented and verified in the current project: optional read-aloud and sound effects (`audio.js` / `tests/audio.check.js`); no-repeat question decks (`questions.js` / `tests/no-repeat.check.js`); parent-gated CSV export (`report.js` / `tests/report.check.js`); and GitHub Actions CI with a lockfile (`.github/workflows/ci.yml`, `package-lock.json`).
 
 
 ## Playzone usage tracking and Screen-time page adjustment

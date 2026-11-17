@@ -176,18 +176,57 @@
     return card;
   }
 
+  // Sticker book: overall progress, one tab per category (collected / total), and only the selected category's stickers.
+  // Counts are calculated from Store.STICKER_CATEGORIES and the profile's saved stickers; selecting a tab changes nothing saved.
+  const stickerTab = {};   // profile id -> selected category id (kept while the page is open)
+
+  function stickerSection(profile) {
+    const box = element('div', 'sticker-section');
+    const draw = (focusTab) => {
+      box.innerHTML = '';
+      const owned = new Set(profile.stickers);
+      const stats = Store.STICKER_CATEGORIES.map(category => ({ category, collected: category.stickers.filter(s => owned.has(s)).length }));
+      const selected = stats.find(x => x.category.id === stickerTab[profile.id]) || stats.find(x => x.collected > 0) || stats[0];
+      const total = Store.STICKERS.filter(s => owned.has(s)).length;
+      const progress = element('p', 'detail-title sticker-progress', `${total} / ${Store.STICKERS.length} stickers collected`);
+      progress.dataset.stickerProgress = '';
+      box.append(progress);
+
+      const tabs = element('div', 'sticker-tabs');
+      tabs.setAttribute('role', 'tablist');
+      tabs.setAttribute('aria-label', 'Sticker categories');
+      stats.forEach(({ category, collected }) => {
+        const isSelected = category === selected.category;
+        const tab = element('button', `sticker-tab${isSelected ? ' selected' : ''}`);
+        tab.type = 'button';
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', String(isSelected));
+        tab.dataset.category = category.id;
+        tab.append(element('span', 'sticker-tab-name', `${category.icon} ${category.name}`), element('span', 'sticker-tab-count', `${collected} / ${category.stickers.length}`));
+        tab.addEventListener('click', () => { stickerTab[profile.id] = category.id; draw(true); });
+        tabs.append(tab);
+      });
+      box.append(tabs);
+
+      const book = element('div', 'sticker-book');
+      book.setAttribute('role', 'tabpanel');
+      selected.category.stickers.forEach(sticker => {
+        const has = owned.has(sticker);
+        const item = element('span', `sticker${has ? '' : ' locked'}`, sticker);
+        item.setAttribute('aria-label', has ? 'Collected sticker' : 'Sticker not collected yet');
+        book.append(item);
+      });
+      box.append(book);
+      if (focusTab) box.querySelector('.sticker-tab.selected').focus();
+    };
+    draw(false);
+    return box;
+  }
+
   function profileDetails(profile) {
     const box = element('div', 'profile-details');
 
-    box.append(element('p', 'detail-title', `Sticker book (${profile.stickers.length}/${Store.STICKERS.length})`));
-    const book = element('div', 'sticker-book');
-    Store.STICKERS.forEach(sticker => {
-      const owned = profile.stickers.includes(sticker);
-      const item = element('span', `sticker${owned ? '' : ' locked'}`, sticker);
-      item.setAttribute('aria-label', owned ? 'Collected sticker' : 'Sticker not collected yet');
-      book.append(item);
-    });
-    box.append(book);
+    box.append(stickerSection(profile));
 
     // Playzone personal bests: the same saved records the games use (profile.playzone), shown for this profile only.
     box.append(element('p', 'detail-title', 'Playzone records'));

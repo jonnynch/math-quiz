@@ -41,7 +41,7 @@ A local-network, touch-friendly mathematics quiz for one shared touch screen (a 
 - 1 vs 1: a wrong answer locks that player out for the current question. If both players answer wrongly, nobody scores and the game moves to the next question.
 - Answers respond to the first touch immediately (pointer events), so both players can tap at almost the same moment.
 - Levels: Age 2–3 (count up to 5 objects, or tap the group that has more), Age 4 (five picture question types within 10: count objects in varied arrangements, tap the group with more, picture addition, picture subtraction with crossed-out objects, and missing-number addition), Age 5 (one growing pool: counting to 20, more/fewer, addition and subtraction within 20, place value with 10-rectangles and 1-circles, counting sequences, shape patterns, equal grouping and sharing, 2D shapes), Age 6 (addition with sums up to 10 and subtraction starting from up to 10), then Grade 1 through Grade 6.
-- Age 6 shows the first number of the equation as objects above it. Choosing the correct answer adds objects of a different type (for 3 + ? = 10, seven more) or removes objects (10 − 1 removes one). The object area always keeps the same height, so the answers never move.
+- Age 6 shows the first addend as objects, then reveals a different type of object after the shared teaching-aid delay. Subtraction shows all starting objects first and crosses out the removed objects after the same delay. The object area always keeps the same height, so the answers never move; the numeric result appears only after answering.
 - Phones held sideways: the header (scores, round, Stop Game, countdown) becomes one slim row, and each player's board shows the question or objects on the left and every answer on the right, so nothing needs scrolling in Solo or 1 vs 1.
 - Game length: Endless (default, play until Stop Game) or Timed (choose 30 s, 60 s (default), 90 s, 2, 3 or 5 minutes). A timed game ends automatically when the countdown reaches zero and shows the summary.
 - Use Stop Game to end the game and see the final score, the percentage of tapped answers that were correct, and the average time to answer (from the question appearing to the player's first answer). Start a new game to reset scores.
@@ -51,15 +51,15 @@ Under each Grade level a Topic can be chosen. The age levels (2–3 to 6) do not
 
 | Topic | Grades | What it asks |
 |---|---|---|
-| Mixed arithmetic, Addition only, Subtraction only | 1–6 | + and − (Grade 1), plus × and ÷ from Grade 2 |
-| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, comparing, fractions, money, clock, shapes |
+| Mixed arithmetic, Addition only, Subtraction only | 1–6 | + and − within 20 (Grade 1: every operation includes an operand from 10 to 19, with missing-number equations, doubles and near doubles; no stories, grouping or sharing), plus × and ÷ from Grade 2 |
+| Numbers & place value | 1 | numbers to 120, sequence gaps, missing numbers, 10 more/less equations, counting in 2s, 5s, 10s, tens and ones |
+| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, fractions (Grades 5–6 include decimal-versus-fraction comparisons), money, clock, shapes; Grade 1 also numbers & place value |
 | Multiplication only, Division only | 2–6 | |
 | Times tables | 2–4 | × and ÷ facts, e.g. 7 × ? = 56 (Grade 2: tables of 2, 5, 10; Grade 4: up to 12 × 12) |
-| Comparing numbers | 1–4 | choose <, = or > (0–20, up to 99, 999, 9999) |
-| Fractions | 1–6 | half of a number, 1/4 of 20, comparing, equivalent, add/subtract, multiply/divide (answers in simplest form) |
-| Money | 1–4 | coins, change and totals, answered in cents |
+| Fractions | 1–6 | Grade 1: halves only; then 1/4 of 20, equivalent, add/subtract, multiply/divide (answers in simplest form); Grades 5–6: compare one decimal with one fraction (`0.75 ? 2/3`) |
+| Money | 1–4 | Australian coins (5c, 10c, 20c, 50c, $1, $2), change and totals, answered in cents |
 | Clock reading | 1–4 | an analogue clock (o'clock/half past, quarter hours, 5 minutes, any minute) |
-| Shapes & measures | 1–6 | sides and corners, faces/edges/vertices, angles, perimeter, area |
+| Shapes & measures | 1–6 | sides and corners, faces/edges/vertices, angles, perimeter, area; Grade 1 also position, practical measurement and simple data |
 
 Answers are listed smallest to largest (fractions and times by value). Choices such as < = > keep a fixed order.
 

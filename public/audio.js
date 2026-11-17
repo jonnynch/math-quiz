@@ -43,7 +43,8 @@
       `${letters ? `${String.fromCharCode(65 + index)}, ` : ''}${spokenText(answer)}`);
     // A counting sequence is part of the question (3, 4, ?, 6); pictures are never described.
     const sequence = question.numbers ? ` ${question.numbers.join(', ').replace('?', 'what')}.` : '';
-    const intro = spokenText(question.question) + sequence;
+    const coins = question.coins ? `Coins: ${question.coins.map(v => v >= 100 ? `${v / 100} dollar` : `${v} cents`).join(', ')}. ` : '';
+    const intro = coins + spokenText(question.question) + sequence;
     return answers.length ? `${intro} ${/[?.!]$/.test(intro) ? '' : '. '}${answers.join('. ')}.` : intro;
   }
 

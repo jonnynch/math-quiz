@@ -13,12 +13,13 @@ const click=b=>b.click();
 const change=(sel,val)=>{sel.value=val;sel.dispatchEvent(new w.Event('change',{bubbles:true}));};
 const ok=(cond,msg)=>{console.log((cond?'PASS ':'FAIL ')+msg); if(!cond) process.exitCode=1;};
 const btns=(i=0)=>[...d.querySelectorAll('.question-board')[i].querySelectorAll('.answer-button')];
-const solve=(i=0)=>{ // answers tables / compare questions
+const solve=(i=0)=>{ // answers tables questions
   const t=d.querySelectorAll('.question-board')[i].querySelector('.question-text').textContent;
   let m;
-  if(m=t.match(/^What is (\d+) (×|÷) (\d+)\?$/)) return String(m[2]==='×'?+m[1]*+m[3]:+m[1]/+m[3]);
+  if(m=t.match(/^(\d+) ([+−×÷]) (\d+) = \?$/)) return String({'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]*+m[3],'÷':+m[1]/+m[3]}[m[2]]);
+  if(m=t.match(/^\? × (\d+) = (\d+)$/)) return String(+m[2]/+m[1]);
+  if(m=t.match(/^(\d+) ÷ \? = (\d+)$/)) return String(+m[1]/+m[2]);
   if(m=t.match(/^(\d+) × \? = (\d+)$/)) return String(+m[2]/+m[1]);
-  if(m=t.match(/^Compare: (\d+) \? (\d+)$/)) return +m[1]<+m[2]?'<':+m[1]===+m[2]?'=':'>';
   throw new Error('cannot solve '+t);
 };
 const answerBtn=(i=0)=>{const a=solve(i);return btns(i).find(b=>{const txt=b.textContent.replace(/^[A-E]\. /,'');return txt===a||txt.startsWith(a+' ');});};
@@ -34,11 +35,11 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(!$('topicRow1').classList.contains('hidden'),'topic row visible for default Grade 3');
   ok(topicIds('topic1')[0]==='all'&&$('topic1').options[0].textContent==='Mixed All Questions','Mixed All Questions is the first topic option');
   ok($('topic1').value==='all'&&$('topic2').value==='all','Mixed All Questions is selected by default for both players');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,compare,fractions,money,clock,shapes','Grade 3 has all 12 topics (incl. Mixed All Questions)');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,tables,numbers,patterns,data,fractions,money,clock,shapes','Grade 3 offers its documented topics, including Mixed All Questions and no Comparing numbers');
   change($('difficulty1'),'grade1');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,compare,fractions,money,clock,shapes','Grade 1 excludes multiplication, division and times tables');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,numbers,fractions,money,clock,shapes','Grade 1 excludes multiplication, division, times tables and comparing');
   change($('difficulty1'),'grade5');
-  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,fractions,shapes','Grade 5 topics are arithmetic, fractions, shapes');
+  ok(topicIds('topic1').join()==='all,mixed,add,sub,mul,div,numbers,decimals,percentages,ratio,probability,fractions,shapes','Grade 5 offers its documented arithmetic, number and higher-grade topics');
   change($('difficulty1'),'grade3'); change($('topic1'),'tables'); change($('difficulty1'),'grade5');
   ok($('topic1').value==='all','a topic the new level does not offer falls back to Mixed All Questions');
   change($('topic1'),'mixed'); change($('difficulty1'),'grade6');
@@ -102,6 +103,13 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('profile1'),mia().id);
   ok($('difficulty1').value==='grade2'&&$('topic1').value==='tables','choosing the profile restores Grade 2 · Times tables');
 
+  // ---- an old saved Comparing-numbers selection (Grade 1-4) loads safely and falls back to Mixed All Questions
+  w.MQStore.getProfile(mia().id).lastSetup={difficulty:'grade3',topic:'compare'};
+  change($('profile1'),''); change($('profile1'),mia().id);
+  ok($('difficulty1').value==='grade3'&&$('topic1').value==='all'&&!topicIds('topic1').includes('compare'),'a saved Grade 3 · Comparing numbers selection is replaced by Mixed All Questions');
+  ok(w.MQQuestions.normaliseTopic('grade2','compare')==='all'&&w.MQQuestions.topicLabel('compare')==='Comparing numbers','old compare selection normalises; old history still has a label');
+  w.MQStore.getProfile(mia().id).lastSetup={difficulty:'grade2',topic:'tables'};
+
   // ---- versus: duplicates blocked, timed game, personal best
   click(d.querySelector('[data-mode=versus]'));
   const leoId=store().profiles[1].id;
@@ -111,7 +119,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   change($('profile2'),leoId);
   ok([...$('profile1').options].find(o=>o.value===leoId).disabled===true,'Player 1 cannot pick the profile Player 2 chose');
   ok([...$('profile2').options].find(o=>o.value===mia().id).disabled===true,'Player 2 cannot pick the profile Player 1 chose');
-  change($('difficulty2'),'grade3'); change($('topic2'),'compare'); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty2'),'grade3'); change($('topic2'),'tables'); change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   w.MQTrophies.TARGETS.grade3={bronze:1,silver:1,gold:2}; // tiny targets so unlocking can be seen in this test
   click(d.querySelector('[data-length=timed]')); $('duration').innerHTML='<option value="1" selected>1</option>';
   click($('startButton')); await sleep(80);
@@ -120,7 +128,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(d.querySelector('.score-card.orange')&&true,'scoreboard rendered');
   await sleep(1300);
   ok(!$('resultPanel').classList.contains('hidden')&&$('resultEyebrow').textContent.includes('TIME'),'timed versus game ended');
-  ok(mia().bests['grade3|compare|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
+  ok(mia().bests['grade3|tables|1']===1,'best timed score recorded for the level/topic: '+JSON.stringify(mia().bests));
   ok(store().profiles[1].history.length===0&&store().profiles[1].totals.games===0,'player 2 (never tapped) not recorded');
   ok(mia().trophies.grade3.completed===1&&mia().trophies.grade3.correct===1&&mia().trophies.grade3.unlocked.slice().sort().join()==='bronze,silver','1 vs 1: the winner is credited and unlocks bronze + silver');
   ok(!store().profiles[1].trophies.grade3,'1 vs 1: the player who never answered gets no trophy progress');
@@ -143,7 +151,38 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));
   const detailsBtn=[...d.querySelectorAll('.profile-card .secondary-button')].find(b=>b.textContent==='Details'); click(detailsBtn);
-  ok(d.querySelectorAll('.sticker-book .sticker').length===w.MQStore.STICKERS.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows every sticker, 1 collected');
+  {
+    const SS=w.MQStore.STICKERS, CATS=w.MQStore.STICKER_CATEGORIES, shown=()=>[...d.querySelectorAll('.sticker-book .sticker')].map(n=>n.textContent);
+    const tabs=()=>[...d.querySelectorAll('.sticker-tab')], tabOf=id=>tabs().find(t=>t.dataset.category===id);
+    const progress=()=>d.querySelector('.sticker-progress').textContent;
+    const open1=mia().stickers.slice();
+    ok(SS.length===200&&progress()==='1 / 200 stickers collected'&&d.querySelectorAll('.sticker-book .sticker').length<200&&d.querySelector('.profile-meta').textContent.includes('Stickers 1/200'),'overall total is 200 and the sticker book does not show all 200 at once');
+    ok(CATS.every((c,i)=>tabs()[i].querySelector('.sticker-tab-count').textContent.endsWith(' / '+c.stickers.length))&&CATS.reduce((n,c)=>n+c.stickers.length,0)===200,'category totals follow the 200 stickers');
+    ok(open1.length===1&&progress()==='1 / '+SS.length+' stickers collected','overall sticker progress shown ('+progress()+')');
+    ok(tabs().length===CATS.length&&tabs().every((t,i)=>t.querySelector('.sticker-tab-count').textContent===(CATS[i].stickers.filter(s=>open1.includes(s)).length)+' / '+CATS[i].stickers.length),'each category tab shows collected / total');
+    const sel=()=>tabs().filter(t=>t.classList.contains('selected'));
+    ok(sel().length===1&&sel()[0].getAttribute('aria-selected')==='true'&&sel()[0].dataset.category===CATS.find(c=>c.stickers.includes(open1[0])).id,'default category is the first one with a collected sticker; exactly one tab is selected');
+    ok(shown().length===CATS.find(c=>c.id===sel()[0].dataset.category).stickers.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows only the selected category, 1 collected');
+    // select every category: only its stickers are shown, locked/unlocked states follow the profile, saved data is untouched
+    const before=JSON.stringify(store());
+    let all=[];
+    CATS.forEach(c=>{
+      click(tabOf(c.id));
+      all=all.concat(shown());
+      ok(shown().join()===c.stickers.join()&&tabOf(c.id).classList.contains('selected')&&sel().length===1&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===c.stickers.filter(s=>open1.includes(s)).length,'category '+c.id+' shows only its '+c.stickers.length+' stickers with correct locked states');
+    });
+    ok(all.length===SS.length&&new Set(all).size===SS.length&&SS.every(s=>all.includes(s)),'across all categories every one of the existing stickers is shown exactly once');
+    ok(JSON.stringify(store())===before&&d.querySelector('.profile-details'),'changing category changes nothing saved and keeps the details open');
+    // unlock more stickers: progress and counts update from the saved data (reopen the window)
+    const extra=[CATS[0].stickers[0],CATS[0].stickers[1],CATS[7].stickers[0]];
+    w.MQStore.getProfile(mia().id).stickers.push(...extra); w.MQStore.save();
+    click($('profilesClose')); click($('profilesButton'));
+    if(!d.querySelector('.sticker-progress')) click(d.querySelector('.profile-card .secondary-button'));
+    ok(progress()==='4 / '+SS.length+' stickers collected','progress updates after stickers are unlocked ('+progress()+')');
+    click(tabOf(CATS[0].id));
+    ok(tabOf(CATS[0].id).querySelector('.sticker-tab-count').textContent===CATS[0].stickers.filter(s=>mia().stickers.includes(s)).length+' / '+CATS[0].stickers.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===CATS[0].stickers.filter(s=>mia().stickers.includes(s)).length,'category count and unlocked stickers update');
+    ok(mia().stickers.length===4&&open1.every(s=>mia().stickers.includes(s)),'earned stickers are preserved');
+  }
   ok(d.querySelector('.detail-list').textContent.length>0,'recent games listed');
   const delBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][1];
   click(delBtn()); ok(delBtn().textContent.includes('again'),'delete asks for a second tap');
@@ -210,7 +249,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- guest streak stickers are not saved
   change($('profile1'),''); change($('profile2'),'');
   click(d.querySelector('[data-mode=solo]')); click(d.querySelector('[data-length=endless]'));
-  change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   const gamesBefore=store().profiles[0].totals.games, countBefore=store().profiles.length;
   click($('startButton')); await sleep(80);
   for(let i=0;i<3;i++){ tap(answerBtn()); await sleep(900); }
@@ -238,7 +277,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   click($('profilesButton')); $('profileName').value='Earner'; click($('addProfileButton')); click($('profilesClose'));
   const earnerId=store().profiles.find(p=>p.name==='Earner').id;
   const bankOf=()=>w.MQStore.getProfile(earnerId).rewards;
-  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'compare');
+  change($('profile1'),earnerId); change($('difficulty1'),'grade3'); change($('topic1'),'tables');
   click($('startButton')); await sleep(80);
   tap(wrongBtn()); tap(answerBtn()); await sleep(900); tap(answerBtn()); // wrong then retry, then a right answer
   click($('stopButton'));

@@ -100,8 +100,7 @@ for (let i = 0; i < N; i++) {
       if (q.kind === 'picture') {
         const flat = g0.rows.join(''), a = (flat.match(/X/g) || []).length, b = (flat.match(/Y/g) || []).length;
         if (!g0.emoji2 || g0.emoji === g0.emoji2 || a + b > 10 || Number(ans) !== a + b || q.resultText !== `${a} + ${b} = ${a + b}`) fail('addition picture', q);
-        if (q.question !== 'How many altogether?' && q.question !== `${a} + ${b} = ?`) fail('addition picture prompt', q);
-        if (q.question === 'How many altogether?' && (a + b > 6 || q.tier !== 1)) fail('words-only prompt is for small sums', q);
+        if (q.question !== `${a} + ${b} = ?`) fail('addition picture prompt uses equation notation', q);
       } else if (q.kind === 'double') {
         const m = q.question.match(/^(\d+) \+ (\d+) = \?$/);
         if (!m || m[1] !== m[2] || Number(ans) !== 2 * m[1]) fail('double', q);
@@ -125,7 +124,7 @@ for (let i = 0; i < N; i++) {
       if (q.kind === 'picture') {
         const all = g0.rows.join(''), a = objs([all], /[^Xx]/g), b = (all.match(/x/g) || []).length;
         if (a > 10 || Number(ans) !== a - b || b < 1 || q.resultText !== `${a} − ${b} = ${a - b}`) fail('subtraction picture', q);
-        if (q.question !== 'How many are left?' && q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt', q);
+        if (q.question !== `${a} − ${b} = ?`) fail('subtraction picture prompt uses equation notation', q);
       } else if (q.kind === 'within20' || q.kind === 'cross10') {
         const [, a, b] = q.question.match(/^(\d+) − (\d+) = \?$/).map(Number);
         if (a > 20 || Number(ans) !== a - b || a - b < 1) fail('subtraction within 20', q);
@@ -263,10 +262,13 @@ if (topicsEarly.size < 6) fail('the opening questions should already mix several
   const subs = bank.filter(q => q.topic === 'subtraction'), cross = subs.filter(q => q.kind === 'cross10');
   if (!cross.length || cross.length > subs.length * 0.5) fail('crossing 10 should be present but not dominant', { cross: cross.length, subs: subs.length });
 }
-// Age 6 and Age 4 generators are untouched by Age 5.
+// The Age 4 generator is untouched by Age 5; Age 6 keeps its object-stage questions inside its own pool (see curriculum.check.js).
+let stage6 = 0;
+for (let i = 0; i < 600; i++) {
+  if (Q.generateQuestion('age6').stage) stage6++;
+}
+if (!stage6) fail('Age 6 must still include the object-stage questions', {});
 for (let i = 0; i < 300; i++) {
-  const q6 = Q.generateQuestion('age6');
-  if (!q6.stage || q6.topic || q6.tier || q6.picture) fail('Age 6 must still use the object stage only', q6);
   const q4 = Q.generateQuestion('age4');
   if (q4.topic || q4.kind) fail('Age 4 questions carry no Age 5 fields', q4);
 }

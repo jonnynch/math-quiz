@@ -90,7 +90,7 @@ function boot({speech=true,audio='ok',seed=null}={}){
   g.setLevel('age6');g.$('startButton').click();await sleep(80);
   const speaks=()=>g.log.filter(x=>x.startsWith('speak:'));
   ok(g.d.querySelector('.speak-button')&&speaks().length===1,'Listen button present and the Age 2-6 question is read once automatically');
-  ok(/plus|minus|how many|what|\d/i.test(speaks()[0])&&!/[+−×÷=]/.test(speaks()[0]),'the spoken text uses words, not maths symbols');
+  ok(/[a-z]/i.test(speaks()[0])&&!/[+−×÷=<>]/.test(speaks()[0]),'the spoken text is non-empty and contains no unspoken maths symbols');
   g.log.length=0;g.d.querySelector('.speak-button').click();
   ok(g.log[0]==='cancel'&&g.log[1].startsWith('speak:'),'Listen replays the question (cancels the old speech first, never queues)');
   const questionText=g.d.querySelector('.question-text').textContent;

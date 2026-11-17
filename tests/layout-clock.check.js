@@ -1,4 +1,4 @@
-// Clock questions (5 answers + analogue clock) on phones held sideways: question, clock and every answer must be on screen
+// Clock questions (4 answers + analogue clock) on phones held sideways: question, clock and every answer must be on screen
 // without scrolling, in Solo and 1 vs 1, at all text sizes, with the colour-blind palette and reduced motion. Env: VP, REPS, CHROME_PATH.
 const chromium=require('@sparticuz/chromium').default||require('@sparticuz/chromium');
 const puppeteer=require('puppeteer-core');
@@ -40,7 +40,7 @@ const MIN_TOUCH=30; // px: smallest answer button allowed (the layout itself aim
               if(!b.querySelector('.figure-clock')) out.push(`board${i} has no clock`);
               chk(b,`board${i}`); chk(b.querySelector('.question-text'),`board${i} question`);
               const f=b.querySelector('.figure-clock'); if(f){chk(f,`board${i} clock`); if(f.getBoundingClientRect().height<48) out.push(`board${i} clock too small`);}
-              const btns=b.querySelectorAll('.answer-button'); if(btns.length!==5) out.push(`board${i} has ${btns.length} answers`);
+              const btns=b.querySelectorAll('.answer-button'); if(btns.length!==4) out.push(`board${i} has ${btns.length} answers`);
               btns.forEach((a,j)=>{chk(a,`board${i} answer${j}`); if(a.getBoundingClientRect().height<MIN_TOUCH) out.push(`board${i} answer${j} too small`); if(a.scrollWidth>a.clientWidth+1) out.push(`board${i} answer${j} text overflow`);});
               const lbl=b.querySelector('.player-label'); if(lbl.getBoundingClientRect().height>26) out.push(`board${i} player name wraps`);
             });
