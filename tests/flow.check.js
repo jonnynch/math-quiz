@@ -151,7 +151,36 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   // ---- profile details + delete (two taps)
   click($('changeSetupButton')); click($('profilesButton'));
   const detailsBtn=[...d.querySelectorAll('.profile-card .secondary-button')].find(b=>b.textContent==='Details'); click(detailsBtn);
-  ok(d.querySelectorAll('.sticker-book .sticker').length===w.MQStore.STICKERS.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows every sticker, 1 collected');
+  {
+    const SS=w.MQStore.STICKERS, CATS=w.MQStore.STICKER_CATEGORIES, shown=()=>[...d.querySelectorAll('.sticker-book .sticker')].map(n=>n.textContent);
+    const tabs=()=>[...d.querySelectorAll('.sticker-tab')], tabOf=id=>tabs().find(t=>t.dataset.category===id);
+    const progress=()=>d.querySelector('.sticker-progress').textContent;
+    const open1=mia().stickers.slice();
+    ok(open1.length===1&&progress()==='1 / '+SS.length+' stickers collected','overall sticker progress shown ('+progress()+')');
+    ok(tabs().length===CATS.length&&tabs().every((t,i)=>t.querySelector('.sticker-tab-count').textContent===(CATS[i].stickers.filter(s=>open1.includes(s)).length)+' / '+CATS[i].stickers.length),'each category tab shows collected / total');
+    const sel=()=>tabs().filter(t=>t.classList.contains('selected'));
+    ok(sel().length===1&&sel()[0].getAttribute('aria-selected')==='true'&&sel()[0].dataset.category===CATS.find(c=>c.stickers.includes(open1[0])).id,'default category is the first one with a collected sticker; exactly one tab is selected');
+    ok(shown().length===CATS.find(c=>c.id===sel()[0].dataset.category).stickers.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===1,'sticker book shows only the selected category, 1 collected');
+    // select every category: only its stickers are shown, locked/unlocked states follow the profile, saved data is untouched
+    const before=JSON.stringify(store());
+    let all=[];
+    CATS.forEach(c=>{
+      click(tabOf(c.id));
+      all=all.concat(shown());
+      ok(shown().join()===c.stickers.join()&&tabOf(c.id).classList.contains('selected')&&sel().length===1&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===c.stickers.filter(s=>open1.includes(s)).length,'category '+c.id+' shows only its '+c.stickers.length+' stickers with correct locked states');
+    });
+    ok(all.length===SS.length&&new Set(all).size===SS.length&&SS.every(s=>all.includes(s)),'across all categories every one of the existing stickers is shown exactly once');
+    ok(JSON.stringify(store())===before&&d.querySelector('.profile-details'),'changing category changes nothing saved and keeps the details open');
+    // unlock more stickers: progress and counts update from the saved data (reopen the window)
+    const extra=[CATS[0].stickers[0],CATS[0].stickers[1],CATS[7].stickers[0]];
+    w.MQStore.getProfile(mia().id).stickers.push(...extra); w.MQStore.save();
+    click($('profilesClose')); click($('profilesButton'));
+    if(!d.querySelector('.sticker-progress')) click(d.querySelector('.profile-card .secondary-button'));
+    ok(progress()==='4 / '+SS.length+' stickers collected','progress updates after stickers are unlocked ('+progress()+')');
+    click(tabOf(CATS[0].id));
+    ok(tabOf(CATS[0].id).querySelector('.sticker-tab-count').textContent===CATS[0].stickers.filter(s=>mia().stickers.includes(s)).length+' / '+CATS[0].stickers.length&&d.querySelectorAll('.sticker-book .sticker:not(.locked)').length===CATS[0].stickers.filter(s=>mia().stickers.includes(s)).length,'category count and unlocked stickers update');
+    ok(mia().stickers.length===4&&open1.every(s=>mia().stickers.includes(s)),'earned stickers are preserved');
+  }
   ok(d.querySelector('.detail-list').textContent.length>0,'recent games listed');
   const delBtn=()=>[...d.querySelectorAll('.profile-card .secondary-button.danger')][1];
   click(delBtn()); ok(delBtn().textContent.includes('again'),'delete asks for a second tap');

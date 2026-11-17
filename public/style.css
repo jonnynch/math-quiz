@@ -235,6 +235,13 @@ body.modal-open { overflow: hidden; }
 .profile-details { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .detail-title { margin: 10px 0 6px; font-size: .85rem; font-weight: 800; color: #5c6780; }
 .detail-list { margin: 0; padding-left: 18px; font-size: .85rem; line-height: 1.5; }
+.sticker-progress { margin-top: 0; font-size: 1.05rem; color: var(--navy); }
+.sticker-tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-bottom: 8px; }
+.sticker-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 48px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 12px; background: white; color: var(--ink); font: inherit; font-size: .85rem; text-align: left; }
+.sticker-tab-name { font-weight: 700; overflow-wrap: anywhere; }
+.sticker-tab-count { font-size: .78rem; color: var(--muted); }
+.sticker-tab.selected { border-color: var(--blue); background: var(--blue-light); box-shadow: 0 2px 8px #15254a12; }
+.sticker-tab.selected .sticker-tab-name { font-weight: 800; color: var(--navy); }
 .sticker-book { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
 .sticker { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: 10px; background: var(--orange-light); border: 1px solid var(--orange-line); font-size: 1.5rem; }
 .sticker.locked { filter: grayscale(1); opacity: .28; background: #eef2f8; border-color: var(--line); }
