@@ -291,7 +291,7 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
   ok(!$('bankModal').classList.contains('hidden')&&$('bankBody').textContent.includes('18 min'),'Screen-time Bank window shows the balance');
   const redeemBtn=()=>d.querySelector('#bankBody .bank-parent .secondary-button');
   const unlockBtn=()=>d.querySelector('#bankBody .bank-lock .primary-button');
-  ok(!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankSettings').classList.contains('hidden')&&$('bankBody').textContent.includes('Earned in total'),'locked bank: balance and history stay visible; redeem box and Parent settings are hidden');
+  ok(!!$('parentChallenge')&&!$('redeemMinutes')&&$('bankSettings').classList.contains('hidden')&&$('bankBody').textContent.includes('Available now')&&!$('bankBody').textContent.includes('Earned in total')&&!$('bankBody').textContent.includes('Redeemed'),'locked bank: balance and history stay visible; redeem box and Parent settings are hidden');
   ok(!$('bankBody').querySelector('.bank-lock button.answer-button')&&$('bankBody').querySelectorAll('.bank-lock input').length===1,'the challenge has a typed answer box and no multiple-choice options');
   const firstQ=$('parentChallenge').textContent;
   $('parentAnswer').value='1'; click(unlockBtn());

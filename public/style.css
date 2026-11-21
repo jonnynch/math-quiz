@@ -270,6 +270,7 @@ body.playing #bankButton { display: none; }
 .bank-stat-label { display: block; color: var(--muted); font-size: .72rem; font-weight: 800; }
 .bank-stat-value { display: block; margin-top: 4px; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
 .bank-stat.available { background: var(--blue-light); border-color: var(--blue-line); }
+.bank-stat.available .bank-stat-value { font-size: 1.6rem; }
 .bank-stat.earned { background: var(--ok-bg); border-color: var(--ok-line); color: var(--ok-ink); }
 .bank-stat.redeemed { background: var(--orange-light); border-color: var(--orange-line); }
 .bank-progress { margin-bottom: 10px; font-size: .88rem; }
