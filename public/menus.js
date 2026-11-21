@@ -754,7 +754,7 @@
     const balance = Store.rewardBalance(profile);
 
     const stats = element('div', 'bank-stats report-stats');
-    [['Available now', `${balance} min`, 'available'], ['Earned in total', `+${r.earned} min`, 'earned'], ['Redeemed', `−${r.redeemed} min`, 'redeemed']].forEach(([label, value, kind]) => {
+    [['Available now', `${balance} min`, 'available']].forEach(([label, value, kind]) => {
       const cell = element('div', `bank-stat ${kind}`);
       cell.append(element('span', 'bank-stat-label', label), element('strong', 'bank-stat-value', value));
       stats.append(cell);
@@ -921,7 +921,7 @@
   const countText = (r) => `${r.games} ${r.games === 1 ? 'game' : 'games'} · ${r.correct} of ${r.answers} correct (${accuracyText(r.accuracy)})`;
   const reportDate = (t) => (t ? new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Date not saved');
 
-  function renderReportBody(report) {
+  function renderReportBody(report, profile) {
     const body = $('reportBody');
     body.innerHTML = '';
     report.notes.forEach(note => body.append(element('p', 'setting-help', note)));
@@ -934,6 +934,16 @@
     );
     body.append(stats);
     body.append(element('p', 'setting-help', 'Answers count every tap, including second tries in Solo games. Accuracy = correct ÷ answers given.'));
+    if (profile && profile.rewards) {
+      body.append(element('p', 'setting-title', 'Screen time rewards'));
+      const rewardStats = element('div', 'bank-stats report-stats');
+      [['Earned in total', `+${profile.rewards.earned} min`, 'earned'], ['Redeemed', `−${profile.rewards.redeemed} min`, 'redeemed']].forEach(([label, value, kind]) => {
+        const cell = element('div', `bank-stat ${kind}`);
+        cell.append(element('span', 'bank-stat-label', label), element('strong', 'bank-stat-value', value));
+        rewardStats.append(cell);
+      });
+      body.append(rewardStats);
+    }
     if (report.state !== 'detailed') return;
     if (report.trend) {
       const t = report.trend;
@@ -985,7 +995,7 @@
     }
     const report = Report.build(profile);
     if (report.denied) { renderReport(); return; }
-    renderReportBody(report);
+    renderReportBody(report, profile);
   }
 
   function openReport() {

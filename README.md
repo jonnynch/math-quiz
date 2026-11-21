@@ -85,7 +85,7 @@ Open ⚙️ Settings for:
 - Text size: Normal, Large or Extra large. On very short landscape phone screens the biggest sizes are capped slightly so every answer still fits.
 
 ## Screen-time bank
-Saved profiles playing **Grade 1–6** earn screen-time minutes (Age 2–3 to Age 6 levels and guests do not). Open ⏱ Screen time to see each profile's available, earned and redeemed minutes, progress to the next reward, and recent history; a parent redeems minutes by hand (two taps). Minutes are only tracked: the game cannot restrict screen time on a device.
+Saved profiles playing **Grade 1–6** earn screen-time minutes (Age 2–3 to Age 6 levels and guests do not). Open ⏱ Screen time to see each profile's available minutes, progress to the next reward, and recent history; a parent redeems minutes by hand (two taps). The 📊 Progress report shows each profile's total earned and redeemed minutes. Minutes are only tracked: the game cannot restrict screen time on a device.
 - Only the **first** answer to a question counts, so retrying cannot raise the score used for rewards.
 - Rewards are paid per batch of at least 20 completed questions in one grade (smaller sessions carry forward; grades are never mixed). A batch needs at least 80% right on the first try. Minutes = correct answers × 0.1 × accuracy bonus (80%: ×1.0, 90%: ×1.2, 95%: ×1.4, 100%: ×1.5) × grade bonus (Grade 1 ×1.0 up to Grade 6 ×1.5), rounded down once per batch.
 - Parent settings (in the same window) change all of these numbers. Balances, history and settings are saved with the profiles and included in Backup and restore.

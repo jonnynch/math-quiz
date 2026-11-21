@@ -33,7 +33,7 @@ const day = (d, h = 12) => new Date(2026, 10, d, h).getTime();
 const game = (t, level, topic, taps, correctTaps, extra) => ({ t, level, topic, mode: 'solo', seconds: 0, score: correctTaps, taps, correctTaps, avgTime: 0, streak: 3, ...extra });
 // Newest first, like the real history.
 const mia = {
-  id: 'pmia', name: 'Mia', avatar: '🦊',
+  id: 'pmia', name: 'Mia', avatar: '🦊', rewards: { earned: 30, redeemed: 12 },
   totals: { games: 5, correct: 63, taps: 90, correctTaps: 63, bestStreak: 8 },
   history: [
     game(day(9), 'grade3', 'fractions', 20, 18, { played: 120 }),
@@ -43,7 +43,7 @@ const mia = {
     game(day(6), 'grade2', 'fractions', 20, 6)
   ]
 };
-const leo = { id: 'pleo', name: 'Leo', avatar: '🐯', totals: { games: 1, correct: 4, taps: 5, correctTaps: 4, bestStreak: 2 }, history: [game(day(9), 'grade1', 'add', 5, 4, { played: 30 })] };
+const leo = { id: 'pleo', name: 'Leo', avatar: '🐯', rewards: { earned: 7, redeemed: 0 }, totals: { games: 1, correct: 4, taps: 5, correctTaps: 4, bestStreak: 2 }, history: [game(day(9), 'grade1', 'add', 5, 4, { played: 30 })] };
 const blank = { id: 'pnew', name: 'New', avatar: '🐸', totals: {}, history: [] };
 const summaryOnly = { id: 'psum', name: 'Old', avatar: '🐸', totals: { games: 7, taps: 100, correctTaps: 80 }, history: [] };
 
@@ -145,8 +145,10 @@ Parent.lock();
   $('reportAnswer').value = solveParent($('reportChallenge').textContent); click(d.querySelector('#reportLock .primary-button'));
   ok(!$('reportContent').classList.contains('hidden') && $('reportProfile').options.length === 2, 'correct answer shows the report with a saved-profile picker only');
   ok($('reportProfile').value === 'pmia' && text().includes('63 of 90') && text().includes('70%') && text().includes('Grade 3') && text().includes('5 min') && /Improving/.test(text()), "Mia's report shows her totals, levels, play time and trend");
+  ok(text().includes('Screen time rewards') && text().includes('Earned in total+30 min') && text().includes('Redeemed−12 min'), "Mia's report shows her earned and redeemed screen time");
   ok(text().includes('Play time is only available for 3 of 5'), 'missing play time is explained');
   $('reportProfile').value = 'pleo'; $('reportProfile').dispatchEvent(new w.Event('change', { bubbles: true }));
+  ok(text().includes('Earned in total+7 min') && text().includes('Redeemed−0 min') && !text().includes('+30 min'), "Leo's report shows only his own screen time totals");
   ok(text().includes('4 of 5') && !text().includes('63 of 90') && !text().includes('Grade 3'), "switching profile shows only Leo's data");
   click($('reportExportButton'));
   const dl = downloads[0];
