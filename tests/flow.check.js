@@ -156,8 +156,8 @@ const unlockParent=()=>w.MQParent.submit(solveParent(w.MQParent.current().text))
     const tabs=()=>[...d.querySelectorAll('.sticker-tab')], tabOf=id=>tabs().find(t=>t.dataset.category===id);
     const progress=()=>d.querySelector('.sticker-progress').textContent;
     const open1=mia().stickers.slice();
-    ok(SS.length===200&&progress()==='1 / 200 stickers collected'&&d.querySelectorAll('.sticker-book .sticker').length<200&&d.querySelector('.profile-meta').textContent.includes('Stickers 1/200'),'overall total is 200 and the sticker book does not show all 200 at once');
-    ok(CATS.every((c,i)=>tabs()[i].querySelector('.sticker-tab-count').textContent.endsWith(' / '+c.stickers.length))&&CATS.reduce((n,c)=>n+c.stickers.length,0)===200,'category totals follow the 200 stickers');
+    ok(SS.length===300&&progress()==='1 / 300 stickers collected'&&d.querySelectorAll('.sticker-book .sticker').length<300&&d.querySelector('.profile-meta').textContent.includes('Stickers 1/300'),'overall total is 300 and the sticker book does not show all 300 at once');
+    ok(CATS.every((c,i)=>tabs()[i].querySelector('.sticker-tab-count').textContent.endsWith(' / '+c.stickers.length))&&CATS.reduce((n,c)=>n+c.stickers.length,0)===300,'category totals follow the 300 stickers');
     ok(open1.length===1&&progress()==='1 / '+SS.length+' stickers collected','overall sticker progress shown ('+progress()+')');
     ok(tabs().length===CATS.length&&tabs().every((t,i)=>t.querySelector('.sticker-tab-count').textContent===(CATS[i].stickers.filter(s=>open1.includes(s)).length)+' / '+CATS[i].stickers.length),'each category tab shows collected / total');
     const sel=()=>tabs().filter(t=>t.classList.contains('selected'));

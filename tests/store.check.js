@@ -208,10 +208,20 @@ Parent.lock();
     '🍅', '🥕', '🌽', '🥦', '🥐', '🍞', '🧀', '🍔', '🍟', '🌮', '🍿', '🍫', '🍣', '🥞', '🚌', '🚕', '🚓', '🚑', '🚜', '🚲',
     '🚢', '🚤', '🚄', '🛴', '🪐', '🌠', '🔭', '🔬', '🧪', '🧲', '🌕', '🧬', '💡', '🌌', '🏀', '🏈', '⚾', '🎾', '🏐', '🏓',
     '🥊', '🎳', '🏹', '🎮', '🥁', '🛹', '🧙', '🧜', '🤖', '👻', '🧞', '🦸', '🎒', '🔑', '📚', '🧩', '🪁', '🔔', '⏰', '📷'];
-  ok(STICKERS.length === 200 && new Set(STICKERS).size === 200, 'exactly 200 unique stickers');
-  ok(FIRST_100.length === 100 && FIRST_100.every((s, i) => STICKERS[i] === s), 'all existing 100 stickers are retained unchanged and in order');
-  ok(NEXT_100.length === 100 && NEXT_100.every((s, i) => STICKERS[100 + i] === s) && new Set([...FIRST_100, ...NEXT_100]).size === 200, '100 new, distinct stickers are appended after the existing 100');
-  ok(NEXT_100.every(s => STICKER_CATEGORY[s]) && STICKER_CATEGORIES.reduce((n, c) => n + c.stickers.length, 0) === 200, 'every new sticker belongs to a category; category totals add up to 200');
+  const THIRD_100 = [
+    '🐛', '🐌', '🦗', '🪲', '🦃', '🐓', '🐥', '🕊️', '🦌', '🦬', '🐐', '🐪', '🪼',
+    '🌤️', '🌦️', '❄️', '⛄', '🪨', '🪵', '🪸', '🪴', '🎋', '🌅', '🏔️', '🏝️',
+    '🫐', '🍈', '🫑', '🍠', '🥟', '🍝', '🍜', '🍛', '🥗', '🥪', '🌭', '🥧', '🍭',
+    '🚐', '🛻', '🏎️', '🏍️', '🛵', '🛺', '🚆', '🚊', '🚠', '✈️', '🛶', '🛳️',
+    '☀️', '🌞', '🌛', '⭐', '💫', '☄️', '🛰️', '🔋', '🔌', '⚗️', '🧫', '📡',
+    '🥎', '🏉', '🥏', '🏸', '⛳', '⛸️', '🛷', '⛷️', '🏄', '🎹', '🎺', '🎲',
+    '🧝', '🤴', '👸', '🪄', '🛡️', '🎪', '🎠', '🎡', '🎢', '🪅', '🎊', '🎉',
+    '🕶️', '🧢', '👟', '🧦', '🧤', '🧣', '☂️', '🪙', '🔦', '🕯️', '🧹', '✏️', '🖍️', '✂️'];
+  const FIRST_200 = [...FIRST_100, ...NEXT_100];
+  ok(STICKERS.length === 300 && new Set(STICKERS).size === 300, 'exactly 300 unique stickers');
+  ok(FIRST_200.length === 200 && FIRST_200.every((s, i) => STICKERS[i] === s), 'all existing 200 stickers are retained unchanged and in order');
+  ok(THIRD_100.length === 100 && THIRD_100.every((s, i) => STICKERS[200 + i] === s) && new Set([...FIRST_200, ...THIRD_100]).size === 300, '100 new, distinct stickers are appended after the existing 200');
+  ok(THIRD_100.every(s => STICKER_CATEGORY[s]) && STICKER_CATEGORIES.reduce((n, c) => n + c.stickers.length, 0) === 300, 'every new sticker belongs to a category; category totals add up to 300');
   ok(STICKER_CATEGORIES.length >= 6 && STICKER_CATEGORIES.length <= 8, 'sticker categories: ' + STICKER_CATEGORIES.length);
   ok(new Set(STICKER_CATEGORIES.map(c => c.id)).size === STICKER_CATEGORIES.length && STICKER_CATEGORIES.every(c => c.id && c.name && c.icon && c.stickers.length > 0), 'categories have unique ids, names, icons and stickers');
   ok(STICKERS.every(s => typeof STICKER_CATEGORY[s] === 'string' && STICKER_CATEGORIES.some(c => c.id === STICKER_CATEGORY[s])), 'every sticker has a valid category');
@@ -220,15 +230,15 @@ Parent.lock();
   const kid = st.S.addProfile('Cat', '🦊').profile;
   kid.stickers = ['🦄', '🚀', '🍕']; st.S.save();
   ok(freshStore(st.mem).S.getProfiles()[0].stickers.join() === '🦄,🚀,🍕', 'earned stickers and saved profiles are unchanged by categories');
-  ok(NEXT_100.every(s => !freshStore(st.mem).S.getProfiles()[0].stickers.includes(s)) && st.S.addProfile('Fresh', '🐼').profile.stickers.length === 0, 'the 100 new stickers start locked for new and existing profiles');
-  // A profile saved before the expansion (all original 100 earned) loads unchanged: nothing is granted, nothing is lost
+  ok(THIRD_100.every(s => !freshStore(st.mem).S.getProfiles()[0].stickers.includes(s)) && st.S.addProfile('Fresh', '🐼').profile.stickers.length === 0, 'the 100 new stickers start locked for new and existing profiles');
+  // A profile saved before the expansion (all original 200 earned) loads unchanged: nothing is granted, nothing is lost
   const legacy = freshStore();
-  legacy.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 2, profiles: [{ id: 'old100', name: 'Old', avatar: '🐼', stickers: FIRST_100, totals: { games: 7 } }] });
+  legacy.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 2, profiles: [{ id: 'old200', name: 'Old', avatar: '🐼', stickers: FIRST_200, totals: { games: 7 } }] });
   const lp = freshStore(legacy.mem).S.getProfiles()[0];
-  ok(lp.stickers.length === 100 && FIRST_100.every(s => lp.stickers.includes(s)) && NEXT_100.every(s => !lp.stickers.includes(s)) && lp.totals.games === 7, 'a profile with the original 100 stickers keeps them, gains no new ones and keeps its progress');
-  ok(freshStore(freshStore(legacy.mem).mem).S.getProfiles()[0].stickers.length === 100, 'saved data stays the same after another reload');
+  ok(lp.stickers.length === 200 && FIRST_200.every(s => lp.stickers.includes(s)) && THIRD_100.every(s => !lp.stickers.includes(s)) && lp.totals.games === 7, 'a profile with the original 200 stickers keeps them, gains no new ones and keeps its progress');
+  ok(freshStore(freshStore(legacy.mem).mem).S.getProfiles()[0].stickers.length === 200, 'saved data stays the same after another reload');
   const full = freshStore(); const fp = full.S.addProfile('Full', '🦊').profile; fp.stickers = [...STICKERS]; full.S.save();
-  ok(freshStore(full.mem).S.getProfiles()[0].stickers.length === 200, 'all 200 stickers survive save and reload');
+  ok(freshStore(full.mem).S.getProfiles()[0].stickers.length === 300, 'all 300 stickers survive save and reload');
 }
 // --- screen-time reward bank
 {
