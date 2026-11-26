@@ -114,5 +114,16 @@ const above = (w, el, text) => !!(el.compareDocumentPosition(text) & w.Node.DOCU
       ok(above(r.w, r.pictures[0], r.text), 'Grade 1 money total: coin illustration appears above the question');
     }
   }
+
+  // Grade 3 bar chart: distinct category labels and accurate accessibility label.
+  {
+    const q = find('grade3', x => x.figure && x.figure.type === 'bar-chart', 'data');
+    const r = await render(q, 'grade3');
+    const svg = r.d.querySelector('.figure-bar-chart');
+    const cats = [...svg.querySelectorAll('.figure-label[y="88"]')].map(e => e.textContent);
+    const aria = svg.getAttribute('aria-label') || '';
+    ok(cats.length === 4 && new Set(cats).size === 4 && cats.join() === 'Ap,Pe,Pl,Ba', 'Grade 3 bar chart: category labels are distinct (' + cats.join(', ') + ')');
+    ok(q.figure.labels.every((l, i) => aria.includes(`${l} ${q.figure.values[i]}`)), 'Grade 3 bar chart: aria-label includes full fruit names and values');
+  }
   process.exit(failures ? 1 : 0);
 })();

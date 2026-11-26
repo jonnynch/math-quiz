@@ -627,7 +627,7 @@
   }
 
   function makeGrade3DataQuestion() {
-    const labels = ['Apples', 'Pears', 'Plums', 'Peaches'], values = shuffledCopy([3, 4, 5, 6, 7, 8, 9, 10]).slice(0, 4);
+    const labels = ['Apples', 'Pears', 'Plums', 'Bananas'], values = shuffledCopy([3, 4, 5, 6, 7, 8, 9, 10]).slice(0, 4);
     const kind = weightedChoose([['read', 25], ['most', 25], ['total', 25], ['difference', 25]]), figure = { type: 'bar-chart', labels, values };
     if (kind === 'read') { const i = intBetween(0, 3); return Object.assign(makeNumericQuestion(`How many ${labels[i].toLowerCase()}?`, values[i]), { figure, topic: 'data', kind }); }
     if (kind === 'most') { const i = values.indexOf(Math.max(...values)); return Object.assign(textChoices(labels[i], labels.filter((_, j) => j !== i)), { question: 'Which has the most?', figure, topic: 'data', kind }); }
