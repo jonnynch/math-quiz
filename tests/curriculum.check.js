@@ -445,7 +445,17 @@ function checkGrade3(label, topic, q) {
     else if (q.kind === 'recognise') { const words = text.match(/^What number is (.+)\?$/)?.[1].split(', ').map(x => Number(x.match(/^\d+/)?.[0]) * ({ thousand: 1000, thousands: 1000, hundred: 100, hundreds: 100, ten: 10, tens: 10, one: 1, ones: 1 }[x.replace(/^\d+ /, '')] || 0)); if (!words || sum(words) !== n) fail(label + ': number recognition/place value', q); }
     else if (q.kind === 'expanded') { const expected = text.match(/^([\d,]+) = \?$/), sumParts = ans(q).split(' + ').reduce((s, x) => s + Number(x), 0); if (!expected || Number(expected[1].replace(/,/g, '')) !== sumParts) fail(label + ': expanded notation', q); }
     else if (q.kind === 'missingPlace') { const parts = text.match(/^([\d□ +]+) = (\d+)$/), terms = parts && parts[1].split(' + '); if (!terms || terms.filter(x => x === '□').length !== 1 || terms.reduce((sum, x) => sum + (x === '□' ? n : Number(x)), 0) !== +parts[2]) fail(label + ': missing place value', q); }
-    else if (q.kind === 'compare') { const a = Number(text.match(/^Compare: (\d+)/)[1]), b = Number(text.match(/\? (\d+)$/)[1]); if (ans(q) !== (a < b ? LESS : a > b ? MORE : EQUAL)) fail(label + ': comparison', q); }
+    else if (q.kind === 'compare') {
+      const parts = text.match(/^Compare: (.+) \? (.+)$/);
+      const evalSide = (s) => {
+        if (/^\d+$/.test(s)) return Number(s);
+        const m = s.match(/^(\d+) ([+−]) (\d+)$/);
+        if (!m) return NaN;
+        return m[2] === '+' ? Number(m[1]) + Number(m[3]) : Number(m[1]) - Number(m[3]);
+      };
+      const a = parts && evalSide(parts[1]), b = parts && evalSide(parts[2]);
+      if (!parts || !Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0 || ans(q) !== (a < b ? LESS : a > b ? MORE : EQUAL)) fail(label + ': comparison', q);
+    }
     else if (q.kind === 'order') { const xs = ans(q).split(',').map(Number); if (xs.length !== 3 || xs.some((x, i) => i && x <= xs[i - 1])) fail(label + ': ordering', q); }
     else fail(label + ': unknown number kind', q);
     return;
@@ -636,6 +646,33 @@ for (const g of [1, 2, 3, 4]) {
     }
   }
 }
+// Grade 3 number comparisons: ~20% direct number-vs-number, ~80% +/− arithmetic expressions, all < / = / > supported.
+{
+  const kinds = { direct: 0, addAdd: 0, subSub: 0, addSub: 0 }, outcomes = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
+  let small = 0, large = 0, total = 0;
+  for (let i = 0; i < 4000 && total < 400; i++) {
+    const q = Q.generateQuestion('grade3', 'numbers');
+    if (q.kind !== 'compare') continue;
+    total++;
+    const m = q.question.match(/^Compare: (.+) \? (.+)$/);
+    const parse = s => /^\d+$/.test(s) ? { op: 'n', val: Number(s) } : (() => {
+      const p = s.match(/^(\d+) ([+−]) (\d+)$/);
+      return p ? { op: p[2], a: Number(p[1]), b: Number(p[3]), val: p[2] === '+' ? Number(p[1]) + Number(p[3]) : Number(p[1]) - Number(p[3]) } : null;
+    })();
+    const L = m && parse(m[1]), R = m && parse(m[2]);
+    if (!L || !R || L.val < 0 || R.val < 0 || ans(q) !== rel(L.val, R.val)) { fail('grade3/compare: invalid expression or answer', q); continue; }
+    outcomes[ans(q)]++;
+    if (L.op === 'n' && R.op === 'n') kinds.direct++;
+    else if (L.op === '+' && R.op === '+') kinds.addAdd++;
+    else if (L.op === '−' && R.op === '−') kinds.subSub++;
+    else kinds.addSub++;
+    if (L.op !== 'n') { if (L.val <= 40) small++; if (L.val >= 100) large++; }
+  }
+  if (total < 200 || kinds.direct < total * 0.1 || kinds.direct > total * 0.35 || !kinds.addAdd || !kinds.subSub || !kinds.addSub) fail('grade3/compare: distribution out of range', { total, kinds });
+  if (!outcomes[LESS] || !outcomes[EQUAL] || !outcomes[MORE]) fail('grade3/compare: missing <, = or > outcome', outcomes);
+  if (!small || !large) fail('grade3/compare: missing progressive number range', { small, large });
+}
+
 // Grades 5-6 compare within their taught topics; Grade 5 also compares decimals and percentages.
 for (const g of [5, 6]) {
   const level = 'grade' + g;

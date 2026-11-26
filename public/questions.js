@@ -604,8 +604,34 @@
       return mark({ question: `${parts.join(' + ')} = ${n}`, ...numberChoices(answer, answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000, answer < 10 ? 9 : answer < 100 ? 90 : answer < 1000 ? 900 : 9000, [answer + (answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000)]) });
     }
     if (kind === 'compare') {
-      const a = intBetween(100, 999), b = intBetween(100, 999);
-      return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
+      if (Math.random() < 0.2) {
+        const a = intBetween(100, 9999), b = Math.random() < 0.15 ? a : intBetween(100, 9999);
+        return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
+      }
+      const [lo, hi] = choose([[2, 20], [10, 80], [30, 250]]);
+      const addSide = (target) => {
+        if (target === undefined) { const x = intBetween(lo, hi), y = intBetween(lo, hi); return [`${x} + ${y}`, x + y]; }
+        const x = intBetween(Math.max(1, Math.floor(target / 4)), Math.max(1, target - 1));
+        return [`${x} + ${target - x}`, target];
+      };
+      const subSide = (target) => {
+        if (target === undefined) { const y = intBetween(lo, hi), x = y + intBetween(lo, hi); return [`${x} − ${y}`, x - y]; }
+        const y = intBetween(lo, hi);
+        return [`${target + y} − ${y}`, target];
+      };
+      const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
+      let left, right;
+      if (mode === 'addAdd') { left = addSide(); right = addSide(); }
+      else if (mode === 'subSub') { left = subSide(); right = subSide(); }
+      else if (mode === 'addSub') {
+        if (Math.random() < 0.5) { left = addSide(); right = subSide(); }
+        else { left = subSide(); right = addSide(); }
+      } else {
+        const target = intBetween(lo * 2, hi * 2);
+        left = (Math.random() < 0.5 ? addSide : subSide)(target);
+        right = (Math.random() < 0.5 ? addSide : subSide)(target);
+      }
+      return mark(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])));
     }
     if (kind === 'order') {
       const a = intBetween(100, 700), b = a + intBetween(10, 80), c = b + intBetween(10, 80);
