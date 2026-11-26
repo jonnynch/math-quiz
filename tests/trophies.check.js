@@ -94,5 +94,25 @@ old.mem['mathQuizBattle.v1'] = JSON.stringify({ schema: 2, settings: {}, profile
 ({ S } = freshStore(old.mem));
 ok(S.getProfiles().length === 1 && Object.keys(S.getProfiles()[0].trophies).join() === 'grade3' && S.getProfiles()[0].trophies.grade3.completed === 0, 'invalid saved trophy data is repaired safely');
 
+// --- sticker collection achievement (100 / 200 / 300 unique stickers)
+ok(T.STICKER_TROPHIES.length === 3 && T.STICKER_TROPHIES.map(t => `${t.id}:${t.target}`).join() === 'stickers100:100,stickers200:200,stickers300:300', 'three sticker collection milestones exist: 100, 200, 300');
+const sp = { stickers: Array(150).fill('🦄'), trophies: {} };
+ok(T.recordStickers(sp).length === 0 && T.stickerProgress(sp).every(t => t.value === 1 && !t.unlocked), 'duplicate stickers are counted only once');
+({ S, mem } = freshStore());
+const sk = S.addProfile('Stickers', '🦊').profile;
+sk.stickers = S.STICKERS.slice(0, 99);
+ok(T.recordStickers(sk).length === 0 && T.stickerProgress(sk).map(t => `${t.value}/${t.target}`).join() === '99/100,99/200,99/300', 'no sticker trophy before 100; progress shows towards next milestones');
+sk.stickers.push(S.STICKERS[99]);
+ok(T.recordStickers(sk).map(t => t.id).join() === 'stickers100' && T.recordStickers(sk).length === 0, 'Bronze Sticker Collector unlocks at 100 unique stickers and is awarded only once');
+sk.stickers = S.STICKERS.slice(0, 200);
+ok(T.recordStickers(sk).map(t => t.id).join() === 'stickers200' && T.recordStickers(sk).length === 0, 'Silver Sticker Enthusiast unlocks at 200 unique stickers and is awarded only once');
+sk.stickers = S.STICKERS.slice(0, 300);
+ok(T.recordStickers(sk).map(t => t.id).join() === 'stickers300' && T.recordStickers(sk).length === 0, 'Gold Sticker Master unlocks at 300 unique stickers and is awarded only once');
+ok(T.stickerProgress(sk).every(t => t.unlocked && t.value === t.target) && T.unlockedCount(sk) === 3, 'all 3 sticker trophies show unlocked and target/target');
+S.save();
+({ S, mem } = freshStore(mem));
+ok(S.getProfiles()[0].trophies.stickers.unlocked.join() === 'stickers100,stickers200,stickers300', 'sticker trophies persist across save and reload');
+ok(T.cleanAll({ stickers: { unlocked: ['stickers100', 'stickers100', 'fake'] } }).stickers.unlocked.join() === 'stickers100', 'cleanAll filters and deduplicates sticker trophies');
+
 console.log(failures ? `\n${failures} FAILED` : '\nAll trophy checks passed');
 process.exit(failures ? 1 : 0);

@@ -822,7 +822,7 @@
     state.players.forEach(p => {
       if (!p.profile || !p.answeredThisRound) return;
       touched = true;
-      const won = Trophies.record(p.profile, p.difficulty, p.firstTapCorrect === true);
+      const won = [...Trophies.record(p.profile, p.difficulty, p.firstTapCorrect === true), ...Trophies.recordStickers(p.profile)];
       if (!won.length) return;
       p.trophies.push(...won.map(t => t.icon));
       notes.push(`${state.players.length > 1 ? `${p.name} ` : ''}${won.map(t => `${t.icon} ${t.name}`).join(', ')}`);
