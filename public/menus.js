@@ -335,7 +335,7 @@
       return;
     }
     const profile = Store.getProfile($('achievementsProfile').value) || profiles[0];
-    const total = Trophies.LEVELS.length * Trophies.TIERS.length + Trophies.BALLOON_TROPHIES.length;
+    const total = Trophies.LEVELS.length * Trophies.TIERS.length + Trophies.BALLOON_TROPHIES.length + Trophies.STICKER_TROPHIES.length;
     $('achievementsSummary').textContent = `🏆 ${Trophies.unlockedCount(profile)} / ${total} trophies collected`;
     Trophies.LEVELS.forEach(level => {
       const trophies = Trophies.progressFor(profile, level);
@@ -357,6 +357,15 @@
     balloon.forEach(t => bg.append(trophyCard(t)));
     bs.append(bh, bg);
     list.append(bs);
+    // Sticker Collection trophies (same page, same cards; kept per profile)
+    const stickers = Trophies.stickerProgress(profile);
+    const ss = element('section', 'trophy-level trophy-stickers');
+    const sh = element('div', 'trophy-level-head');
+    sh.append(element('h3', '', '🎨 Sticker Collection'), element('span', 'trophy-level-count', `${stickers.filter(t => t.unlocked).length} / ${stickers.length}`));
+    const sg = element('div', 'trophy-grid');
+    stickers.forEach(t => sg.append(trophyCard(t)));
+    ss.append(sh, sg);
+    list.append(ss);
   }
 
   // Opens on Player 1's profile when one is chosen, otherwise the first profile.

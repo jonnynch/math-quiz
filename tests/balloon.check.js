@@ -160,7 +160,7 @@ const store=()=>JSON.parse(w.localStorage.getItem('mathQuizBattle.v1')||'{}');
   $('achievementsProfile').value=sis.id; $('achievementsProfile').dispatchEvent(new w.Event('change'));
   const sec2=d.querySelector('.trophy-balloon');
   ok(sec2.querySelectorAll('.trophy-card.unlocked').length===1&&/combo5|Combo Starter/.test(sec2.textContent)&&/0 \/ 10|5 \/ 10|\/ 100/.test(sec2.textContent),'Achievements page shows each player\'s own progress');
-  ok(/trophies collected/.test($('achievementsSummary').textContent)&&/\/ 40 trophies/.test($('achievementsSummary').textContent),'summary counts math and Balloon Pop trophies together (30 + 10)');
+  ok(/trophies collected/.test($('achievementsSummary').textContent)&&/\/ 43 trophies/.test($('achievementsSummary').textContent),'summary counts math, Balloon Pop, and Sticker Collection trophies together (30 + 10 + 3)');
   click($('achievementsClose'));
   const parsed=w.MQStore.parseBackup(w.MQStore.exportText());
   ok(parsed.profiles[0].trophies.balloon.unlocked.length===10,'trophies survive backup export/import');

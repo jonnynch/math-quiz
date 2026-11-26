@@ -74,6 +74,50 @@
       return { tier: t, target: t.target, value: unlocked ? t.target : Math.min(p[t.field], t.target), unlocked, description: t.describe(t.target) };
     });
   }
+
+  // ---------- Sticker Collection trophies (same profile.trophies object, key `stickers`) ----------
+  const STICKER_KEY = 'stickers';
+  const STICKER_TROPHIES = [
+    { id: 'stickers100', icon: '🥉', name: 'Sticker Collector', target: 100, describe: (n) => `Collect ${n} unique stickers.` },
+    { id: 'stickers200', icon: '🥈', name: 'Sticker Enthusiast', target: 200, describe: (n) => `Collect ${n} unique stickers.` },
+    { id: 'stickers300', icon: '🥇', name: 'Sticker Master', target: 300, describe: (n) => `Collect ${n} unique stickers.` }
+  ];
+  const uniqueStickerCount = (profile) => (profile && Array.isArray(profile.stickers) ? new Set(profile.stickers).size : 0);
+
+  function cleanStickers(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const ids = Array.isArray(r.unlocked) ? r.unlocked : [];
+    return { unlocked: STICKER_TROPHIES.map(t => t.id).filter(id => ids.includes(id)) };
+  }
+
+  // Awards sticker collection milestones based on unique unlocked stickers. Each milestone is awarded once.
+  function recordStickers(profile) {
+    if (!profile) return [];
+    const total = uniqueStickerCount(profile);
+    const existing = profile.trophies && profile.trophies[STICKER_KEY];
+    const p = cleanStickers(existing);
+    const won = [];
+    STICKER_TROPHIES.forEach(t => {
+      if (!p.unlocked.includes(t.id) && total >= t.target) {
+        p.unlocked.push(t.id);
+        won.push(t);
+      }
+    });
+    if (won.length || existing) {
+      if (!profile.trophies || typeof profile.trophies !== 'object') profile.trophies = {};
+      profile.trophies[STICKER_KEY] = p;
+    }
+    return won;
+  }
+
+  function stickerProgress(profile) {
+    const p = cleanStickers(profile && profile.trophies && profile.trophies[STICKER_KEY]);
+    const total = uniqueStickerCount(profile);
+    return STICKER_TROPHIES.map(t => {
+      const unlocked = p.unlocked.includes(t.id);
+      return { tier: t, target: t.target, value: unlocked ? t.target : Math.min(total, t.target), unlocked, description: t.describe(t.target) };
+    });
+  }
   const MAX_COUNT = 1000000;
 
   const count = (v) => (Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), MAX_COUNT) : 0);
@@ -103,6 +147,7 @@
     if (!raw || typeof raw !== 'object') return out;
     LEVELS.forEach(level => { if (raw[level] && typeof raw[level] === 'object') out[level] = cleanProgress(raw[level]); });
     if (raw[BALLOON_KEY] && typeof raw[BALLOON_KEY] === 'object') out[BALLOON_KEY] = cleanBalloon(raw[BALLOON_KEY]);
+    if (raw[STICKER_KEY] && typeof raw[STICKER_KEY] === 'object') out[STICKER_KEY] = cleanStickers(raw[STICKER_KEY]);
     return out;
   }
 
@@ -150,10 +195,11 @@
 
   function unlockedCount(profile) {
     return LEVELS.reduce((sum, level) => sum + progressFor(profile, level).filter(t => t.unlocked).length, 0)
-      + balloonProgress(profile).filter(t => t.unlocked).length;
+      + balloonProgress(profile).filter(t => t.unlocked).length
+      + stickerProgress(profile).filter(t => t.unlocked).length;
   }
 
-  const api = { BALLOON_TROPHIES, recordBalloon, balloonProgress, TARGETS, TIERS, LEVELS, emptyProgress, cleanProgress, cleanAll, record, resetStreak, progressFor, unlockedCount };
+  const api = { BALLOON_TROPHIES, recordBalloon, balloonProgress, STICKER_TROPHIES, recordStickers, stickerProgress, TARGETS, TIERS, LEVELS, emptyProgress, cleanProgress, cleanAll, record, resetStreak, progressFor, unlockedCount };
   root.MQTrophies = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
