@@ -545,6 +545,12 @@ function checkGrade4(label, topic, q) {
     else if (q.kind === 'expanded') { const value = Number(text.match(/^[\d,]+/)[0].replace(/,/g, '')), total = ans(q).split(' + ').reduce((s, x) => s + Number(x), 0); if (value !== total) fail(label + ': expanded notation', q); }
     else if (q.kind === 'round') { const m = text.match(/^([\d,]+) rounded to the nearest (10|100|1000) = \?$/), value = Number(m[1].replace(/,/g, '')); if (Math.round(value / +m[2]) * +m[2] !== n) fail(label + ': rounding', q); }
     else if (q.kind === 'estimate') { const m = text.match(/^Estimate (\d+) \+ (\d+) by rounding each to the nearest 100\.$/); if (!m || Math.round(+m[1] / 100) * 100 + Math.round(+m[2] / 100) * 100 !== n) fail(label + ': estimate', q); }
+    else if (q.kind === 'compare') {
+      const m = text.match(/^Compare: (.+) \? (.+)$/);
+      const evalSide = s => /^\d+$/.test(s) ? Number(s) : (() => { const p = s.match(/^(\d+) ([+−]) (\d+)$/); return p ? (p[2] === '+' ? +p[1] + +p[3] : +p[1] - +p[3]) : NaN; })();
+      const a = m && evalSide(m[1]), b = m && evalSide(m[2]);
+      if (!m || !Number.isFinite(a) || !Number.isFinite(b) || a < 0 || b < 0 || ans(q) !== rel(a, b)) fail(label + ': number/expression comparison', q);
+    }
     else if (q.kind === 'factors') { const target = Number(text.match(/factors of (\d+)/)[1]), factors = Array.from({ length: target }, (_, i) => i + 1).filter(x => target % x === 0); if (ans(q).split(', ').map(Number).join() !== factors.join()) fail(label + ': factors', q); }
     else if (q.kind === 'multiple') { const base = Number(text.match(/multiples of (\d+)/)[1]), values = ans(q).split(', ').map(Number); if (values.length !== 5 || values.some((v, i) => v !== base * (i + 1))) fail(label + ': first five multiples', q); }
     else if (q.kind === 'prime') { const value = Number(text.match(/^Is (\d+) prime/)[1]), prime = value > 1 && !Array.from({ length: value - 2 }, (_, i) => i + 2).some(d => value % d === 0); if (ans(q) !== (prime ? 'prime' : 'composite') || q.answers.length !== 2) fail(label + ': prime/composite', q); }
@@ -566,7 +572,11 @@ function checkGrade4(label, topic, q) {
   if (topic === 'decimals') {
     g4Kinds['decimals/' + q.kind] = (g4Kinds['decimals/' + q.kind] || 0) + 1;
     if ((m = text.match(/^(\d+(?:\.\d+)?) ([+−]) (\d+(?:\.\d+)?) = \?$/))) { const result = m[2] === '+' ? +m[1] + +m[3] : +m[1] - +m[3]; if (Math.abs(result - n) > 1e-9) fail(label + ': decimal operation', q); }
-    else if ((m = text.match(/^Compare: (\d*\.\d+) \? (\d*\.\d+)$/))) { if (ans(q) !== rel(+m[1], +m[2])) fail(label + ': decimal comparison', q); }
+    else if ((m = text.match(/^Compare: (.+) \? (.+)$/))) {
+      const val = s => /^\d+\/\d+$/.test(s) ? fractionValue(s) : /^\d*\.\d+$/.test(s) ? Number(s) : NaN;
+      const left = val(m[1]), right = val(m[2]);
+      if (!Number.isFinite(left) || !Number.isFinite(right) || ans(q) !== rel(left, right)) fail(label + ': decimal comparison', q);
+    }
     else if ((m = text.match(/^(\d+)\/(\d+) = \?$/))) { if (Math.abs(+m[1] / +m[2] - n) > 1e-9) fail(label + ': fraction/decimal equivalence', q); }
     else if ((m = text.match(/^0\.(\d) = \?\/10$/))) { if (+m[1] !== n) fail(label + ': tenths place value', q); }
     else if ((m = text.match(/^0\.(\d{2}) = \?\/100$/))) { if (+m[1] !== n) fail(label + ': hundredths place value', q); }
@@ -639,9 +649,15 @@ for (const g of [1, 2, 3, 4]) {
       const q = Q.generateQuestion(level, t);
       if (!common(level + '/' + t, q)) continue;
       if (/^Compare/.test(q.question)) {
-        const allowed = g === 4 && ((q.topic === 'decimals' && q.kind === 'compare') || (q.topic === 'shapes' && q.kind === 'angleCompare') || (q.topic === 'fractions' && q.kind === 'compare'));
-        const m = q.question.match(/^Compare: (\d+(?:\.\d+)?|\d+\/\d+)(?:°)? \? (\d+(?:\.\d+)?|\d+\/\d+)(?:°)?$/), value = token => token.includes('/') ? fractionValue(token) : Number(token);
-        if (!allowed || !m || ans(q) !== rel(value(m[1]), value(m[2]))) fail(level + '/' + t + ': comparison outside Grade 4 scope or answer mismatch', q);
+        const allowed = g === 4 && ((q.topic === 'numbers' && q.kind === 'compare') || (q.topic === 'decimals' && q.kind === 'compare') || (q.topic === 'shapes' && q.kind === 'angleCompare') || (q.topic === 'fractions' && q.kind === 'compare'));
+        const evalTok = s => {
+          if (/^\d+\/\d+$/.test(s)) return fractionValue(s);
+          if (/^\d+(?:\.\d+)?°?$/.test(s)) return Number(s.replace(/°$/, ''));
+          const p = s.match(/^(\d+) ([+−]) (\d+)$/);
+          return p ? (p[2] === '+' ? +p[1] + +p[3] : +p[1] - +p[3]) : NaN;
+        };
+        const m = q.question.match(/^Compare: (.+) \? (.+)$/), l = m && evalTok(m[1]), r = m && evalTok(m[2]);
+        if (!allowed || !m || !Number.isFinite(l) || !Number.isFinite(r) || ans(q) !== rel(l, r)) fail(level + '/' + t + ': comparison outside Grade 4 scope or answer mismatch', q);
       } else if (q.answers.includes(LESS) || q.answers.includes(EQUAL) || q.answers.includes(MORE)) fail(level + '/' + t + ': <, = or > answers on a non-comparison', q);
     }
   }
@@ -671,6 +687,39 @@ for (const g of [1, 2, 3, 4]) {
   if (total < 200 || kinds.direct < total * 0.1 || kinds.direct > total * 0.35 || !kinds.addAdd || !kinds.subSub || !kinds.addSub) fail('grade3/compare: distribution out of range', { total, kinds });
   if (!outcomes[LESS] || !outcomes[EQUAL] || !outcomes[MORE]) fail('grade3/compare: missing <, = or > outcome', outcomes);
   if (!small || !large) fail('grade3/compare: missing progressive number range', { small, large });
+}
+
+// Grade 4 comparisons: multi-digit & +/- expressions, differing decimal places, fraction-vs-decimal, fractions, and < / = / >.
+{
+  const numKinds = { whole: 0, expr: 0 }, numOut = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
+  for (let i = 0; i < 3000; i++) {
+    const q = Q.generateQuestion('grade4', 'numbers');
+    if (q.kind !== 'compare') continue;
+    numOut[ans(q)]++;
+    if (/^Compare: \d+ \? \d+$/.test(q.question)) numKinds.whole++;
+    else numKinds.expr++;
+  }
+  if (!numKinds.whole || !numKinds.expr || !numOut[LESS] || !numOut[EQUAL] || !numOut[MORE]) fail('grade4/numbers/compare: missing types or outcomes', { numKinds, numOut });
+
+  const decKinds = { diffPlaces: 0, fracDec: 0 }, decOut = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
+  const decPairs = new Set();
+  for (let i = 0; i < 2500; i++) {
+    const q = Q.generateQuestion('grade4', 'decimals');
+    if (q.kind !== 'compare') continue;
+    decOut[ans(q)]++;
+    decPairs.add(q.question);
+    const m = q.question.match(/^Compare: (.+) \? (.+)$/);
+    if (m[1].includes('/') || m[2].includes('/')) decKinds.fracDec++;
+    else if (m[1].split('.')[1].length !== m[2].split('.')[1].length) decKinds.diffPlaces++;
+  }
+  if (decPairs.size < 25 || !decKinds.diffPlaces || !decKinds.fracDec || !decOut[LESS] || !decOut[EQUAL] || !decOut[MORE]) fail('grade4/decimals/compare: missing variety, precision mix or outcomes', { unique: decPairs.size, decKinds, decOut });
+
+  const fracOut = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
+  for (let i = 0; i < 2000; i++) {
+    const q = Q.generateQuestion('grade4', 'fractions');
+    if (q.kind === 'compare') fracOut[ans(q)]++;
+  }
+  if (!fracOut[LESS] || !fracOut[EQUAL] || !fracOut[MORE]) fail('grade4/fractions/compare: missing <, = or > outcome', fracOut);
 }
 
 // Grades 5-6 compare within their taught topics; Grade 5 also compares decimals and percentages.
