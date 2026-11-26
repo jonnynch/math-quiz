@@ -305,8 +305,16 @@
         return Object.assign(makeNumericQuestion(`${numerator}/${d} of ${whole} = ?`, numerator * groups, { extras: [groups, whole - numerator * groups, whole] }), { topic: 'fractions', kind });
       }
       if (kind === 'compare') {
-        const pairs = [['1/2', 1, 2], ['2/3', 2, 3], ['3/4', 3, 4], ['3/8', 3, 8], ['5/8', 5, 8], ['7/10', 7, 10]], a = choose(pairs), b = choose(pairs);
-        return Object.assign(makeCompareQuestion(`Compare: ${a[0]} ? ${b[0]}`, Math.sign(a[1] * b[2] - b[1] * a[2])), { topic: 'fractions', kind });
+        const dens = [2, 3, 4, 5, 6, 8, 10];
+        let n1, d1, n2, d2;
+        if (Math.random() < 0.2) {
+          [n1, d1, n2, d2] = choose([[1, 2, 2, 4], [1, 2, 3, 6], [1, 2, 4, 8], [1, 3, 2, 6], [2, 3, 4, 6], [3, 4, 6, 8], [1, 4, 2, 8], [1, 5, 2, 10], [2, 5, 4, 10]]);
+          if (Math.random() < 0.5) [n1, d1, n2, d2] = [n2, d2, n1, d1];
+        } else {
+          d1 = choose(dens); d2 = choose(dens);
+          n1 = intBetween(1, d1 - 1); n2 = intBetween(1, d2 - 1);
+        }
+        return Object.assign(makeCompareQuestion(`Compare: ${n1}/${d1} ? ${n2}/${d2}`, Math.sign(n1 * d2 - n2 * d1)), { topic: 'fractions', kind });
       }
       if (kind === 'order') {
         const d = choose([4, 5, 8, 10]), nums = shuffledCopy([1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => n < d)).slice(0, 3).sort((a, b) => a - b), answer = nums.map(n => `${n}/${d}`).join(', ');
@@ -604,8 +612,34 @@
       return mark({ question: `${parts.join(' + ')} = ${n}`, ...numberChoices(answer, answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000, answer < 10 ? 9 : answer < 100 ? 90 : answer < 1000 ? 900 : 9000, [answer + (answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000)]) });
     }
     if (kind === 'compare') {
-      const a = intBetween(100, 999), b = intBetween(100, 999);
-      return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
+      if (Math.random() < 0.2) {
+        const a = intBetween(100, 9999), b = Math.random() < 0.15 ? a : intBetween(100, 9999);
+        return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
+      }
+      const [lo, hi] = choose([[2, 20], [10, 80], [30, 250]]);
+      const addSide = (target) => {
+        if (target === undefined) { const x = intBetween(lo, hi), y = intBetween(lo, hi); return [`${x} + ${y}`, x + y]; }
+        const x = intBetween(Math.max(1, Math.floor(target / 4)), Math.max(1, target - 1));
+        return [`${x} + ${target - x}`, target];
+      };
+      const subSide = (target) => {
+        if (target === undefined) { const y = intBetween(lo, hi), x = y + intBetween(lo, hi); return [`${x} − ${y}`, x - y]; }
+        const y = intBetween(lo, hi);
+        return [`${target + y} − ${y}`, target];
+      };
+      const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
+      let left, right;
+      if (mode === 'addAdd') { left = addSide(); right = addSide(); }
+      else if (mode === 'subSub') { left = subSide(); right = subSide(); }
+      else if (mode === 'addSub') {
+        if (Math.random() < 0.5) { left = addSide(); right = subSide(); }
+        else { left = subSide(); right = addSide(); }
+      } else {
+        const target = intBetween(lo * 2, hi * 2);
+        left = (Math.random() < 0.5 ? addSide : subSide)(target);
+        right = (Math.random() < 0.5 ? addSide : subSide)(target);
+      }
+      return mark(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])));
     }
     if (kind === 'order') {
       const a = intBetween(100, 700), b = a + intBetween(10, 80), c = b + intBetween(10, 80);
@@ -627,7 +661,7 @@
   }
 
   function makeGrade3DataQuestion() {
-    const labels = ['Apples', 'Pears', 'Plums', 'Peaches'], values = shuffledCopy([3, 4, 5, 6, 7, 8, 9, 10]).slice(0, 4);
+    const labels = ['Apples', 'Pears', 'Plums', 'Bananas'], values = shuffledCopy([3, 4, 5, 6, 7, 8, 9, 10]).slice(0, 4);
     const kind = weightedChoose([['read', 25], ['most', 25], ['total', 25], ['difference', 25]]), figure = { type: 'bar-chart', labels, values };
     if (kind === 'read') { const i = intBetween(0, 3); return Object.assign(makeNumericQuestion(`How many ${labels[i].toLowerCase()}?`, values[i]), { figure, topic: 'data', kind }); }
     if (kind === 'most') { const i = values.indexOf(Math.max(...values)); return Object.assign(textChoices(labels[i], labels.filter((_, j) => j !== i)), { question: 'Which has the most?', figure, topic: 'data', kind }); }
@@ -636,7 +670,7 @@
   }
 
   function makeGrade4NumbersQuestion() {
-    const kind = weightedChoose([['placeValue', 18], ['expanded', 12], ['round', 18], ['estimate', 12], ['factors', 16], ['multiple', 12], ['prime', 12]]);
+    const kind = weightedChoose([['placeValue', 16], ['expanded', 10], ['round', 16], ['estimate', 10], ['compare', 14], ['factors', 14], ['multiple', 10], ['prime', 10]]);
     const mark = q => Object.assign(q, { topic: 'numbers', kind });
     if (kind === 'placeValue') {
       const n = intBetween(1000, 9999), digits = String(n).split('').map(Number), units = ['thousands', 'hundreds', 'tens', 'ones'];
@@ -653,6 +687,29 @@
     if (kind === 'estimate') {
       const a = intBetween(120, 780), b = intBetween(120, 780), answer = Math.round(a / 100) * 100 + Math.round(b / 100) * 100;
       return mark(makeNumericQuestion(`Estimate ${a} + ${b} by rounding each to the nearest 100.`, answer, { extras: [a + b, Math.round((a + b) / 100) * 100] }));
+    }
+    if (kind === 'compare') {
+      if (Math.random() < 0.25) {
+        const a = intBetween(1000, 9999), b = Math.random() < 0.2 ? a : (Math.random() < 0.5 ? a + choose([-100, -10, -1, 1, 10, 100]) : intBetween(1000, 9999));
+        return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
+      }
+      const addSide = (target) => {
+        if (target === undefined) { const x = intBetween(110, 650), y = intBetween(110, 450); return [`${x} + ${y}`, x + y]; }
+        const x = intBetween(Math.floor(target / 4), target - 50);
+        return [`${x} + ${target - x}`, target];
+      };
+      const subSide = (target) => {
+        if (target === undefined) { const y = intBetween(80, 450), x = y + intBetween(120, 750); return [`${x} − ${y}`, x - y]; }
+        const y = intBetween(80, 400);
+        return [`${target + y} − ${y}`, target];
+      };
+      const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
+      let left, right;
+      if (mode === 'addAdd') { left = addSide(); right = addSide(); }
+      else if (mode === 'subSub') { left = subSide(); right = subSide(); }
+      else if (mode === 'addSub') { left = Math.random() < 0.5 ? addSide() : subSide(); right = left[0].includes('+') ? subSide() : addSide(); }
+      else { const target = intBetween(250, 950); left = (Math.random() < 0.5 ? addSide : subSide)(target); right = (Math.random() < 0.5 ? addSide : subSide)(target); }
+      return mark(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])));
     }
     if (kind === 'factors') {
       const target = choose([24, 30, 36]), factors = Array.from({ length: target }, (_, i) => i + 1).filter(v => target % v === 0), answer = factors.join(', ');
@@ -681,8 +738,29 @@
     if (kind === 'tenths') { const digit = intBetween(1, 9); return Object.assign(makeNumericQuestion(`0.${digit} = ?/10`, digit, { extras: [digit + 1, digit - 1, 10 - digit] }), { topic: 'decimals', kind }); }
     if (kind === 'hundredths') { const value = intBetween(10, 99); return Object.assign(makeNumericQuestion(`0.${String(value).padStart(2, '0')} = ?/100`, value, { extras: [value + 1, value - 1, Math.floor(value / 10)] }), { topic: 'decimals', kind }); }
     if (kind === 'compare') {
-      const pairs = [[0.7, 0.65], [0.4, 0.35], [0.25, 0.5], [0.8, 0.75], [0.6, 0.6]], [a, b] = choose(pairs);
-      return Object.assign(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)), { topic: 'decimals', kind });
+      const mode = weightedChoose([['diffPlaces', 45], ['samePlaces', 20], ['equal', 15], ['fractionDecimal', 20]]);
+      const tenths = () => { const w = Math.random() < 0.3 ? intBetween(1, 3) : 0, t = intBetween(1, 9); return [`${w}.${t}`, w * 100 + t * 10]; };
+      const hundredths = () => { const w = Math.random() < 0.3 ? intBetween(1, 3) : 0, h = intBetween(1, 99); return [`${w}.${String(h).padStart(2, '0')}`, w * 100 + h]; };
+      let left, right;
+      if (mode === 'diffPlaces') {
+        const w = Math.random() < 0.25 ? intBetween(1, 3) : 0, t = intBetween(1, 9);
+        let h = Math.max(1, Math.min(99, t * 10 + choose([-15, -5, -1, 1, 5, 15])));
+        if (h % 10 === 0) h += 1;
+        const tSide = [`${w}.${t}`, w * 100 + t * 10], hSide = [`${w}.${String(h).padStart(2, '0')}`, w * 100 + h];
+        [left, right] = Math.random() < 0.5 ? [tSide, hSide] : [hSide, tSide];
+      } else if (mode === 'samePlaces') {
+        [left, right] = Math.random() < 0.4 ? [tenths(), tenths()] : [hundredths(), hundredths()];
+      } else if (mode === 'equal') {
+        const w = Math.random() < 0.25 ? intBetween(1, 3) : 0, t = intBetween(1, 9);
+        const a = [`${w}.${t}`, w * 100 + t * 10], b = [`${w}.${t}0`, w * 100 + t * 10];
+        [left, right] = Math.random() < 0.5 ? [a, b] : [b, a];
+      } else {
+        const [frac, fVal] = choose([['1/2', 50], ['1/4', 25], ['3/4', 75], ['1/5', 20], ['2/5', 40], ['3/5', 60], ['4/5', 80], ['1/10', 10], ['3/10', 30], ['7/10', 70], ['9/10', 90]]);
+        const dVal = Math.random() < 0.25 ? fVal : Math.max(5, Math.min(95, fVal + choose([-15, -10, -5, 5, 10, 15])));
+        const dText = dVal % 10 === 0 ? `0.${dVal / 10}` : `0.${String(dVal).padStart(2, '0')}`;
+        [left, right] = Math.random() < 0.5 ? [[frac, fVal], [dText, dVal]] : [[dText, dVal], [frac, fVal]];
+      }
+      return Object.assign(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])), { topic: 'decimals', kind });
     }
     if (kind === 'fractionDecimal') {
       const [fraction, value] = choose([['1/2', 0.5], ['1/4', 0.25], ['3/4', 0.75], ['1/10', 0.1]]);

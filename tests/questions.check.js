@@ -202,7 +202,7 @@ for(const g of grades){
       }
       if(t.value==='decimals'&&(g===4||g===5||g===6)){
         if((g===5||g===6)&&q.kind==='order'){const input=text.match(/^Order from smallest to largest: (.+)\.$/)?.[1].split(', ').map(Number),ordered=ans.split(', ').map(Number);if(!input||ordered.some((v,i)=>v!==[...input].sort((a,b)=>a-b)[i]))fail(k,'decimal ordering',q);}
-        else if((m=text.match(/^Compare: (\d*\.\d+) \? (\d*\.\d+)$/))){const expected=+m[1]<+m[2]?0:+m[1]>+m[2]?2:1;if(c!==expected)fail(k,'decimal comparison',q);}
+        else if((m=text.match(/^Compare: (\d*\.\d+|\d+\/\d+) \? (\d*\.\d+|\d+\/\d+)$/))){const l=m[1].includes('/')?val(m[1]):+m[1],r=m[2].includes('/')?val(m[2]):+m[2],expected=l<r?0:l>r?2:1;if(c!==expected)fail(k,'decimal comparison',q);}
         else if((m=text.match(/^(\d+(?:\.\d+)?) ([+−×÷]) (\d+(?:\.\d+)?) = \?$/))){const expected={'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]* +m[3],'÷':+m[1]/+m[3]}[m[2]];if(Math.abs(expected-Number(ans))>1e-9)fail(k,'decimal arithmetic',q);}
         else if((m=text.match(/^(\d+)\/(\d+) = \?$/))){if(Math.abs(+m[1]/+m[2]-Number(ans))>1e-9)fail(k,'fraction/decimal relationship',q);}
         else if((m=text.match(/^(\d*\.\d+) = \? \(simplest fraction\)$/))){if(Math.abs(+m[1]-val(ans))>1e-9||gcd(...frac(ans))!==1)fail(k,'decimal to fraction conversion',q);}
