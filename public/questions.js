@@ -619,18 +619,20 @@
         const y = intBetween(lo, hi);
         return [`${target + y} − ${y}`, target];
       };
-      const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
       let left, right;
-      if (mode === 'addAdd') { left = addSide(); right = addSide(); }
-      else if (mode === 'subSub') { left = subSide(); right = subSide(); }
-      else if (mode === 'addSub') {
-        if (Math.random() < 0.5) { left = addSide(); right = subSide(); }
-        else { left = subSide(); right = addSide(); }
-      } else {
-        const target = intBetween(lo * 2, hi * 2);
-        left = (Math.random() < 0.5 ? addSide : subSide)(target);
-        right = (Math.random() < 0.5 ? addSide : subSide)(target);
-      }
+      do {   // never show the same expression on both sides
+        const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
+        if (mode === 'addAdd') { left = addSide(); right = addSide(); }
+        else if (mode === 'subSub') { left = subSide(); right = subSide(); }
+        else if (mode === 'addSub') {
+          if (Math.random() < 0.5) { left = addSide(); right = subSide(); }
+          else { left = subSide(); right = addSide(); }
+        } else {
+          const target = intBetween(lo * 2, hi * 2);
+          left = (Math.random() < 0.5 ? addSide : subSide)(target);
+          right = (Math.random() < 0.5 ? addSide : subSide)(target);
+        }
+      } while (left[0] === right[0]);
       return mark(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])));
     }
     if (kind === 'order') {
@@ -691,12 +693,14 @@
         const y = intBetween(80, 400);
         return [`${target + y} − ${y}`, target];
       };
-      const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
       let left, right;
-      if (mode === 'addAdd') { left = addSide(); right = addSide(); }
-      else if (mode === 'subSub') { left = subSide(); right = subSide(); }
-      else if (mode === 'addSub') { left = Math.random() < 0.5 ? addSide() : subSide(); right = left[0].includes('+') ? subSide() : addSide(); }
-      else { const target = intBetween(250, 950); left = (Math.random() < 0.5 ? addSide : subSide)(target); right = (Math.random() < 0.5 ? addSide : subSide)(target); }
+      do {   // never show the same expression on both sides
+        const mode = weightedChoose([['addAdd', 28], ['subSub', 26], ['addSub', 28], ['equal', 18]]);
+        if (mode === 'addAdd') { left = addSide(); right = addSide(); }
+        else if (mode === 'subSub') { left = subSide(); right = subSide(); }
+        else if (mode === 'addSub') { left = Math.random() < 0.5 ? addSide() : subSide(); right = left[0].includes('+') ? subSide() : addSide(); }
+        else { const target = intBetween(250, 950); left = (Math.random() < 0.5 ? addSide : subSide)(target); right = (Math.random() < 0.5 ? addSide : subSide)(target); }
+      } while (left[0] === right[0]);
       return mark(makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, Math.sign(left[1] - right[1])));
     }
     if (kind === 'factors') {
