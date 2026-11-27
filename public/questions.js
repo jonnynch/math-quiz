@@ -344,11 +344,9 @@
         const [n, d] = choose([[1, 2], [1, 3], [2, 3], [3, 4], [2, 5]]), whole = choose([2, 3, 4, 6]);
         return Object.assign(makeFractionQuestion(`${n}/${d} × ${whole} = ? (simplest form)`, [n * whole, d]), { topic: 'fractions', kind });
       }
-      if (kind === 'compare') return Object.assign(makeDecimalFractionCompare(5), { topic: 'fractions', kind });
+      if (kind === 'compare') return Object.assign(makeGrade5FractionDecimalCompare(), { topic: 'fractions', kind });
       if (kind === 'compareFractions') {
-        const pairs = [[1, 2], [2, 3], [3, 4], [3, 8], [5, 8], [7, 10], [4, 5]];
-        const [a, b] = choose(pairs), [c, d] = choose(pairs);
-        return Object.assign(makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, Math.sign(a * d - c * b)), { topic: 'fractions', kind });
+        return Object.assign(makeGrade5FractionCompare(), { topic: 'fractions', kind });
       }
       // The unlike denominators are compatible (one divides the other), and results stay below one.
       for (let tries = 0; tries < 200; tries++) {
@@ -772,9 +770,10 @@
     return Object.assign(makeDecimalQuestion(`${a} ${kind === 'add' ? '+' : '−'} ${b} = ?`, answer, 1), { topic: 'decimals', kind });
   }
 
-  function makeGrade5NumbersQuestion() {
-    const kind = weightedChoose([['round', 14], ['estimate', 12], ['factors', 12], ['multiple', 10], ['divisible', 14], ['orderOps', 22], ['missingFactor', 16]]);
+  function makeGrade5NumbersQuestion(withCompare = true) {   // Grade 6 reuses this without the Grade 5 comparisons
+    const kind = weightedChoose([['round', 14], ['estimate', 12], ['factors', 12], ['multiple', 10], ['divisible', 14], ['orderOps', 22], ['missingFactor', 16], ...(withCompare ? [['compare', 16]] : [])]);
     const mark = q => Object.assign(q, { topic: 'numbers', kind });
+    if (kind === 'compare') return mark(makeGrade5NumberCompare());
     if (kind === 'round') {
       const step = choose([10, 100, 1000]), value = intBetween(1000, 9999), rounded = Math.round(value / step) * step;
       return mark(makeNumericQuestion(`${value} rounded to the nearest ${step} = ?`, rounded, { extras: [rounded - step, rounded + step] }));
@@ -813,8 +812,7 @@
       return Object.assign(makeNumericQuestion(`0.${String(value).padStart(3, '0')} = ?/1000`, value, { extras: [value - 1, value + 1, Math.floor(value / 10)] }), { topic: 'decimals', kind });
     }
     if (kind === 'compare') {
-      const pairs = [[0.7, 0.65], [0.4, 0.35], [0.25, 0.5], [0.8, 0.75], [0.6, 0.6], [1.25, 1.205], [0.375, 0.4]], [a, b] = choose(pairs);
-      return Object.assign(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)), { topic: 'decimals', kind });
+      return Object.assign(makeGrade5DecimalCompare(), { topic: 'decimals', kind });
     }
     if (kind === 'order') {
       const sorted = [0.35, 0.4, 0.52], values = shuffledCopy(sorted), answer = sorted.join(', '), wrong = [`${sorted[2]}, ${sorted[1]}, ${sorted[0]}`, `${sorted[1]}, ${sorted[2]}, ${sorted[0]}`, `${sorted[2]}, ${sorted[0]}, ${sorted[1]}`];
@@ -927,7 +925,7 @@
       const [a, b] = choose([[-5, 2], [-3, 8], [-7, -2], [4, -6]]);
       return Object.assign(makeCompareQuestion(`Compare: ${a < 0 ? `−${Math.abs(a)}` : a} ? ${b < 0 ? `−${Math.abs(b)}` : b}`, Math.sign(a - b)), { topic: 'numbers', kind });
     }
-    const q = makeGrade5NumbersQuestion();
+    const q = makeGrade5NumbersQuestion(false);
     return Object.assign(q, { topic: 'numbers' });
   }
 
@@ -2366,6 +2364,94 @@
   }
 
   // ---------- Grades 5-6: compare ONE decimal with ONE fraction (the only number comparison above Age 6) ----------
+  // ---------- Grade 5 comparisons (generated, exact integer maths) ----------
+  // Decimals are held as whole thousandths so every <, = or > is exact.
+  const thousandthsText = (v, places) => (v / 1000).toFixed(places);
+  const decimalPlaces = (v) => v % 100 === 0 ? 1 : v % 10 === 0 ? 2 : 3;   // fewest places that show v exactly (v is not a whole number)
+
+  // Decimal vs decimal: tenths, hundredths and thousandths; equal values use different numbers of places (0.5 ? 0.50).
+  function makeGrade5DecimalCompare() {
+    const unit = (p) => 10 ** (3 - p), whole = choose([0, 0, 0, 1, 2]) * 1000;
+    for (let tries = 0; tries < 500; tries++) {
+      const want = choose([-1, 0, 1]);
+      if (want === 0) {
+        const p = choose([1, 2]), q = intBetween(p + 1, 3), v = unit(p) * intBetween(1, 10 ** p - 1);
+        if (p === 2 && v % 100 === 0) continue;
+        const [x, y] = Math.random() < 0.5 ? [p, q] : [q, p];
+        return makeCompareQuestion(`Compare: ${thousandthsText(whole + v, x)} ? ${thousandthsText(whole + v, y)}`, 0);
+      }
+      const pa = choose([1, 2, 3]), pb = Math.random() < 0.25 ? pa : choose([1, 2, 3]);
+      const a = unit(pa) * intBetween(1, 10 ** pa - 1), b = unit(pb) * intBetween(1, 10 ** pb - 1);
+      if (sign(a - b) !== want || Math.abs(a - b) > 300) continue;
+      if ((pa > 1 && a % unit(pa - 1) === 0) || (pb > 1 && b % unit(pb - 1) === 0)) continue;   // no trailing zeros on unequal values
+      return makeCompareQuestion(`Compare: ${thousandthsText(whole + a, pa)} ? ${thousandthsText(whole + b, pb)}`, want);
+    }
+    return makeCompareQuestion('Compare: 0.375 ? 0.4', -1);
+  }
+
+  // Fraction vs decimal: denominators with exact decimal values; the decimal is near, equal to (maybe with a trailing zero) or away from the fraction.
+  function makeGrade5FractionDecimalCompare() {
+    for (let tries = 0; tries < 500; tries++) {
+      const d = choose([2, 4, 5, 8, 10, 20, 25]), n = intBetween(1, d - 1), v = 1000 * n / d, want = choose([-1, 0, 1]);
+      let decimal;
+      if (want === 0) { const p = decimalPlaces(v); decimal = thousandthsText(v, p + (p < 3 && Math.random() < 0.4 ? 1 : 0)); }
+      else { const w = v + want * choose([5, 10, 20, 25, 50, 100]); if (w < 1 || w > 999) continue; decimal = thousandthsText(w, decimalPlaces(w)); }
+      const fraction = `${n}/${d}`, flip = Math.random() < 0.5;
+      return makeCompareQuestion(flip ? `Compare: ${fraction} ? ${decimal}` : `Compare: ${decimal} ? ${fraction}`, flip ? -want : want);
+    }
+    return makeCompareQuestion('Compare: 1/2 ? 0.50', 0);
+  }
+
+  // Fraction vs fraction: same denominator, same numerator, related denominators, or equivalent fractions.
+  function makeGrade5FractionCompare() {
+    const mode = weightedChoose([['sameDen', 20], ['sameNum', 15], ['related', 35], ['equivalent', 30]]);
+    let a, b;
+    if (mode === 'sameDen') {
+      const d = choose([4, 5, 6, 8, 10, 12]), x = intBetween(1, d - 1); let y;
+      do { y = intBetween(1, d - 1); } while (y === x);
+      a = [x, d]; b = [y, d];
+    } else if (mode === 'sameNum') {
+      const x = choose([1, 2, 3]), d1 = intBetween(x + 1, 12); let d2;
+      do { d2 = intBetween(x + 1, 12); } while (d2 === d1);
+      a = [x, d1]; b = [x, d2];
+    } else if (mode === 'related') {
+      const d1 = choose([2, 3, 4, 5]), k = intBetween(2, 4);
+      a = [intBetween(1, d1 - 1), d1]; b = [intBetween(1, d1 * k - 1), d1 * k];
+    } else {
+      const [x, d] = choose([[1, 2], [1, 3], [2, 3], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5]]), k = intBetween(2, 4);
+      a = [x, d]; b = [x * k, d * k];
+    }
+    if (Math.random() < 0.5) [a, b] = [b, a];
+    return makeCompareQuestion(`Compare: ${a[0]}/${a[1]} ? ${b[0]}/${b[1]}`, sign(a[0] * b[1] - b[0] * a[1]));
+  }
+
+  // Whole numbers and arithmetic expressions (+, −, ×, decimal × whole); both sides are built from a target value so equal values appear in different forms.
+  function makeGrade5NumberCompare() {
+    if (Math.random() < 0.15) {
+      const a = intBetween(11000, 98999), b = Math.random() < 0.7 ? a + choose([-1000, -100, -10, 10, 100, 1000]) : intBetween(11000, 98999);
+      return makeCompareQuestion(`Compare: ${a} ? ${b}`, sign(a - b));
+    }
+    const side = {
+      add: (T) => { const x = 5 * intBetween(Math.ceil(T / 20), Math.floor((T - 25) / 5)); return [`${x} + ${T - x}`, T]; },
+      sub: (T) => { const y = 5 * intBetween(10, 80); return [`${T + y} − ${y}`, T]; },
+      mul: (T) => { const fs = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25].filter(f => T % f === 0 && T / f >= 3); if (!fs.length) return null; const f = choose(fs); return [`${f} × ${T / f}`, T]; },
+      dec: (T) => { const ds = [20, 25, 40, 50, 60, 75, 80, 150, 250].filter(D => (T * 100) % (D * 10) === 0 && T * 100 / D >= 20 && T * 100 / D <= 1000); if (!ds.length) return null; const D = choose(ds); return [`${D / 100} × ${T * 100 / D}`, T]; },
+      plain: (T) => [String(T), T]
+    };
+    const build = (T, skip) => {
+      const options = [['add', 28], ['sub', 22], ['mul', 22], ['dec', 28], ['plain', 8]].filter(([kind]) => kind !== skip);
+      while (options.length) {
+        const kind = weightedChoose(options), result = side[kind](T);
+        if (result) return [...result, kind];
+        options.splice(options.findIndex(([k]) => k === kind), 1);
+      }
+      return side.add(T).concat('add');
+    };
+    const T = 5 * intBetween(30, 200), equal = Math.random() < 0.3, T2 = equal ? T : T + choose([-1, 1]) * choose([5, 10, 20, 25, 50, 100]);
+    const left = build(T), right = build(T2, left[2]);
+    return makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, sign(left[1] - right[1]));
+  }
+
   function makeDecimalFractionCompare(grade) {
     const dens = grade === 5 ? [2, 3, 4, 5, 8, 10] : [2, 3, 4, 5, 6, 8, 10, 20, 25];
     const offsets = grade === 5 ? [5, 10, 15, 20] : [1, 2, 5, 10];   // hundredths away from the fraction's value
