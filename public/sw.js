@@ -6,7 +6,7 @@
 
 // Bump VERSION whenever the FILES list below changes (new, renamed or removed files).
 // Edited files do not need a bump: they are refreshed in the cache every time they are fetched.
-const VERSION = '2026-11-27.1';
+const VERSION = '2026-11-27.2';
 const CACHE = `mathquiz-${VERSION}`;
 const FILES = [
   './', 'index.html', 'style.css', 'questions.js', 'trophies.js', 'parent.js', 'report.js', 'store.js', 'audio.js', 'menus.js', 'playzone.js', 'bank-adjust.js', 'pz-designer.js', 'pz-reaction.js', 'pz-balloon.js', 'game.js', 'pwa.js',

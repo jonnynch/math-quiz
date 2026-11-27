@@ -739,6 +739,18 @@ for (const g of [5, 6]) {
         compares++;
         continue;
       }
+      if (g === 6 && ((q.topic === 'numbers' && q.kind === 'compareExpr') || (q.topic === 'percentages' && q.kind === 'compare'))) {   // detailed checks: grade6-compare.check.js
+        const ev = x => { let p;
+          if ((p = x.match(/^(\d+(?:\.\d+)?)%$/))) return Number(p[1]) / 100;
+          if ((p = x.match(/^(\d+)\/(\d+)$/))) return p[1] / p[2];
+          if ((p = x.match(/^(\d+(?:\.\d+)?)$/))) return Number(p[1]);
+          if ((p = x.match(/^(−?\d+)(?: ([+−×]) (\d+))?$/))) { const a = Number(p[1].replace('−', '-')); return !p[2] ? a : p[2] === '+' ? a + Number(p[3]) : p[2] === '−' ? a - Number(p[3]) : a * Number(p[3]); }
+          return NaN; };
+        const sd = q.question.match(/^Compare: (.+) \? (.+)$/), v = sd && [ev(sd[1]), ev(sd[2])].map(x => Math.round(x * 1e9));
+        if (!v || !v.every(Number.isFinite) || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(v[0], v[1])) fail(level + '/' + t + ': Grade 6 comparison', q); else seen[ans(q)]++;
+        compares++;
+        continue;
+      }
       const m = q.question.match(/^Compare: (\S+) \? (\S+)$/);
       if (!m) { if (q.answers.includes(LESS)) fail(level + '/' + t + ': comparison answers on a non-comparison', q); continue; }
       compares++;

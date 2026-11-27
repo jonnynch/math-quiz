@@ -360,7 +360,7 @@
     }
     // Grade 6
     const kind = weightedChoose([['mulFractions', 12], ['divWhole', 10], ['multiplyWhole', 14], ['addUnlike', 14], ['subtractUnlike', 14], ['simplify', 12], ['compareFractions', 12], ['compareDecimalFraction', 12], ['howMany', 10]]);
-    if (kind === 'compareDecimalFraction') return Object.assign(makeDecimalFractionCompare(6), { topic: 'fractions', kind });
+    if (kind === 'compareDecimalFraction') return Object.assign(makeGrade5FractionDecimalCompare(), { topic: 'fractions', kind });
     if (kind === 'mulFractions') {
       const b = intBetween(2, 9), d = intBetween(2, 9);
       const a = intBetween(1, b - 1), c = intBetween(1, d - 1);
@@ -379,9 +379,7 @@
       return Object.assign(makeFractionQuestion(`${n}/${d} = ? (simplest form)`, [n, d]), { topic: 'fractions', kind });
     }
     if (kind === 'compareFractions') {
-      const pairs = [[1, 2], [2, 3], [3, 4], [3, 8], [5, 8], [7, 10], [4, 5], [5, 6]];
-      const [a, b] = choose(pairs), [c, d] = choose(pairs);
-      return Object.assign(makeCompareQuestion(`Compare: ${a}/${b} ? ${c}/${d}`, Math.sign(a * d - c * b)), { topic: 'fractions', kind });
+      return Object.assign(makeGrade6FractionCompare(), { topic: 'fractions', kind });
     }
     if (kind === 'howMany') {
       const d = intBetween(2, 8), w = intBetween(2, 9);
@@ -912,7 +910,8 @@
   }
 
   function makeGrade6NumbersQuestion() {
-    const kind = weightedChoose([['negative', 28], ['numberLine', 14], ['round', 8], ['estimate', 8], ['factors', 8], ['multiple', 8], ['divisible', 8], ['orderOps', 10], ['missingFactor', 8]]);
+    const kind = weightedChoose([['negative', 28], ['numberLine', 14], ['round', 8], ['estimate', 8], ['factors', 8], ['multiple', 8], ['divisible', 8], ['orderOps', 10], ['missingFactor', 8], ['compareExpr', 18]]);
+    if (kind === 'compareExpr') return Object.assign(makeGrade6ExpressionCompare(), { topic: 'numbers', kind });
     if (kind === 'negative') {
       if (Math.random() < 0.5) {
         const a = intBetween(1, 9), b = intBetween(5, 15);
@@ -922,8 +921,7 @@
       return Object.assign(makeSignedNumericQuestion(`${a} − ${b} = ?`, a - b), { topic: 'numbers', kind });
     }
     if (kind === 'numberLine') {
-      const [a, b] = choose([[-5, 2], [-3, 8], [-7, -2], [4, -6]]);
-      return Object.assign(makeCompareQuestion(`Compare: ${a < 0 ? `−${Math.abs(a)}` : a} ? ${b < 0 ? `−${Math.abs(b)}` : b}`, Math.sign(a - b)), { topic: 'numbers', kind });
+      return Object.assign(makeGrade6IntegerCompare(), { topic: 'numbers', kind });
     }
     const q = makeGrade5NumbersQuestion(false);
     return Object.assign(q, { topic: 'numbers' });
@@ -934,11 +932,13 @@
       const [decimal, n, d] = choose([[0.375, 3, 8], [0.125, 1, 8], [0.625, 5, 8], [0.2, 1, 5], [0.75, 3, 4]]);
       return Object.assign(makeFractionQuestion(`${decimal} = ? (simplest fraction)`, [n, d]), { topic: 'decimals', kind: 'decimalFraction' });
     }
+    if (Math.random() < 0.15) return Object.assign(makeGrade5DecimalCompare(9), { topic: 'decimals', kind: 'compare' });
     return makeGrade5DecimalsQuestion();
   }
 
   function makeGrade6PercentQuestion() {
-    const kind = weightedChoose([['increase', 16], ['decrease', 16], ['ofAmount', 20], ['fractionToPercent', 16], ['decimalToPercent', 16], ['complement', 16]]);
+    const kind = weightedChoose([['increase', 16], ['decrease', 16], ['ofAmount', 20], ['fractionToPercent', 16], ['decimalToPercent', 16], ['complement', 16], ['compare', 16]]);
+    if (kind === 'compare') return Object.assign(makeGrade6PercentCompare(), { topic: 'percentages', kind });
     if (kind === 'increase' || kind === 'decrease') {
       const base = choose([40, 60, 80, 100, 120, 160]), pct = choose([10, 20, 25, 50]), change = base * pct / 100, answer = kind === 'increase' ? base + change : base - change;
       return Object.assign(makeNumericQuestion(`${kind === 'increase' ? 'Increase' : 'Decrease'} ${base} by ${pct}%.`, answer, { extras: [base, change, base + (kind === 'increase' ? 1 : -1)] }), { topic: 'percentages', kind });
@@ -2370,8 +2370,8 @@
   const decimalPlaces = (v) => v % 100 === 0 ? 1 : v % 10 === 0 ? 2 : 3;   // fewest places that show v exactly (v is not a whole number)
 
   // Decimal vs decimal: tenths, hundredths and thousandths; equal values use different numbers of places (0.5 ? 0.50).
-  function makeGrade5DecimalCompare() {
-    const unit = (p) => 10 ** (3 - p), whole = choose([0, 0, 0, 1, 2]) * 1000;
+  function makeGrade5DecimalCompare(maxWhole) {   // Grade 6 passes a larger maxWhole
+    const unit = (p) => 10 ** (3 - p), whole = (maxWhole === undefined ? choose([0, 0, 0, 1, 2]) : intBetween(0, maxWhole)) * 1000;
     for (let tries = 0; tries < 500; tries++) {
       const want = choose([-1, 0, 1]);
       if (want === 0) {
@@ -2452,19 +2452,79 @@
     return makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, sign(left[1] - right[1]));
   }
 
-  function makeDecimalFractionCompare(grade) {
-    const dens = grade === 5 ? [2, 3, 4, 5, 8, 10] : [2, 3, 4, 5, 6, 8, 10, 20, 25];
-    const offsets = grade === 5 ? [5, 10, 15, 20] : [1, 2, 5, 10];   // hundredths away from the fraction's value
+  // ---------- Grade 6 comparisons (generated, exact integer maths) ----------
+  const signedText = (n) => n < 0 ? `−${-n}` : String(n);
+
+  // Integers, mostly negative on both sides: the negative closer to zero is greater (−4 ? −7).
+  function makeGrade6IntegerCompare() {
+    const mode = weightedChoose([['bothNegative', 40], ['mixed', 30], ['bothPositive', 10], ['opposites', 20]]);
+    let a, b;
+    if (mode === 'opposites') { b = intBetween(1, 15); a = -b; }
+    else if (mode === 'mixed') { a = -intBetween(1, 15); b = intBetween(0, 15); }
+    else { const sg = mode === 'bothNegative' ? -1 : 1; a = sg * intBetween(1, 20); do { b = sg * intBetween(1, 20); } while (b === a); }
+    if (Math.random() < 0.5) [a, b] = [b, a];
+    return makeCompareQuestion(`Compare: ${signedText(a)} ? ${signedText(b)}`, sign(a - b));
+  }
+
+  // Expressions with negative numbers (−3 + 8 ? 2 × 3), both sides built from a target value so equal values look different.
+  function makeGrade6ExpressionCompare() {
+    const side = {
+      negAdd: (T) => { const lo = Math.max(1, 1 - T), hi = Math.min(12, 20 - T); if (lo > hi) return null; const a = intBetween(lo, hi); return [`−${a} + ${T + a}`, T]; },
+      sub: (T) => { const lo = Math.max(1, T + 1), hi = Math.min(15, 20 + T); if (lo > hi) return null; const x = intBetween(lo, hi); return [`${x} − ${x - T}`, T]; },
+      add: (T) => T < 2 ? null : (x => [`${x} + ${T - x}`, T])(intBetween(1, T - 1)),
+      mul: (T) => { const fs = [2, 3, 4, 5, 6, 7, 8, 9].filter(f => T % f === 0 && T / f >= 2 && T / f <= 9); if (!fs.length) return null; const f = choose(fs); return [`${f} × ${T / f}`, T]; },
+      plain: (T) => [signedText(T), T]
+    };
+    const build = (T, skip) => {
+      const options = [['negAdd', 30], ['sub', 26], ['add', 14], ['mul', 14], ['plain', 10]].filter(([kind]) => kind !== skip);
+      while (options.length) {
+        const kind = weightedChoose(options), result = side[kind](T);
+        if (result) return [...result, kind];
+        options.splice(options.findIndex(([k]) => k === kind), 1);
+      }
+      return side.plain(T).concat('plain');
+    };
+    const equal = Math.random() < 0.25, T = Math.random() < 0.55 ? -intBetween(1, 12) : intBetween(-4, 15);
+    let T2 = T;
+    if (!equal) { do { T2 = T + choose([-1, 1]) * intBetween(1, 6); } while (T2 < -12 || T2 > 18); }
+    const left = build(T), right = build(T2, left[2]);
+    return makeCompareQuestion(`Compare: ${left[0]} ? ${right[0]}`, sign(left[1] - right[1]));
+  }
+
+  // Fractions: the Grade 5 modes, plus improper fractions with related denominators.
+  function makeGrade6FractionCompare() {
+    if (Math.random() >= 0.3) return makeGrade5FractionCompare();
+    let a, b;
+    do {
+      const d1 = choose([2, 3, 4, 5, 6]), d2 = d1 * intBetween(1, 2);
+      a = [intBetween(d1 + 1, 2 * d1 - 1), d1]; b = [intBetween(d2 + 1, 2 * d2 - 1), d2];
+    } while (a[0] === b[0] && a[1] === b[1]);
+    if (Math.random() < 0.5) [a, b] = [b, a];
+    return makeCompareQuestion(`Compare: ${a[0]}/${a[1]} ? ${b[0]}/${b[1]}`, sign(a[0] * b[1] - b[0] * a[1]));
+  }
+
+  // Percentage vs fraction or decimal, equal values in different forms (25% ? 1/4, 37.5% ? 0.375). Values are whole thousandths of 1.
+  function makeGrade6PercentCompare() {
     for (let tries = 0; tries < 500; tries++) {
-      const want = choose([-1, 0, 1]), d = choose(dens), n = intBetween(1, d - 1);
-      let h = Math.round(100 * n / d);
-      if (want === 0 && (100 * n) % d !== 0) continue;   // equal only when the fraction is an exact 1-2 place decimal
-      if (want !== 0) h += want * choose(offsets);
-      if (h < 1 || h > 99 || sign(h * d - 100 * n) !== want) continue;
-      const decimal = String(h / 100), fraction = `${n}/${d}`, flip = Math.random() < 0.3;
-      return makeCompareQuestion(flip ? `Compare: ${fraction} ? ${decimal}` : `Compare: ${decimal} ? ${fraction}`, flip ? -want : want);
+      const useFraction = Math.random() < 0.5, want = choose([-1, 0, 1]);
+      let percent, other;
+      if (useFraction) {
+        const d = choose([2, 4, 5, 8, 10, 20, 25]), n = intBetween(1, d - 1), v = 1000 * n / d;
+        percent = want === 0 ? v : v + want * choose([50, 100, 150, 200]);
+        other = `${n}/${d}`;
+      } else {
+        const v = Math.random() < 0.8 ? 50 * intBetween(1, 19) : choose([125, 375, 625, 875]);
+        percent = v;
+        const dec = want === 0 ? v : v - want * choose([10, 50, 100, 150]);   // want = percentage relative to the decimal
+        if (dec < 1 || dec > 999) continue;
+        const p = decimalPlaces(dec);
+        other = thousandthsText(dec, want === 0 && p < 3 && Math.random() < 0.4 ? p + 1 : p);
+      }
+      if (percent < 10 || percent > 990) continue;
+      const left = `${percent / 10}%`, flip = Math.random() < 0.35;
+      return makeCompareQuestion(flip ? `Compare: ${other} ? ${left}` : `Compare: ${left} ? ${other}`, flip ? -want : want);
     }
-    return makeCompareQuestion('Compare: 0.5 ? 1/2', 0);
+    return makeCompareQuestion('Compare: 25% ? 1/4', 0);
   }
 
   // ---------- Grade 1-6 arithmetic ----------
