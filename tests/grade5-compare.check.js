@@ -102,6 +102,7 @@ function sides(label, q) { const m = q.question.match(/^Compare: (.+) \? (.+)$/)
     const s = sides(label, q); if (!s) continue;
     const e = s.map(evalSide);
     if (e.some(x => !x) || q.answers.join('|') !== ALL) { fail(label + ': unreadable side', q); continue; }
+    if (e.every(x => x.type === 'whole')) fail(label + ': direct number comparison', q);
     if (e.some(x => x.v < 0 || x.v % 1000 !== 0 || x.v > 99999000)) fail(label + ': negative, fractional or out-of-range value', q);
     if (ans(q) !== rel(e[0].v, e[1].v)) fail(label + ': wrong answer', q);
     seen[ans(q)]++; uniq.add(q.question); e.forEach(x => types[x.type]++);
