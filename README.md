@@ -1,36 +1,29 @@
 # Math Quiz Game
 
-A local-network, touch-friendly mathematics quiz for one shared touch screen (a tablet, phone or touch laptop). Static HTML/CSS/JavaScript served by Nginx in Docker; no database or internet connection is required during play.
+A touch-friendly mathematics quiz for one shared touch screen (a tablet, phone or touch laptop). Static HTML/CSS/JavaScript hosted on Cloudflare Workers static assets; no database or backend, and no internet connection is needed during play once the app has loaded.
 
-## Requirements
-- Docker Desktop (Windows/macOS/Linux) with Docker Compose
-- Laptop and tablet/phone connected to the same home Wi-Fi/LAN
+## Hosting and deployment
+The `public/` folder is served as static assets by Cloudflare Workers. Cloudflare configuration is in `wrangler.jsonc` (Worker name, asset directory and preview URLs); do not duplicate it elsewhere.
 
-## Start
-1. Extract this folder on your laptop.
-2. Open a terminal/PowerShell in this folder.
-3. Run:
+Cloudflare is connected to the GitHub repository and handles deployment:
+- **Feature branch** → Cloudflare preview deployment.
+- **Pull request** → preview deployment for testing and review.
+- **Merge into `main`** → production deployment.
 
-   ```sh
-   docker compose up -d
-   ```
+GitHub Actions (`.github/workflows/ci.yml`) only runs the automated tests on every push and pull request; it does not deploy.
 
-4. Find your laptop's LAN IPv4 address:
-   - Windows: run `ipconfig` and find the IPv4 address for the active Wi-Fi/Ethernet adapter.
-   - macOS/Linux: use your network settings or `ip addr`.
-5. On the tablet or phone, open a browser and visit `http://LAPTOP-IP:8080`, e.g. `http://192.168.1.100:8080`.
+## Local development
+Requires Node.js 22.
 
-## Stop / restart
-- Stop: `docker compose down`
-- Start again: `docker compose up -d`
-- View logs: `docker compose logs`
+```sh
+npm ci
+npx wrangler dev
+```
 
-## Firewall and network troubleshooting
-- Allow Docker Desktop / inbound TCP port 8080 on your laptop's private/home network.
-- Ensure the tablet/phone and laptop are on the same network, not a guest Wi-Fi network with client isolation.
-- Do not configure router port forwarding; the game is intended for home-network use only.
-- If the laptop sleeps or shuts down, the game will be unavailable.
-- To make the address stable, reserve the laptop's IP in your router's DHCP settings.
+Open the local URL that Wrangler prints (on a phone or tablet, use a device on the same network if Wrangler exposes the address).
+
+## Tests
+Run `npm test`. Tests cover question validation, UI flow, offline/PWA and layout checks in headless Chromium. `npm test` is guarded by `scripts/guard-full-test.js`: it refuses to run locally unless `ALLOW_FULL_TESTS=1` is set, and GitHub Actions normally runs it.
 
 ## Gameplay
 - Select Solo or 1 vs 1.
@@ -77,7 +70,7 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 - **Backup and restore** (in the Profiles window): export to a file or copy the backup text, import by choosing a file or pasting text (check first, then add or replace), and undo the last import. Use this to move profiles to another device, browser or web address. Two players cannot choose the same profile.
 
 ## Install and offline play
-Over **https://** (or `localhost`) the game installs like an app and keeps working offline after the first load: on Android/desktop Chrome use Settings → Install (or the browser's install option); on iPhone/iPad use Share → Add to Home Screen. New versions are picked up automatically when online, and a "new version is ready" notice offers a reload. On a plain `http://` home-network address (e.g. the Docker setup) the game works normally but cannot be installed or cached for offline use. An installed iPhone/iPad app has its own storage, separate from Safari, so move profiles with Backup and restore. Developers: when files are added, renamed or removed, update `FILES` and bump `VERSION` in `public/sw.js`.
+Over **https://** (or `localhost`) the game installs like an app and keeps working offline after the first load: on Android/desktop Chrome use Settings → Install (or the browser's install option); on iPhone/iPad use Share → Add to Home Screen. New versions are picked up automatically when online, and a "new version is ready" notice offers a reload. The deployed Cloudflare site is served over HTTPS, so it can be installed. On a plain `http://` address (other than `localhost`) the game works normally but cannot be installed or cached for offline use. An installed iPhone/iPad app has its own storage, separate from Safari, so move profiles with Backup and restore. Developers: when files are added, renamed or removed, update `FILES` and bump `VERSION` in `public/sw.js`.
 
 ## Settings
 Open ⚙️ Settings for:
@@ -97,4 +90,4 @@ All questions are generated automatically in the browser. There are no question 
 `public/questions.js` (question generators), `public/store.js` (saved profiles and settings), `public/menus.js` (Settings and Profiles windows), `public/game.js` (game flow, rewards), `public/style.css`, `public/index.html`.
 
 ## For developers and AI assistants
-Start with `AGENTS.md` (project overview, rules that must not be broken, file map). Details are in `docs/` (architecture, question rules, UI/layout, testing, owner requirements). Tests: `npm install` then `npm test` (GitHub Actions runs the same on every push and pull request) (question validation, UI flow, and layout checks in headless Chromium).
+Start with `AGENTS.md` (project overview, rules that must not be broken, file map). Details are in `docs/` (architecture, question rules, UI/layout, testing, owner requirements). Tests: `npm ci` then `npm test` (GitHub Actions runs the same on every push and pull request). Deployment is handled by Cloudflare (see `wrangler.jsonc`).
