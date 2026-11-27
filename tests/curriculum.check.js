@@ -662,7 +662,7 @@ for (const g of [1, 2, 3, 4]) {
     }
   }
 }
-// Grade 3 number comparisons: ~20% direct number-vs-number, ~80% +/− arithmetic expressions, all < / = / > supported.
+// Grade 3 number comparisons: no direct number-vs-number; only +/− arithmetic expressions, all < / = / > supported.
 {
   const kinds = { direct: 0, addAdd: 0, subSub: 0, addSub: 0 }, outcomes = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
   let small = 0, large = 0, total = 0;
@@ -684,7 +684,7 @@ for (const g of [1, 2, 3, 4]) {
     else kinds.addSub++;
     if (L.op !== 'n') { if (L.val <= 40) small++; if (L.val >= 100) large++; }
   }
-  if (total < 200 || kinds.direct < total * 0.1 || kinds.direct > total * 0.35 || !kinds.addAdd || !kinds.subSub || !kinds.addSub) fail('grade3/compare: distribution out of range', { total, kinds });
+  if (total < 200 || kinds.direct !== 0 || !kinds.addAdd || !kinds.subSub || !kinds.addSub) fail('grade3/compare: distribution out of range', { total, kinds });
   if (!outcomes[LESS] || !outcomes[EQUAL] || !outcomes[MORE]) fail('grade3/compare: missing <, = or > outcome', outcomes);
   if (!small || !large) fail('grade3/compare: missing progressive number range', { small, large });
 }
@@ -696,10 +696,12 @@ for (const g of [1, 2, 3, 4]) {
     const q = Q.generateQuestion('grade4', 'numbers');
     if (q.kind !== 'compare') continue;
     numOut[ans(q)]++;
-    if (/^Compare: \d+ \? \d+$/.test(q.question)) numKinds.whole++;
-    else numKinds.expr++;
+    const m = q.question.match(/^Compare: (.+) \? (.+)$/), ev = t => { const p = t.match(/^(\d+) ([+−]) (\d+)$/); return p ? (p[2] === '+' ? +p[1] + +p[3] : +p[1] - +p[3]) : NaN; };
+    const l = m ? ev(m[1]) : NaN, r = m ? ev(m[2]) : NaN;
+    if (!Number.isFinite(l) || !Number.isFinite(r) || ans(q) !== rel(l, r)) { fail('grade4/numbers/compare: not two expressions or wrong answer', q); continue; }
+    numKinds.expr++;
   }
-  if (!numKinds.whole || !numKinds.expr || !numOut[LESS] || !numOut[EQUAL] || !numOut[MORE]) fail('grade4/numbers/compare: missing types or outcomes', { numKinds, numOut });
+  if (numKinds.whole !== 0 || !numKinds.expr || !numOut[LESS] || !numOut[EQUAL] || !numOut[MORE]) fail('grade4/numbers/compare: missing types or outcomes', { numKinds, numOut });
 
   const decKinds = { diffPlaces: 0, fracDec: 0 }, decOut = { [LESS]: 0, [EQUAL]: 0, [MORE]: 0 };
   const decPairs = new Set();

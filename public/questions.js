@@ -608,10 +608,6 @@
       return mark({ question: `${parts.join(' + ')} = ${n}`, ...numberChoices(answer, answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000, answer < 10 ? 9 : answer < 100 ? 90 : answer < 1000 ? 900 : 9000, [answer + (answer < 10 ? 1 : answer < 100 ? 10 : answer < 1000 ? 100 : 1000)]) });
     }
     if (kind === 'compare') {
-      if (Math.random() < 0.2) {
-        const a = intBetween(100, 9999), b = Math.random() < 0.15 ? a : intBetween(100, 9999);
-        return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
-      }
       const [lo, hi] = choose([[2, 20], [10, 80], [30, 250]]);
       const addSide = (target) => {
         if (target === undefined) { const x = intBetween(lo, hi), y = intBetween(lo, hi); return [`${x} + ${y}`, x + y]; }
@@ -685,10 +681,6 @@
       return mark(makeNumericQuestion(`Estimate ${a} + ${b} by rounding each to the nearest 100.`, answer, { extras: [a + b, Math.round((a + b) / 100) * 100] }));
     }
     if (kind === 'compare') {
-      if (Math.random() < 0.25) {
-        const a = intBetween(1000, 9999), b = Math.random() < 0.2 ? a : (Math.random() < 0.5 ? a + choose([-100, -10, -1, 1, 10, 100]) : intBetween(1000, 9999));
-        return mark(makeCompareQuestion(`Compare: ${a} ? ${b}`, Math.sign(a - b)));
-      }
       const addSide = (target) => {
         if (target === undefined) { const x = intBetween(110, 650), y = intBetween(110, 450); return [`${x} + ${y}`, x + y]; }
         const x = intBetween(Math.floor(target / 4), target - 50);
@@ -2427,10 +2419,6 @@
 
   // Whole numbers and arithmetic expressions (+, −, ×, decimal × whole); both sides are built from a target value so equal values appear in different forms.
   function makeGrade5NumberCompare() {
-    if (Math.random() < 0.15) {
-      const a = intBetween(11000, 98999), b = Math.random() < 0.7 ? a + choose([-1000, -100, -10, 10, 100, 1000]) : intBetween(11000, 98999);
-      return makeCompareQuestion(`Compare: ${a} ? ${b}`, sign(a - b));
-    }
     const side = {
       add: (T) => { const x = 5 * intBetween(Math.ceil(T / 20), Math.floor((T - 25) / 5)); return [`${x} + ${T - x}`, T]; },
       sub: (T) => { const y = 5 * intBetween(10, 80); return [`${T + y} − ${y}`, T]; },
