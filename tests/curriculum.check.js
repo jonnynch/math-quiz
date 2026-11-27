@@ -732,6 +732,13 @@ for (const g of [5, 6]) {
     for (let i = 0; i < 6000; i++) {
       const q = Q.generateQuestion(level, t);
       if (!common(level + '/' + t, q)) continue;
+      if (g === 5 && q.topic === 'numbers' && q.kind === 'compare') {   // whole numbers / expressions; detailed checks: grade5-compare.check.js
+        const ev = x => { const p = x.match(/^(\d+(?:\.\d+)?)(?: ([+−×]) (\d+(?:\.\d+)?))?$/); if (!p) return NaN; const a = Number(p[1]); return !p[2] ? a : Math.round((p[2] === '+' ? a + Number(p[3]) : p[2] === '−' ? a - Number(p[3]) : a * Number(p[3])) * 1e6) / 1e6; };
+        const sd = q.question.match(/^Compare: (.+) \? (.+)$/), v = sd && [ev(sd[1]), ev(sd[2])];
+        if (!v || !v.every(Number.isFinite) || q.answers.join('|') !== [LESS, EQUAL, MORE].join('|') || ans(q) !== rel(v[0], v[1])) fail(level + '/' + t + ': number/expression comparison', q); else seen[ans(q)]++;
+        compares++;
+        continue;
+      }
       const m = q.question.match(/^Compare: (\S+) \? (\S+)$/);
       if (!m) { if (q.answers.includes(LESS)) fail(level + '/' + t + ': comparison answers on a non-comparison', q); continue; }
       compares++;
