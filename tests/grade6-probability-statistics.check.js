@@ -71,6 +71,10 @@ function verifyProbability(q) {
   const r = expectedProbability(q.question); if (r.err) return r;
   if (r.expected.num !== undefined && !/^\d+(\.\d{1,2})?$/.test(q.answers[q.correct])) return { err: 'recurring or long decimal answer' };
   const err = checkChoices(q, r.expected); if (err) return { err, family: r.family };
+  if (r.expected.text === undefined) {   // every choice must be a valid probability: 0–1 (0–100 for percents)
+    const limit = r.expected.num !== undefined && /percent$/i.test(r.family) ? 100 : 1;
+    if (q.answers.some(a => !(toNum(a) >= 0 && toNum(a) <= limit))) return { err: 'choice outside 0 to ' + limit, family: r.family };
+  }
   return { family: r.family };
 }
 
@@ -93,6 +97,11 @@ function verifyStatistics(q) {
   if (a.length !== 4 || new Set(a).size !== 4 || !(q.correct >= 0 && q.correct < 4)) return { err: 'need four distinct choices' };
   const hit = a.map((x, i) => i).filter(i => expected.text !== undefined ? a[i] === expected.text : close(Number(a[i]), expected.num));
   if (hit.length !== 1 || hit[0] !== q.correct) return { err: 'expected answer is not the one correct choice' };
+  if (kind === 'mode') {   // "No mode" is the answer exactly when no value repeats, and is otherwise one of the three wrong choices
+    const noModeIdx = a.indexOf('No mode'), noRepeats = new Set(shown).size === n;
+    if (noModeIdx < 0) return { err: 'No mode choice missing' };
+    if (noRepeats !== (noModeIdx === q.correct)) return { err: noRepeats ? 'no-mode dataset: No mode must be correct' : 'repeated dataset: No mode must be incorrect' };
+  }
   if (kind !== 'mode') { const v = a.map(Number); if (v.some(isNaN) || v.some((x, i) => i && x <= v[i - 1])) return { err: 'numeric choices not ascending' }; }
   return { kind, n, sorted: shown.every((v, i) => !i || v >= shown[i - 1]), half: expected.num !== undefined && expected.num % 1 !== 0, noMode: expected.text === 'No mode', distinct: new Set(shown).size === n };
 }

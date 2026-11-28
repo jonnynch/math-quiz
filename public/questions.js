@@ -1206,9 +1206,26 @@
   const PROB_COLOURS = ['red', 'blue', 'green', 'yellow', 'white', 'black', 'purple', 'orange'];
   const isPrime = (v) => v > 1 && Array.from({ length: v - 2 }, (_, i) => i + 2).every(d => v % d !== 0);
   const probMeta = (kind) => ({ topic: 'probability', kind });
-  // Fraction choices use the shared helper. Only proper fractions are offered as typical mistakes.
-  const probFraction = (kind, text, [n, d], mistakes = []) =>
-    Object.assign(makeFractionQuestion(text, [n, d], mistakes.filter(([a, b]) => a > 0 && a < b)), probMeta(kind));
+  // Fraction choices use the shared helper. Only proper fractions are offered as typical mistakes, and the
+  // choices are redrawn until every one is a valid probability (no fraction above 1).
+  const probFraction = (kind, text, [n, d], mistakes = []) => {
+    let q;
+    for (let i = 0; i < 1000; i++) {
+      q = makeFractionQuestion(text, [n, d], mistakes.filter(([a, b]) => a > 0 && a < b));
+      if (q.keys.every(k => k <= 100)) break;
+    }
+    return Object.assign(q, probMeta(kind));
+  };
+  // Decimal / percent choices within 0–1 (0–100%). `h` is the answer in hundredths (the percent value);
+  // wrong answers come from the shared pickWithMistake helper so the correct position stays random.
+  const probValueQuestion = (text, h, asDecimal, places, mistakes = []) => {
+    const step = asDecimal && places === 1 ? 10 : 5, pool = [];
+    [1, 2, 3, 4].forEach(k => pool.push(h + step * k, h - step * k));
+    pool.push(h + 1, h - 1, h + 10, h - 10);
+    const ok = v => v >= 0 && v <= 100 && v !== h && (!asDecimal || places === 2 || v % 10 === 0);
+    const wrong = pickWithMistake(h, pool.filter(ok), 3, mistakes.filter(ok));
+    return { question: text, answers: [h, ...wrong].map(v => asDecimal ? (v / 100).toFixed(places) : String(v)), correct: 0 };
+  };
   const listText = (parts) => parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
   const probPlaces = (hundredths) => hundredths % 10 === 0 ? 1 : 2;
 
@@ -1267,9 +1284,9 @@
       return probFraction(kind, `P(A) = ${a}/${d}. What is P(not A)?`, [d - a, d], [[a, d]]);
     }
     const h = 5 * intBetween(1, 19);
-    if (kind === 'complementPercent') return Object.assign(makeNumericQuestion(`P(A) = ${h}%. What is P(not A)?`, 100 - h, { extras: [h, 100 - h + 10, 100 - h - 10] }), probMeta(kind));
+    if (kind === 'complementPercent') return Object.assign(probValueQuestion(`P(A) = ${h}%. What is P(not A)?`, 100 - h, false, 0, [h]), probMeta(kind));
     const places = probPlaces(h);
-    return Object.assign(makeDecimalQuestion(`P(A) = ${(h / 100).toFixed(places)}. What is P(not A)?`, (100 - h) / 100, places), probMeta(kind));
+    return Object.assign(probValueQuestion(`P(A) = ${(h / 100).toFixed(places)}. What is P(not A)?`, 100 - h, true, places, [h]), probMeta(kind));
   }
 
   function makeGrade6ExperimentalQuestion() {
@@ -1288,8 +1305,8 @@
     const source = type.startsWith('fraction') ? `${n}/${d}` : type.startsWith('decimal') ? (h / 100).toFixed(places) : `${h}%`;
     const target = type.endsWith('Percent') ? 'a percent' : type.endsWith('Decimal') ? 'a decimal' : 'a fraction in simplest form';
     const text = `P(A) = ${source}. Write P(A) as ${target}.`;
-    if (type.endsWith('Percent')) return Object.assign(makeNumericQuestion(text, h, { extras: [100 - h, Math.floor(h / 10)] }), probMeta('conversion'));
-    if (type.endsWith('Decimal')) return Object.assign(makeDecimalQuestion(text, h / 100, places), probMeta('conversion'));
+    if (type.endsWith('Percent')) return Object.assign(probValueQuestion(text, h, false, 0, [100 - h]), probMeta('conversion'));
+    if (type.endsWith('Decimal')) return Object.assign(probValueQuestion(text, h, true, places, [100 - h]), probMeta('conversion'));
     return probFraction('conversion', text, [h, 100]);
   }
 
