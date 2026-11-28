@@ -1,5 +1,5 @@
 // Grade 5 arithmetic calibration (add / sub / mul / div): operand and answer ranges, exact answers,
-// one correct choice, same-last-digit distractor. Also checks Grade 4 and Grade 6 keep their own ranges.
+// one correct choice, same-last-digit distractor. Also checks Grade 4 keeps its own ranges (Grade 6: grade6-arithmetic.check.js).
 // Every answer is recomputed here from the question text.
 const path = require('path');
 const Q = require(path.join(__dirname, '..', 'public', 'questions.js'));
@@ -94,28 +94,15 @@ for (const [topic, op] of [['mul', '×'], ['div', '÷']]) {
   }
 }
 
-// Grade 4 and Grade 6 arithmetic keep their original ranges.
+// Grade 4 arithmetic keeps its original ranges.
 const g4 = {
   add: s => s.op === '+' && between(s.a, 120, 650) && between(s.b, 100, 300) && s.r <= 950,
   sub: s => s.op === '−' && between(s.a, 300, 999) && between(s.b, 100, 600) && s.r >= 100,
   mul: s => s.op === '×' && between(s.a, 12, 35) && between(s.b, 2, 6),
   div: s => s.op === '÷' && between(s.r, 12, 24) && between(s.b, 2, 9),
 };
-const small = s => (s.op === '+' && s.a < 0 && between(s.a, -9, -1) && between(s.b, 5, 15)) || (s.op === '−' && between(s.a, 2, 8) && between(s.b, 9, 15) && s.r < 0);
-const g6 = {
-  add: s => small(s) || (s.op === '+' && between(s.a, 50, 99) && between(s.b, 10, 40)),
-  sub: s => small(s) || (s.op === '−' && between(s.a, 50, 99) && between(s.b, 10, 40) && s.r >= 10),
-  mul: s => s.op === '×' && between(s.a, 12, 35) && between(s.b, 2, 9),
-  div: s => s.op === '÷' && between(s.r, 12, 24) && between(s.b, 2, 9),
-};
 for (const topic of ['add', 'sub', 'mul', 'div']) {
   check(4, topic, 'grade4/' + topic, g4[topic], false);
-  // Grade 6 has signed questions (negative answers), so its choices are checked separately from check().
-  for (let i = 0; i < N; i++) {
-    const q = Q.generateQuestion('grade6', topic), s = solve(q.question);
-    if (!s || !g6[topic](s)) { fail('grade6/' + topic + ': outside original range', q); continue; }
-    if (q.answers.length !== 4 || new Set(q.answers).size !== 4 || q.answers[q.correct] !== String(s.unknown).replace('-', '−') && q.answers[q.correct] !== String(s.unknown)) fail('grade6/' + topic + ': wrong answer', q);
-  }
 }
 
 console.log(bad ? `FAILED (${bad})` : 'PASS grade5 arithmetic');
