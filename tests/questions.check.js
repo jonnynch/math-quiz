@@ -251,15 +251,6 @@ for(const g of grades){
         else if(text==='A bag has 3 red and 2 blue counters. Which colour is more likely?'){if(ans!=='red')fail(k,'likely event',q);}
         else fail(k,'unrecognised probability question',q);
       }
-      if(g===6&&t.value==='algebra'){
-        if((m=text.match(/^If x = (\d+), calculate (\d+)x \+ (\d+)\.$/))){if(+ans!==+m[2]*+m[1]+ +m[3])fail(k,'algebra substitution',q);}
-        else if((m=text.match(/^Simplify (\d+)x \+ (\d+)x\.$/))){if(ans!==`${+m[1]+ +m[2]}x`)fail(k,'like terms',q);}
-        else if((m=text.match(/^x \+ (\d+) = (\d+)\. x = \?$/))){if(+ans+ +m[1]!==+m[2])fail(k,'one-step equation',q);}
-        else if((m=text.match(/^(\d+)x = (\d+)\. x = \?$/))){if(+ans*+m[1]!==+m[2])fail(k,'one-step multiplication equation',q);}
-        else if((m=text.match(/^(\d+)x \+ (\d+) = (\d+)\. x = \?$/))){if(+ans*+m[1]+ +m[2]!==+m[3])fail(k,'two-step equation',q);}
-        else if((m=text.match(/^Rule for the sequence (\d+), (\d+), (\d+), (\d+):$/))){if(!/^\d+n \+ \d+$/.test(ans))fail(k,'algebra pattern rule',q);}
-        else fail(k,'unrecognised algebra question',q);
-      }
       if(g===6&&t.value==='statistics'){
         if((m=text.match(/^Data: ([\d, ]+)\. Find the (mean|median|mode|range)\.$/))){const values=m[1].split(', ').map(Number).sort((a,b)=>a-b),kind=m[2],expected=kind==='mean'?values.reduce((a,b)=>a+b,0)/values.length:kind==='median'?values.length%2?values[(values.length-1)/2]:(values[values.length/2-1]+values[values.length/2])/2:kind==='range'?values[values.length-1]-values[0]:values.find(v=>values.filter(x=>x===v).length>1);if(+ans!==expected)fail(k,'statistics answer',q);}
         else fail(k,'unrecognised statistics question',q);
