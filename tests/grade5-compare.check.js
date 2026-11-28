@@ -1,4 +1,4 @@
-// Grade 5 comparisons: decimal vs decimal, fraction vs decimal, fraction vs fraction, whole numbers / expressions.
+// Grade 5 comparisons: decimal vs decimal, fraction vs decimal, fraction vs fraction, arithmetic expression vs expression.
 // Every answer is recomputed here with exact integer arithmetic from the question text.
 const path = require('path');
 const Q = require(path.join(__dirname, '..', 'public', 'questions.js'));
@@ -83,10 +83,10 @@ function sides(label, q) { const m = q.question.match(/^Compare: (.+) \? (.+)$/)
   if (uniq.size < 150) fail(label + ': too few distinct questions', uniq.size);
 }
 
-// ---- Whole numbers and arithmetic expressions
+// ---- Arithmetic expressions (both sides must be expressions)
 {
   const label = 'numbers/compare', qs = collect('numbers', 'compare', 12000), seen = outcomes(), uniq = new Set();
-  const types = { whole: 0, add: 0, sub: 0, mul: 0, decMul: 0 };
+  const types = { add: 0, sub: 0, mul: 0, decMul: 0 };
   let equalDifferent = 0;
   // value in thousandths; an expression is `x`, `x + y`, `x − y` or `x × y`
   const evalSide = (t) => {
@@ -102,7 +102,7 @@ function sides(label, q) { const m = q.question.match(/^Compare: (.+) \? (.+)$/)
     const s = sides(label, q); if (!s) continue;
     const e = s.map(evalSide);
     if (e.some(x => !x) || q.answers.join('|') !== ALL) { fail(label + ': unreadable side', q); continue; }
-    if (e.every(x => x.type === 'whole')) fail(label + ': direct number comparison', q);
+    if (e.some(x => x.type === 'whole')) fail(label + ': both sides must be expressions', q);
     if (e.some(x => x.v < 0 || x.v % 1000 !== 0 || x.v > 99999000)) fail(label + ': negative, fractional or out-of-range value', q);
     if (ans(q) !== rel(e[0].v, e[1].v)) fail(label + ': wrong answer', q);
     seen[ans(q)]++; uniq.add(q.question); e.forEach(x => types[x.type]++);
