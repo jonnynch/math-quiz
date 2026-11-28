@@ -1023,28 +1023,132 @@
 
   function makeGrade6AlgebraQuestion() {
     const kind = weightedChoose([['substitute', 22], ['likeTerms', 20], ['oneStepAdd', 14], ['oneStepMultiply', 14], ['twoStep', 18], ['patternRule', 12]]);
+    const done = (q) => Object.assign(q, { topic: 'algebra', kind });
+    const term = (c, v = 'x') => c === 1 ? v : `${c}${v}`;
+    const withConst = (n) => `${n < 0 ? '−' : '+'} ${Math.abs(n)}`;
+    const signedText = (v) => v < 0 ? `−${-v}` : String(v);
+    const equation = (text, x, extras = []) => done(makeNumericQuestion(`${text}. x = ?`, x, { extras }));
+    // Unknown on both sides: (a)x + L = (c)x + R, where (a - c)x = R - L. Sides are sometimes swapped.
+    const bothSides = (a, c, L, R) => {
+      const left = `${term(a)} ${withConst(L)}`, right = `${term(c)} ${withConst(R)}`;
+      return Math.random() < 0.5 ? `${left} = ${right}` : `${right} = ${left}`;
+    };
     if (kind === 'substitute') {
-      const x = intBetween(2, 6), a = choose([2, 3, 4]), b = choose([1, 2, 3]), answer = a * x + b;
-      return Object.assign(makeNumericQuestion(`If x = ${x}, calculate ${a}x + ${b}.`, answer), { topic: 'algebra', kind });
+      const form = weightedChoose([['add', 40], ['sub', 40], ['from', 20]]);
+      let x, a, b, answer, expr;
+      do {
+        x = Math.random() < 0.3 ? -intBetween(1, 6) : intBetween(2, 9);
+        a = intBetween(2, 9);
+        b = form === 'from' ? intBetween(10, 30) : intBetween(1, 9);
+        expr = form === 'add' ? `${a}x + ${b}` : form === 'sub' ? `${a}x − ${b}` : `${b} − ${a}x`;
+        answer = form === 'add' ? a * x + b : form === 'sub' ? a * x - b : b - a * x;
+      } while (answer === 0 || Math.abs(a * x) > 50);
+      const text = `If x = ${signedText(x)}, calculate ${expr}.`;
+      if (x >= 0 && answer > 0) return done(makeNumericQuestion(text, answer, { extras: [a * x, a + x + b, a * x + b, a * x - b] }));
+      const q = makeSignedNumericQuestion(text, answer, [a * x, -a * x, a * x + b, a * x - b, b - a * x, a + x + b], -answer);
+      q.answers = q.keys.map(signedText);
+      return done(q);
     }
     if (kind === 'likeTerms') {
-      const a = intBetween(2, 5), b = intBetween(1, 4);
-      return Object.assign(textChoices(`${a + b}x`, [`${a * b}x`, `${a + b}`, `${a}x + ${b}`, `${a + b + 1}x`]), { question: `Simplify ${a}x + ${b}x.`, topic: 'algebra', kind });
+      const v = choose(['x', 'a', 'n']), form = weightedChoose([['add', 30], ['sub', 35], ['three', 35]]);
+      let expr, res, total;
+      if (form === 'add') {
+        const p = intBetween(2, 9), q = intBetween(2, 9);
+        expr = `${p}${v} + ${q}${v}`; res = p + q; total = p + q;
+      } else if (form === 'sub') {
+        const q = intBetween(2, 6);
+        res = intBetween(2, 6); total = res + q + q;
+        expr = `${res + q}${v} − ${q}${v}`;
+      } else {
+        let p, q, r, s1, s2;
+        do {
+          p = intBetween(2, 9); q = intBetween(2, 9); r = intBetween(2, 9);
+          s1 = choose([1, -1]); s2 = choose([1, -1]);
+          res = p + s1 * q + s2 * r;
+        } while (res < 2 || res > 15 || p + s1 * q < 1);
+        total = p + q + r;
+        expr = `${p}${v} ${s1 < 0 ? '−' : '+'} ${q}${v} ${s2 < 0 ? '−' : '+'} ${r}${v}`;
+      }
+      const coef = (c) => term(c, v);
+      return done(Object.assign(textChoices(coef(res), [coef(res + 1), coef(res - 1), coef(res + 2), coef(total), `${res}`]), { question: `Simplify ${expr}.` }));
     }
     if (kind === 'oneStepAdd') {
-      const x = intBetween(5, 18), n = intBetween(2, 9);
-      return Object.assign(makeNumericQuestion(`x + ${n} = ${x + n}. x = ?`, x), { topic: 'algebra', kind });
+      const form = weightedChoose([['add', 22], ['sub', 22], ['flip', 14], ['both', 42]]);
+      if (form === 'add') {
+        const x = intBetween(5, 18), n = intBetween(2, 12);
+        return equation(`x + ${n} = ${x + n}`, x, [x + n, n]);
+      }
+      if (form === 'sub') {
+        const r = intBetween(2, 12), n = intBetween(2, 9);
+        return equation(`x − ${n} = ${r}`, r + n, [r, n, r - n]);
+      }
+      if (form === 'flip') {
+        const x = intBetween(5, 18), n = intBetween(2, 12);
+        return equation(Math.random() < 0.5 ? `${n} + x = ${x + n}` : `${x + n} = x + ${n}`, x, [x + n, n]);
+      }
+      let x, L, R;
+      do { x = intBetween(2, 12); L = choose([1, -1]) * intBetween(1, 8); R = x + L; } while (R < 1);
+      const q = intBetween(1, 4);
+      return equation(bothSides(q + 1, q, L, R), x, [R, Math.abs(L), R + Math.abs(L)]);
     }
     if (kind === 'oneStepMultiply') {
-      const x = intBetween(3, 12), a = choose([2, 3, 4, 5]);
-      return Object.assign(makeNumericQuestion(`${a}x = ${a * x}. x = ?`, x), { topic: 'algebra', kind });
+      const form = weightedChoose([['mul', 40], ['div', 40], ['flip', 20]]);
+      if (form === 'div') {
+        const d = intBetween(2, 6), r = intBetween(2, 10);
+        return equation(`x ÷ ${d} = ${r}`, d * r, [r + d, r, d]);
+      }
+      const x = intBetween(3, 12), a = intBetween(2, 9), r = a * x;
+      return equation(form === 'mul' ? `${a}x = ${r}` : `${r} = ${a}x`, x, [r - a, r, a]);
     }
     if (kind === 'twoStep') {
-      const x = intBetween(3, 9), a = choose([2, 3]), b = choose([3, 5, 7]);
-      return Object.assign(makeNumericQuestion(`${a}x + ${b} = ${a * x + b}. x = ?`, x), { topic: 'algebra', kind });
+      const form = weightedChoose([['add', 26], ['sub', 26], ['flip', 14], ['both', 24], ['divAdd', 10]]);
+      if (form === 'divAdd') {
+        const d = intBetween(2, 5), k = intBetween(2, 8), b = intBetween(1, 9);
+        return equation(`x ÷ ${d} + ${b} = ${k + b}`, d * k, [k + b, k, d * k + b]);
+      }
+      if (form === 'both') {
+        const c = intBetween(1, 4), k = intBetween(2, 3), a = c + k, x = intBetween(2, 9);
+        let L, R;
+        do { L = choose([1, -1]) * intBetween(1, 8); R = L + k * x; } while (R < 1);
+        return equation(bothSides(a, c, L, R), x, [R - L, R, Math.abs(L), R + L]);
+      }
+      let x, a, b, r;
+      const minus = form === 'sub' || (form === 'flip' && Math.random() < 0.5);
+      do {
+        x = intBetween(3, 10); a = intBetween(2, 6); b = intBetween(2, 9);
+        r = minus ? a * x - b : a * x + b;
+      } while (r < 1);
+      const expr = `${a}x ${minus ? '−' : '+'} ${b}`;
+      return equation(form === 'flip' ? `${r} = ${expr}` : `${expr} = ${r}`, x, [r - b, r + b, r, a + b]);
     }
-    const multiplier = choose([2, 3, 4]), offset = choose([1, 2, 3]);
-    return Object.assign(textChoices(`${multiplier}n + ${offset}`, [`n + ${multiplier + offset}`, `${multiplier + offset}n`, `${multiplier}n − ${offset}`]), { question: `Rule for the sequence ${multiplier + offset}, ${2 * multiplier + offset}, ${3 * multiplier + offset}, ${4 * multiplier + offset}:`, topic: 'algebra', kind });
+    // patternRule: the next term, or the rule (stated in words or as an n-th term rule).
+    const form = weightedChoose([['nextAdd', 30], ['nextMul', 15], ['ruleWord', 25], ['ruleMul', 15], ['ruleNth', 15]]);
+    const show = (terms) => terms.join(', ');
+    if (form === 'nextAdd' || form === 'ruleWord') {
+      let s, d;
+      do { d = choose([1, -1]) * intBetween(2, 9); s = intBetween(1, 40); } while (s + 4 * d < 1);
+      const terms = [0, 1, 2, 3].map(i => s + i * d), next = s + 4 * d;
+      if (form === 'nextAdd') return done(makeNumericQuestion(`${show(terms)}, ... What is the next number?`, next, { extras: [terms[3], next + Math.abs(d), next - Math.abs(d), terms[3] + 2 * d] }));
+      const m = Math.abs(d), op = d > 0 ? 'Add' : 'Subtract', other = d > 0 ? 'Subtract' : 'Add';
+      return done(Object.assign(textChoices(`${op} ${m}`, [`${other} ${m}`, `${op} ${m + 1}`, `${op} ${m - 1}`, `Multiply by ${m}`]), { question: `${show(terms)}, ... Rule for the sequence:` }));
+    }
+    if (form === 'nextMul') {
+      let s, f;
+      do { f = choose([2, 3, 4]); s = intBetween(1, 6); } while (s * f ** 4 > 400);
+      const terms = [0, 1, 2, 3].map(i => s * f ** i), next = s * f ** 4;
+      return done(makeNumericQuestion(`${show(terms)}, ... What is the next number?`, next, { extras: [2 * terms[3] - terms[2], terms[3] + f, terms[3] * (f + 1), terms[3]] }));
+    }
+    if (form === 'ruleMul') {
+      let s, f;
+      do { f = intBetween(2, 5); s = intBetween(1, 5); } while (s * f ** 3 > 400);
+      const terms = [0, 1, 2, 3].map(i => s * f ** i);
+      return done(Object.assign(textChoices(`Multiply by ${f}`, [`Add ${s * (f - 1)}`, `Multiply by ${f + 1}`, `Multiply by ${f > 2 ? f - 1 : f + 2}`, `Add ${f}`]), { question: `${show(terms)}, ... Rule for the sequence:` }));
+    }
+    const nth = (d, c) => `${term(d, 'n')} ${c < 0 ? '−' : '+'} ${Math.abs(c)}`;
+    let d, c;
+    do { d = intBetween(2, 6); c = choose([1, -1]) * intBetween(1, 5); } while (d + c < 1);
+    const terms = [1, 2, 3, 4].map(i => d * i + c);
+    return done(Object.assign(textChoices(nth(d, c), [nth(d, -c), nth(d + 1, c), nth(d - 1, c), nth(d, c + (c > 0 ? 1 : -1))]), { question: `${show(terms)}, ... Rule for the sequence:` }));
   }
 
   function makeGrade6StatisticsQuestion() {
