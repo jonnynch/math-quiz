@@ -96,6 +96,7 @@
   function closeModal(id) {
     if (id === 'bankModal') closeBank();
     if (id === 'reportModal') closeReport();
+    if (id === 'profilesModal') stopSchoolGradeTimer();
     $(id).classList.add('hidden');
     if (!document.querySelector('.modal-backdrop:not(.hidden)')) document.body.classList.remove('modal-open');
     if (lastFocus && lastFocus.focus) lastFocus.focus();
@@ -128,6 +129,7 @@
   }
 
   function renderProfiles() {
+    stopSchoolGradeTimer();
     const list = $('profileList');
     list.innerHTML = '';
     $('storageNote').classList.toggle('hidden', Store.isAvailable());
@@ -223,8 +225,61 @@
     return box;
   }
 
+  // School grade (the child's real grade, separate from the game difficulty they pick). Changing it is parent-only:
+  // the Store refuses without verification, and the parent question appears right here, once per change.
+  let stopSchoolGradeTimer = () => {};
+  function schoolGradeSection(profile) {
+    const box = element('div', 'school-grade');
+    box.append(element('p', 'detail-title', 'School grade'));
+    const current = profile.schoolGrade;
+    const status = element('p', current ? 'setting-help' : 'setting-help error', current
+      ? `School grade: Grade ${current}. Practising below this grade earns half the screen time.`
+      : 'School grade not set yet (counted as Grade 1, so no reduction). A parent should set it.');
+    status.dataset.schoolGradeStatus = current ? String(current) : 'unset';
+    const row = element('div', 'backup-actions');
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', `School grade for ${profile.name}`);
+    if (!current) select.append(element('option', '', 'Not set'));
+    for (let g = 1; g <= 6; g++) {
+      const option = element('option', '', `Grade ${g}`);
+      option.value = String(g);
+      select.append(option);
+    }
+    select.value = current ? String(current) : select.options[0].value;
+    row.append(select);
+    const host = element('div', 'bank-parent');
+    host.classList.add('hidden');
+    box.append(status, row, host);
+
+    const done = (result) => {
+      Parent.lock();   // one verification per change
+      renderProfiles();
+      if (result.error && !result.denied) profileListMessage(result.error);
+      else if (result.saved === false) profileListMessage('The school grade was changed, but this browser would not save it, so it may revert when the page is reloaded.');
+    };
+    select.addEventListener('change', () => {
+      const grade = Number(select.value);
+      const result = Store.setSchoolGrade(profile, grade);
+      if (!result.denied) { done(result); return; }
+      stopSchoolGradeTimer();
+      host.classList.remove('hidden');
+      stopSchoolGradeTimer = renderParentChallenge(host, {
+        prefix: 'schoolGrade',
+        help: 'Parent verification is needed to change the school grade. Answer this quick question to continue.',
+        onUnlocked: () => done(Store.setSchoolGrade(profile, grade))
+      });
+      const cancel = element('button', 'secondary-button small', 'Cancel');
+      cancel.type = 'button';
+      cancel.addEventListener('click', () => renderProfiles());
+      host.append(cancel);
+    });
+    return box;
+  }
+
   function profileDetails(profile) {
     const box = element('div', 'profile-details');
+
+    box.append(schoolGradeSection(profile));
 
     box.append(stickerSection(profile));
 

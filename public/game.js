@@ -1034,6 +1034,9 @@
       line(batch.minutes > 0
         ? `+${batch.minutes} minute${batch.minutes === 1 ? '' : 's'} added to the bank!`
         : `No minutes this time: ${Store.getRewardConfig().minAccuracy}% correct on the first try is needed.`, 'reward-minutes');
+      if (batch.minutes > 0 && batch.schoolMult < 1) {
+        line('Half reward: this practice was below the school grade.', 'reward-progress');
+      }
     } else {
       line(`${Math.min(counts.completed, result.minBatch)} of ${result.minBatch} questions towards the next reward. Progress is kept for next time.`, 'reward-progress');
     }

@@ -133,6 +133,12 @@
   }
 
   const isRewardGrade = (g) => Number.isInteger(g) && g >= 1 && g <= 6;
+  // School grade = the child's real grade at school (1-6), kept apart from the game difficulty they pick.
+  // null means "not set yet" (existing profiles, new profiles). Practising a game grade below the school grade
+  // earns half the screen time. A school grade that is not set yet is treated as Grade 1, so nothing is reduced
+  // until a parent sets it; the profile UI shows that it still needs to be confirmed.
+  const SCHOOL_GRADE_BELOW_MULT = 0.5;
+  const schoolMult = (gameGrade, schoolGrade) => (gameGrade < (isRewardGrade(schoolGrade) ? schoolGrade : 1) ? SCHOOL_GRADE_BELOW_MULT : 1);
   const whole = (v) => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
 
   // Reward settings: anything missing or out of range falls back to the default for that value.
@@ -258,6 +264,7 @@
       history,
       trophies: Trophies ? Trophies.cleanAll(raw.trophies) : {},
       lastSetup: last,
+      schoolGrade: isRewardGrade(raw.schoolGrade) ? raw.schoolGrade : null,
       rewards: cleanRewards(raw.rewards),
       playzone: cleanPlayzone(raw.playzone)
     };
@@ -388,15 +395,20 @@
   }
 
   // Minutes for one batch of completed questions. Rounds down once, at the end, never per question.
-  function calcReward(grade, completed, correct, config) {
+  // schoolGrade (optional): the profile's school grade (1-6, or null when not set). Leave it out (undefined) for the
+  // plain calculation without the school-grade rule.
+  function calcReward(grade, completed, correct, config, schoolGrade) {
     const cfg = config || data.settings.rewards;
-    const result = { accuracy: completed ? (correct / completed) * 100 : 0, accuracyMult: 0, difficulty: 0, minutes: 0 };
+    const result = { accuracy: completed ? (correct / completed) * 100 : 0, accuracyMult: 0, difficulty: 0, schoolMult: 1, minutes: 0 };
+    if (schoolGrade !== undefined && isRewardGrade(grade)) {
+      result.schoolMult = schoolMult(grade, schoolGrade);
+    }
     // Integer comparisons, so exactly 90 of 100 counts as 90%.
     if (!isRewardGrade(grade) || !completed || correct * 100 < cfg.minAccuracy * completed) return result;
     result.accuracyMult = cfg.accuracy[0];
     REWARD_TIER_MINS.forEach((min, i) => { if (correct * 100 >= min * completed) result.accuracyMult = cfg.accuracy[i]; });
     result.difficulty = cfg.grades[grade - 1];
-    result.minutes = Math.floor(correct * cfg.base * result.accuracyMult * result.difficulty + 1e-9);
+    result.minutes = Math.floor(correct * cfg.base * result.accuracyMult * result.difficulty * result.schoolMult + 1e-9);
     return result;
   }
 
@@ -418,7 +430,7 @@
     const r = profile.rewards;
     const p = r.pending[grade];
     if (!p || p.completed < data.settings.rewards.minBatch) return null;
-    const calc = calcReward(grade, p.completed, p.correct);
+    const calc = calcReward(grade, p.completed, p.correct, null, profile.schoolGrade === undefined ? null : profile.schoolGrade);
     delete r.pending[grade];
     r.earned += calc.minutes;
     r.earnTx.unshift({ t: Date.now(), grade, completed: p.completed, correct: p.correct, minutes: calc.minutes });
@@ -459,6 +471,16 @@
       data.profiles.push(profile);
       return { profile, saved: save() };
     },
+    // Parent-only: sets the child's real school grade (1-6). Like other profile edits, a failed save keeps the change
+    // for this session and reports saved: false. Takes effect for batches paid out afterwards.
+    setSchoolGrade(profile, grade) {
+      const denied = parentDenied('Parent verification is needed to change the school grade.');
+      if (denied) return denied;
+      if (!profile || !data.profiles.includes(profile)) return { error: 'Choose a profile first.' };
+      if (!isRewardGrade(grade)) return { error: 'Choose a school grade from 1 to 6.' };
+      profile.schoolGrade = grade;
+      return { schoolGrade: grade, saved: save() };
+    },
     deleteProfile(id) {
       const before = data.profiles.length;
       data.profiles = data.profiles.filter(p => p.id !== id);
@@ -467,7 +489,7 @@
     },
 
     // ---------- screen-time bank ----------
-    REWARD_DEFAULTS, REWARD_TIER_MINS, isRewardGrade, calcReward, rewardBalance, rewardPercent,
+    REWARD_DEFAULTS, REWARD_TIER_MINS, isRewardGrade, calcReward, schoolMult, rewardBalance, rewardPercent,
     getRewardConfig: () => data.settings.rewards,
     // Parent-only: needs a successful parent verification (see parent.js). Checked here, not just in the UI.
     setRewardConfig(changes) {

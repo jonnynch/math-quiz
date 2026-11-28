@@ -562,5 +562,121 @@ Parent.lock();
   ok(junk.every(x => x.playzone.reactionBest === null && x.playzone.balloonBest === 0 && x.playzone.session === null && x.playzone.log.length === 0 && x.playzone.design === null), 'damaged or missing Playzone data becomes empty records');
 }
 
+// --- school-grade screen-time multiplier (game grade below the child's school grade earns 50%)
+{
+  const setGrade = (S, p, g) => { unlockParent(); const r = S.setSchoolGrade(p, g); Parent.lock(); return r; };
+  // The real answer -> settle -> payout path. 100 first-attempt answers, all correct, in one session.
+  const play = (S, p, id, gameGrade, n = 100, right = n) => {
+    for (let i = 0; i < n; i++) S.rewardAnswer(p, id, gameGrade, i < right);
+    return S.settleRewards(p, id);
+  };
+  // 100/100 correct pays 15 x grade multiplier (1.0, 1.1, 1.2, 1.3, 1.4, 1.5), rounded down once: 15, 16, 18, 19, 21, 22.
+  const paid = (schoolGrade, gameGrade) => {
+    const { S } = freshStore();
+    const p = S.addProfile('Kid', '🐼').profile;
+    if (schoolGrade) setGrade(S, p, schoolGrade);
+    const res = play(S, p, 'sg1', gameGrade);
+    return { minutes: res.batch.minutes, balance: S.rewardBalance(p), res };
+  };
+
+  // storage: separate from game difficulty, safe defaults, old data and backups
+  let { S: G, mem: gm } = freshStore();
+  const gk = G.addProfile('Kid', '🐼').profile;
+  ok(gk.schoolGrade === null, 'a new profile has no school grade yet (not configured)');
+  gk.lastSetup = { difficulty: 'grade4', topic: 'all' }; G.save();
+  ok(setGrade(G, gk, 2).saved === true && gk.schoolGrade === 2 && gk.lastSetup.difficulty === 'grade4', 'the school grade is saved on the profile and stays separate from lastSetup');
+  ok(freshStore(gm).S.getProfiles()[0].schoolGrade === 2 && freshStore(gm).S.getProfiles()[0].lastSetup.difficulty === 'grade4', 'the school grade survives a reload');
+  const gBackup = G.parseBackup(G.exportText());
+  ok(gBackup.profiles[0].schoolGrade === 2, 'export -> parse keeps the school grade');
+  const oldLoaded = freshStore({ 'mathQuizBattle.v1': JSON.stringify({ schema: 2, profiles: [{ id: 'o1', name: 'Old', stickers: ['🦄'], totals: { games: 4 }, rewards: { earned: 12, redeemed: 2, pending: { 2: { completed: 5, correct: 5 } } }, playzone: { balloonBest: 9 }, lastSetup: { difficulty: 'grade2', topic: 'all' } }] }) }).S.getProfiles()[0];
+  ok(oldLoaded.schoolGrade === null && oldLoaded.stickers.length === 1 && oldLoaded.totals.games === 4 && oldLoaded.rewards.earned === 12 && oldLoaded.rewards.redeemed === 2 && oldLoaded.rewards.pending[2].completed === 5 && oldLoaded.playzone.balloonBest === 9 && oldLoaded.lastSetup.difficulty === 'grade2', 'an existing profile loads with the school grade not set and keeps its scores, stickers, rewards and Playzone data');
+  const oldBackup = G.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 1, profiles: [{ id: 'b1', name: 'Bk', rewards: { earned: 5 } }] }));
+  ok(!oldBackup.error && oldBackup.profiles[0].schoolGrade === null && oldBackup.profiles[0].rewards.earned === 5, 'an old backup without a school grade imports safely as not set');
+  const badGrades = [0, 7, -1, 2.5, '3', null, 'x', NaN].map(g => G.parseBackup(JSON.stringify({ app: 'mathQuizBattle', schema: 2, profiles: [{ id: 'g' + String(g), name: 'G', schoolGrade: g }] })).profiles[0].schoolGrade);
+  ok(badGrades.every(g => g === null), 'invalid school grades in saved or imported data become not set');
+
+  // parent verification
+  ({ S: G } = freshStore(gm));   // point storage back at this test's data (the legacy check above used its own)
+  const gk2 = G.addProfile('Sib', '🦊').profile;
+  Parent.lock();
+  const denied = G.setSchoolGrade(gk2, 3);
+  ok(denied.denied === true && denied.saved === false && gk2.schoolGrade === null && freshStore(gm).S.getProfiles()[1].schoolGrade === null, 'changing the school grade is refused without parent verification (direct call)');
+  ok(G.setSchoolGrade(gk, 1).denied === true && gk.schoolGrade === 2, 'a refused change leaves an existing school grade unchanged');
+  unlockParent();
+  ok(G.setSchoolGrade(gk2, 0).error && G.setSchoolGrade(gk2, 7).error && G.setSchoolGrade(gk2, 2.5).error && G.setSchoolGrade(gk2, '3').error && G.setSchoolGrade({ name: 'x' }, 3).error && gk2.schoolGrade === null, 'only whole grades 1-6 on a saved profile are accepted');
+  ok(G.setSchoolGrade(gk2, 3).saved === true && gk2.schoolGrade === 3, 'after verification the school grade can be changed');
+  Parent.lock();
+  globalThis.__fail = true;
+  const failedSet = setGrade(G, gk2, 4);
+  globalThis.__fail = false;
+  ok(failedSet.saved === false && failedSet.schoolGrade === 4 && gk2.schoolGrade === 4, 'a failed save is reported (the change applies for this session, like other profile edits)');
+
+  // payout matrix, through the real settle path
+  ok(paid(2, 1).minutes === 7 && paid(2, 2).minutes === 16 && paid(2, 3).minutes === 18, 'School Grade 2: Grade 1 earns 50% (15 -> 7); Grade 2 and Grade 3 earn in full (16, 18)');
+  ok(paid(3, 1).minutes === 7 && paid(3, 2).minutes === 8 && paid(3, 3).minutes === 18 && paid(3, 4).minutes === 19, 'School Grade 3: Grades 1 and 2 earn 50% (7, 8); Grades 3 and 4 earn in full (18, 19)');
+  ok([1, 2, 3, 4, 5, 6].every(sg => [1, 2, 3, 4, 5, 6].every(gg => paid(sg, gg).minutes === Math.floor(100 * 0.1 * 1.5 * [1, 1.1, 1.2, 1.3, 1.4, 1.5][gg - 1] * (gg < sg ? 0.5 : 1) + 1e-9))), 'the rule is the same for every school grade and game grade from 1 to 6');
+  const eq = paid(2, 1);
+  ok(eq.balance === 7 && eq.res.batch.schoolMult === 0.5 && eq.res.batch.difficulty === 1 && eq.res.batch.accuracyMult === 1.5 && paid(2, 2).res.batch.schoolMult === 1, 'the batch reports the school-grade multiplier next to the existing multipliers');
+  ok(paid(1, 1).minutes === 15 && paid(1, 6).minutes === 22 && paid(6, 6).minutes === 22 && paid(6, 5).minutes === 10, 'edges: Grade 1 pupils always earn in full; Grade 6 pupils earn half below Grade 6');
+
+  // an unset school grade counts as Grade 1: never reduced, and the profile stays "not set"
+  ok(paid(0, 1).minutes === 15 && paid(0, 6).minutes === 22 && paid(0, 1).res.batch.schoolMult === 1, 'with no school grade set, every game grade earns in full (counted as Grade 1)');
+
+  // the same calculation, directly
+  ok(G.calcReward(1, 100, 100).minutes === 15 && G.calcReward(1, 100, 100, null, 2).minutes === 7 && G.calcReward(2, 100, 100, null, 2).minutes === 16 && G.calcReward(1, 100, 100, null, null).minutes === 15, 'calcReward without a school grade is unchanged; with one it applies the multiplier');
+
+  // changing the school grade affects the next payouts only
+  ({ S: G, mem: gm } = freshStore());
+  const cp = G.addProfile('Chg', '🐸').profile;
+  setGrade(G, cp, 3);
+  const c1 = play(G, cp, 'c1', 1).batch.minutes;
+  setGrade(G, cp, 1);
+  const c2 = play(G, cp, 'c2', 1).batch.minutes;
+  setGrade(G, cp, 2);
+  const c3 = play(G, cp, 'c3', 1).batch.minutes;
+  ok(c1 === 7 && c2 === 15 && c3 === 7 && cp.rewards.earned === 29 && cp.rewards.earnTx.map(t => t.minutes).join() === '7,15,7', 'changing the school grade changes later payouts; earlier payouts are not recalculated');
+
+  // pending progress is paid with the school grade in force at payout time, exactly once
+  ({ S: G, mem: gm } = freshStore());
+  const pp = G.addProfile('Pend', '🐼').profile;
+  setGrade(G, pp, 3);
+  const half1 = play(G, pp, 'p1', 1, 10);
+  ok(half1.batch === null && pp.rewards.pending[1].completed === 10 && pp.rewards.earned === 0, 'a part batch only waits as pending progress (nothing paid yet)');
+  setGrade(G, pp, 1);   // changed while the batch is pending
+  const p2 = play(G, pp, 'p2', 1, 10);
+  ok(p2.batch.completed === 20 && p2.batch.minutes === 3 && p2.batch.schoolMult === 1 && pp.rewards.earned === 3 && !pp.rewards.pending[1], 'a batch finished after the grade was lowered is paid with the new school grade (20 x 0.1 x 1.5 = 3), once');
+  ok(G.settleRewards(pp, 'p2').settled === false && pp.rewards.earned === 3 && pp.rewards.earnTx.length === 1, 'settling the same session again does not pay twice');
+  play(G, pp, 'p3', 2, 10);
+  setGrade(G, pp, 4);   // raised while the batch is pending: Grade 2 is now below school grade
+  const p4 = play(G, pp, 'p4', 2, 10);
+  ok(p4.batch.minutes === 1 && p4.batch.schoolMult === 0.5 && pp.rewards.earned === 4, 'a batch finished after the grade was raised is paid at 50% (20 x 0.1 x 1.5 x 1.1 x 0.5 = 1.65 -> 1)');
+  play(G, pp, 'p5', 1, 5); play(G, pp, 'p6', 3, 5);
+  ok(pp.rewards.pending[1].completed === 5 && pp.rewards.pending[3].completed === 5 && Object.keys(pp.rewards.pending).length === 2, 'pending progress stays separate by game grade');
+
+  // a session left behind by a closed page is paid on the next load with the saved school grade
+  ({ S: G, mem: gm } = freshStore());
+  const sp = G.addProfile('Stale', '🐯').profile;
+  setGrade(G, sp, 3);
+  for (let i = 0; i < 20; i++) G.rewardAnswer(sp, 'st1', 1, true);   // page closed before the game ends
+  const reloadedStale = freshStore(gm).S.getProfiles()[0];
+  ok(reloadedStale.rewards.earned === 1 && reloadedStale.rewards.earnTx[0].minutes === 1 && !reloadedStale.rewards.session, 'a leftover session is settled on load using the saved school grade (3 x 0.5 -> 1 minute)');
+
+  // existing reward rules and profile data are untouched
+  ({ S: G, mem: gm } = freshStore());
+  const ex = G.addProfile('Rules', '🦁').profile;
+  ex.stickers.push('🦄'); ex.totals.games = 7; ex.totals.correct = 30; ex.bests['grade1|all|60'] = 12; ex.history.push({ t: 1, level: 'grade1', score: 5 }); ex.rewards.redeemed = 2; G.save();
+  setGrade(G, ex, 3);
+  const exBefore = JSON.stringify({ s: ex.stickers, t: ex.totals, b: ex.bests, h: ex.history, tr: ex.trophies, pz: ex.playzone });
+  ok(play(G, ex, 'r1', 1, 19, 19).batch === null && ex.rewards.pending[1].completed === 19, 'the minimum batch size still applies');
+  ok(play(G, ex, 'r2', 1, 1, 1).batch.minutes === 1, 'carried progress completes a batch that is paid at 50% (20 correct at Grade 1 for a Grade 3 pupil: 3 -> 1)');
+  const lowAcc = play(G, ex, 'r3', 3, 20, 15);
+  ok(lowAcc.batch.minutes === 0 && lowAcc.batch.schoolMult === 1 && !ex.rewards.pending[3], 'the minimum accuracy still applies (75% earns nothing and the batch is used up)');
+  const tiers = [80, 90, 95, 100].map(pct => { const { S } = freshStore(); const q = S.addProfile('T', '🐼').profile; setGrade(S, q, 2); return play(S, q, 't' + pct, 1, 100, pct).batch.minutes; });
+  ({ S: G } = freshStore(gm));
+  ok(tiers.join() === '4,5,6,7', 'accuracy multipliers still apply under the halving (80% 8 -> 4, 90% 10.8 -> 5, 95% 13.3 -> 6, 100% 15 -> 7)');
+  ok(JSON.stringify({ s: ex.stickers, t: ex.totals, b: ex.bests, h: ex.history, tr: ex.trophies, pz: ex.playzone }) === exBefore && ex.rewards.redeemed === 2, 'scores, totals, stickers, trophies, history, Playzone data and redeemed minutes are not touched by the multiplier');
+  ok(freshStore(gm).S.getProfiles()[0].schoolGrade === 3, 'the school grade is stored with the rest of the profile');
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nAll store checks passed');
 process.exit(failures ? 1 : 0);
