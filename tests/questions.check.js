@@ -60,15 +60,16 @@ for(const g of grades){
         else if(g===3 && ['mixed','add','sub'].includes(t.value)) { m=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/); if(m){const expected={'+':+m[1]+ +m[3],'−':+m[1]- +m[3],'×':+m[1]* +m[3],'÷':+m[1]/+m[3]}[m[2]];if(expected!==Number(ans)||expected<0||!Number.isInteger(expected)||expected>1000||(t.value==='add'&&m[2]!=='+')||(t.value==='sub'&&m[2]!=='−'))fail(k,'Grade 3 arithmetic',q);} else if((m=text.match(/^\? \+ (\d+) = (\d+)$/))){if(Number(ans)+ +m[1]!==+m[2])fail(k,'Grade 3 missing addend',q);} else if((m=text.match(/^(\d+) \+ \? = (\d+)$/))){if(+m[1]+Number(ans)!==+m[2])fail(k,'Grade 3 missing addend',q);} else if((m=text.match(/^(\d+) − \? = (\d+)$/))){if(+m[1]-Number(ans)!==+m[2])fail(k,'Grade 3 missing subtrahend',q);} else if((m=text.match(/^(\d+) × \? = (\d+)$/))){if(+m[1]*Number(ans)!==+m[2])fail(k,'Grade 3 missing factor',q);} else if((m=text.match(/^(\d+) ÷ \? = (\d+)$/))){if(+m[1]/Number(ans)!==+m[2])fail(k,'Grade 3 missing divisor',q);} else if(!/so \d+ [−+] \d+ = \?$/.test(text))fail(k,'unrecognised Grade 3 arithmetic',q); }
         else if(g===3 && (t.value==='mul'||t.value==='div'||t.value==='tables')) { m=text.match(/^(\d+) ([×÷]) (\d+) = \?$/); if(m){const result=m[2]==='×'?+m[1]* +m[3]:+m[1]/+m[3];if(result!==Number(ans)||!Number.isInteger(result))fail(k,'Grade 3 multiplication/division',q);} else if((m=text.match(/^(\d+) × \? = (\d+)$/))){if(+m[1]*Number(ans)!==+m[2])fail(k,'Grade 3 missing factor',q);} else if((m=text.match(/^(\d+) ÷ \? = (\d+)$/))){if(+m[1]/Number(ans)!==+m[2])fail(k,'Grade 3 missing divisor',q);} else fail(k,'unrecognised Grade 3 facts',q); }
         else if(g===6){
-          const valueOf=s=>Number(s.replace('−','-'));
-          if((m=text.match(/^([−]?\d+) ([+−×÷]) ([−]?\d+) = \?$/))){const x=valueOf(m[1]),y=valueOf(m[3]),expected={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]];if(expected!==Number(ans)||!Number.isInteger(expected)||Math.abs(x)>216||Math.abs(y)>99)fail(k,'Grade 6 arithmetic result/range',q);if(m[2]==='×'&&!((Math.abs(x)>=12&&Math.abs(x)<=35&&Math.abs(y)>=2&&Math.abs(y)<=9)||(Math.abs(y)>=12&&Math.abs(y)<=35&&Math.abs(x)>=2&&Math.abs(x)<=9)))fail(k,'Grade 6 multiplication range',q);if(m[2]==='÷'&&(Math.abs(y)<2||Math.abs(y)>9||Math.abs(Number(ans))<12||Math.abs(Number(ans))>24))fail(k,'Grade 6 division range',q);}
-          else if((m=text.match(/^□ × (\d+) = (\d+)$/))){if(+ans*+m[1]!==+m[2])fail(k,'Grade 6 missing factor',q);}
-          else if((m=text.match(/^□ ÷ (\d+) = (\d+)$/))){if(+ans/+m[1]!==+m[2])fail(k,'Grade 6 missing dividend',q);}
-          else if((m=text.match(/^□ \+ (\d+) = (\d+)$/))){if(+ans+ +m[1]!==+m[2])fail(k,'Grade 6 missing addend',q);}
-          else if((m=text.match(/^(\d+) − □ = (\d+)$/))){if(+m[1]- +ans!==+m[2])fail(k,'Grade 6 missing subtrahend',q);}
-          else if((m=text.match(/^(\d+) ([+−]) (\d+) = (\d+), so (\d+) ([+−]) (\d+) = \?$/))){const expected=m[6]==='+'?+m[5]+ +m[7]:+m[5]- +m[7];if(expected!==+ans||+m[1]+(m[2]==='+'?+m[3]:-m[3])!==+m[4])fail(k,'Grade 6 inverse',q);}
+          // Grade 6 questions show thousands separators and write signed operands as (−n); ranges: grade6-arithmetic.check.js.
+          const plain=s=>s.replace(/(\d),(?=\d{3})/g,'$1'),num=s=>Number(plain(s).replace('−','-')),tx=plain(text),an=num(ans);
+          if((m=tx.match(/^(−?\d+) ([+−×÷]) (\(−\d+\)|\d+) = \?$/))){const x=num(m[1]),y=num(m[3].replace(/[()]/g,'')),expected={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]];if(expected!==an||!Number.isInteger(expected))fail(k,'Grade 6 arithmetic result',q);}
+          else if((m=tx.match(/^□ × (\d+) = (\d+)$/))){if(an*+m[1]!==+m[2])fail(k,'Grade 6 missing factor',q);}
+          else if((m=tx.match(/^(\d+) ÷ □ = (\d+)$/))){if(+m[1]/an!==+m[2])fail(k,'Grade 6 missing divisor',q);}
+          else if((m=tx.match(/^□ \+ (\d+) = (\d+)$/))){if(an+ +m[1]!==+m[2])fail(k,'Grade 6 missing addend',q);}
+          else if((m=tx.match(/^(\d+) − □ = (\d+)$/))){if(+m[1]-an!==+m[2])fail(k,'Grade 6 missing subtrahend',q);}
+          else if((m=tx.match(/^(\d+) ([+−]) (\d+) = (\d+), so (\d+) ([+−]) (\d+) = \?$/))){const expected=m[6]==='+'?+m[5]+ +m[7]:+m[5]- +m[7];if(expected!==an||+m[1]+(m[2]==='+'?+m[3]:-m[3])!==+m[4])fail(k,'Grade 6 inverse',q);}
           else fail(k,'unrecognised Grade 6 arithmetic',q);
-          if(a.every(x=>!isNaN(Number(x)))&&!a.some((x,j)=>j!==c&&x.slice(-1)===ans.slice(-1)))fail(k,'Grade 6 arithmetic lacks same-last-digit distractor',q);
+          if(!/−/.test(text)&&!a.some((x,j)=>j!==c&&num(x)%10===an%10))fail(k,'Grade 6 arithmetic lacks same-last-digit distractor',q);
         }
         else if(g===4||g===5){
           if((m=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/))){const x=+m[1],y=+m[3],r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]];if(r!==Number(ans)||!Number.isInteger(r))fail(k,'Grade 4 arithmetic result',q);}
@@ -303,7 +304,7 @@ for(const g of grades){
     else if(/cm|°|faces|edges|vertices|[Ss]ides/.test(x)) cat='shapes';
     else if(g===2) cat='arithmetic';
     else if(g===3) cat='arithmetic';
-    else if(/^(?:[−]?\d+ [+−×÷] [−]?\d+ = \?|□ [ +×÷] \d+ = \d+|\d+ [ +−] □ = \d+|\d+ ÷ □ = \d+|\d+ [+−] \d+ = \d+, so \d+ [−+] \d+ = \?)$/.test(x)) cat='arithmetic';
+    else if(/^(?:[−]?\d+ [+−×÷] (?:[−]?\d+|\(−\d+\)) = \?|□ [ +×÷] \d+ = \d+|\d+ [ +−] □ = \d+|\d+ ÷ □ = \d+|\d+ [+−] \d+ = \d+, so \d+ [−+] \d+ = \?)$/.test(x.replace(/(\d),(?=\d{3})/g,'$1'))) cat='arithmetic';
     else { fail(k,'unrecognised mixed-all question',q); continue; }
     seen[cat]=(seen[cat]||0)+1;
     if(cat!=='arithmetic'&&!avail.has(cat)) fail(k,'category not offered at this grade: '+cat,q);

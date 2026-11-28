@@ -71,8 +71,8 @@
   // number of wrong answers placed below the correct one is picked at random, so the correct
   // answer lands in a random position instead of usually sitting in the middle.
   // `must` lists wrong answers that have to be included.
-  function pickWrongAnswers(correct, pool, count, must = [], preferredBelow = null) {
-    const unique = [...new Set(pool)].filter(v => v !== correct && v >= 0);
+  function pickWrongAnswers(correct, pool, count, must = [], preferredBelow = null, allowNegative = false) {
+    const unique = [...new Set(pool)].filter(v => v !== correct && (allowNegative || v >= 0));
     const lower = unique.filter(v => v < correct);
     const upper = unique.filter(v => v > correct);
     const mustLower = must.filter(v => v < correct);
@@ -142,10 +142,13 @@
   }
 
   // Signed choices keep negative integer facts ordered while placing the correct option randomly.
-  function makeSignedNumericQuestion(text, answer, extras = []) {
+  // `signMistake` (optional) is a wrong answer that must be offered, e.g. the opposite sign; when given,
+  // negative wrong answers are allowed so the choices cannot be solved by sign alone.
+  function makeSignedNumericQuestion(text, answer, extras = [], signMistake = null) {
     const sameDigit = answer < 0 ? answer - 10 : answer + 10;
     const pool = [...new Set([...Array.from({ length: 60 }, (_, i) => answer + i - 30), ...extras, sameDigit])].filter(value => Number.isInteger(value) && value !== answer);
-    const wrong = pickWrongAnswers(answer, pool, 3, [sameDigit], intBetween(0, 3));
+    const must = signMistake === null ? [sameDigit] : [sameDigit, signMistake];
+    const wrong = pickWrongAnswers(answer, pool, 3, must, intBetween(0, 3), signMistake !== null);
     const values = [...wrong, answer].sort((a, b) => a - b);
     return { question: text, answers: values.map(String), keys: values, correct: values.indexOf(answer) };
   }
@@ -1020,27 +1023,57 @@
   }
 
   function makeGrade6ArithmeticQuestion(operator) {
+    const fmt = n => n.toLocaleString('en-AU');
+    // Shows thousands separators in the question and choices; `keys` keep the choices in numeric order.
+    const show = (q, text) => { const keys = q.answers.map(Number); return Object.assign(q, { question: text, keys, answers: keys.map(fmt) }); };
+    const numeric = (text, answer, extras = []) => show(makeNumericQuestion(text, answer, { sameLastDigit: true, extras }), text);
     if (operator === '+' || operator === '−') {
-      const kind = weightedChoose([['plain', 60], ['missing', 22], ['inverse', 18]]);
-      if (kind === 'plain' && Math.random() < 0.35) {
-        if (operator === '+') {
-          const a = intBetween(1, 9), b = intBetween(5, 15);
-          return makeSignedNumericQuestion(`−${a} + ${b} = ?`, b - a);
-        }
-        const a = intBetween(2, 8), b = intBetween(9, 15);
-        return makeSignedNumericQuestion(`${a} − ${b} = ?`, a - b);
+      // About 22% are signed-number questions (values 2-30) that need sign reasoning; the rest are positive.
+      if (Math.random() < 0.22) {
+        const form = operator === '+' ? weightedChoose([['negPos', 34], ['posNeg', 33], ['negNeg', 33]]) : weightedChoose([['posMinusNeg', 50], ['negMinusPos', 50]]);
+        const a = intBetween(2, 30);
+        let b = intBetween(2, 30);
+        if (form === 'negPos' || form === 'posNeg') while (b === a) b = intBetween(2, 30);   // no zero answers
+        const [text, answer] = {
+          negPos: [`−${a} + ${b} = ?`, b - a],
+          posNeg: [`${a} + (−${b}) = ?`, a - b],
+          negNeg: [`−${a} + (−${b}) = ?`, -(a + b)],
+          posMinusNeg: [`${a} − (−${b}) = ?`, a + b],
+          negMinusPos: [`−${a} − ${b} = ?`, -(a + b)]
+        }[form];
+        const q = makeSignedNumericQuestion(text, answer, [a + b, -(a + b), a - b, b - a], -answer);
+        q.answers = q.keys.map(v => v < 0 ? `−${-v}` : String(v));
+        return q;
       }
-      const a = intBetween(50, 99), b = intBetween(10, Math.min(40, a - 10)), answer = operator === '+' ? a + b : a - b;
-      if (kind === 'inverse') return makeNumericQuestion(`${a} ${operator} ${b} = ${answer}, so ${answer} ${operator === '+' ? '−' : '+'} ${operator === '+' ? a : b} = ?`, operator === '+' ? b : a, { sameLastDigit: true });
-      if (kind === 'missing') return operator === '+' ? makeNumericQuestion(`□ + ${b} = ${answer}`, a, { sameLastDigit: true }) : makeNumericQuestion(`${a} − □ = ${answer}`, b, { sameLastDigit: true });
-      return makeQuestion(a, operator, b, answer, true);
+      // Positive numbers: most questions carry (+) or borrow (−) across two or more place values.
+      const columns = (x, y) => {
+        let count = 0, carry = 0;
+        for (let place = 1; place <= 1000; place *= 10) {
+          const dx = Math.floor(x / place) % 10, dy = Math.floor(y / place) % 10;
+          carry = operator === '+' ? (dx + dy + carry >= 10 ? 1 : 0) : (dx - dy - carry < 0 ? 1 : 0);
+          count += carry;
+        }
+        return count;
+      };
+      const wantMulti = Math.random() < 0.85;
+      let a, b;
+      do {
+        a = operator === '+' ? intBetween(1000, 9999) : intBetween(2000, 9999);
+        b = operator === '+' ? intBetween(1000, 9999) : intBetween(1000, 4999);
+      } while ((operator === '−' && b >= a) || (wantMulti && columns(a, b) < 2));
+      const answer = operator === '+' ? a + b : a - b, kind = weightedChoose([['plain', 60], ['missing', 22], ['inverse', 18]]);
+      if (kind === 'plain') return show(makeQuestion(a, operator, b, answer, true), `${fmt(a)} ${operator} ${fmt(b)} = ?`);
+      if (kind === 'inverse') return numeric(`${fmt(a)} ${operator} ${fmt(b)} = ${fmt(answer)}, so ${fmt(answer)} ${operator === '+' ? '−' : '+'} ${fmt(operator === '+' ? a : b)} = ?`, operator === '+' ? b : a, [a, b, answer]);
+      return operator === '+' ? numeric(`□ + ${fmt(b)} = ${fmt(answer)}`, a, [b, answer]) : numeric(`${fmt(a)} − □ = ${fmt(answer)}`, b, [a, answer]);
     }
     if (operator === '×') {
-      const a = intBetween(12, 35), b = intBetween(2, 9), product = a * b;
-      return Math.random() < 0.25 ? makeNumericQuestion(`□ × ${b} = ${product}`, a, { sameLastDigit: true }) : makeQuestion(a, '×', b, product, true);
+      const a = intBetween(12, 99), b = intBetween(12, 25), product = a * b;
+      if (Math.random() < 0.25) return numeric(`□ × ${b} = ${fmt(product)}`, a, [b, product - b]);
+      return show(makeQuestion(a, '×', b, product, true), `${a} × ${b} = ?`);
     }
-    const divisor = intBetween(2, 9), quotient = intBetween(12, 24), dividend = divisor * quotient;
-    return Math.random() < 0.25 ? makeNumericQuestion(`□ ÷ ${divisor} = ${quotient}`, dividend, { sameLastDigit: true }) : makeQuestion(dividend, '÷', divisor, quotient, true);
+    const divisor = intBetween(12, 25), quotient = intBetween(12, 99), dividend = divisor * quotient;
+    if (Math.random() < 0.25) return numeric(`${fmt(dividend)} ÷ □ = ${quotient}`, divisor, [quotient, dividend - quotient]);
+    return show(makeQuestion(dividend, '÷', divisor, quotient, true), `${fmt(dividend)} ÷ ${divisor} = ?`);
   }
 
   // ---------- money (answers are in cents) ----------
