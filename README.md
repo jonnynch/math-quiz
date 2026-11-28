@@ -45,9 +45,17 @@ Under each Grade level a Topic can be chosen. The age levels (2–3 to 6) do not
 | Topic | Grades | What it asks |
 |---|---|---|
 | Mixed arithmetic, Addition only, Subtraction only | 1–6 | + and − within 20 (Grade 1: every operation includes an operand from 10 to 19, with missing-number equations, doubles and near doubles; no stories, grouping or sharing), plus × and ÷ from Grade 2 |
-| Numbers & place value | 1 | numbers to 120, sequence gaps, missing numbers, 10 more/less equations, counting in 2s, 5s, 10s, tens and ones |
-| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of every category the grade offers: arithmetic (+ − × ÷), times tables, fractions (Grades 5–6 include decimal-versus-fraction comparisons), money, clock, shapes; Grade 1 also numbers & place value |
+| Numbers & place value | 1–6 | Grade 1: numbers to 120, sequence gaps, missing numbers, 10 more/less equations, counting in 2s, 5s, 10s, tens and ones; later grades add larger place value, comparison, rounding, factors and multiples, and (Grade 6) negative numbers |
+| Mixed All Questions (first option and the default for new players) | 1–6 | a random mix of the categories the grade offers (arithmetic counts as one category; × ÷ start at Grade 2). Grade 1: arithmetic, numbers & place value, fractions, money, clock, shapes. Grades 2–3: arithmetic, numbers, times tables, patterns, data, fractions, money, clock, shapes. Grade 4: arithmetic, numbers, times tables, patterns, decimals, fractions, money, clock, shapes. Grade 5: arithmetic, numbers, decimals, percentages, ratio, probability, fractions, shapes. Grade 6: the Grade 5 list plus algebra and statistics. Grades 5–6 fractions include decimal-versus-fraction comparisons |
 | Multiplication only, Division only | 2–6 | |
+| Patterns | 2–4 | repeating shape/colour patterns (Grade 2), then sequences with a missing term |
+| Data | 2–3 | bar charts: read a category, find the most, compare, find a total |
+| Decimals | 4–6 | place value, comparison, addition/subtraction and fraction equivalences; Grades 5–6 add ordering, multiplication/division and conversions |
+| Percentages | 5–6 | common percentages, conversions, percentages of quantities and comparisons |
+| Ratio | 5–6 | simplifying and equivalent ratios, missing values, sharing in a ratio |
+| Probability | 5–6 | bag, coin and die outcomes, likelihood comparisons |
+| Algebra | 6 | substitution, like terms, sequence rules, linear equations |
+| Statistics | 6 | mean, median, mode and range |
 | Times tables | 2–4 | × and ÷ facts, e.g. 7 × ? = 56 (Grade 2: tables of 2, 5, 10; Grade 4: up to 12 × 12) |
 | Fractions | 1–6 | Grade 1: halves only; then 1/4 of 20, equivalent, add/subtract, multiply/divide (answers in simplest form); Grades 5–6: compare one decimal with one fraction (`0.75 ? 2/3`) |
 | Money | 1–4 | Australian coins (5c, 10c, 20c, 50c, $1, $2), change and totals, answered in cents |
@@ -60,7 +68,7 @@ Answers are listed smallest to largest (fractions and times by value). Choices s
 - Streaks: a 🔥 badge appears from 2 correct answers in a row. At 3, 5, 10 and every 5 after that there is confetti and a new sticker. In 1 vs 1, winning a round also ends the other player's streak. Streaks never change the score, so 1 vs 1 stays fair.
 - Stars: the result screen gives ⭐ for accuracy (3 stars for 90% or more, 2 for 70% or more, otherwise 1).
 - Trophies: Bronze (questions completed), Silver (questions answered correctly) and Gold (correct answers in a row) for every level, with targets that grow from Age 2–3 to Grade 6. Only a question's first answer counts, so retrying cannot inflate progress; in 1 vs 1 each player is credited separately. Progress is kept per saved profile and level (and included in backups). Open 🏆 Achievements to see them. Targets are set in `public/trophies.js`.
-- Stickers: 100 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
+- Stickers: 300 collectable stickers. A saved profile keeps them in its sticker book; guests see what they won for that game only.
 - Confetti is skipped when the device asks for reduced motion.
 
 ## Profiles
