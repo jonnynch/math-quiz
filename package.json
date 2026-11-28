@@ -5,7 +5,7 @@
   "description": "Static Math Quiz Battle game. Only the tests need npm packages; the game itself has no dependencies.",
   "scripts": {
     "pretest": "node scripts/guard-full-test.js",
-    "test": "npm run test:store && npm run test:parent && npm run test:report && npm run test:trophies && npm run test:questions && npm run test:curriculum && npm run test:grade34compare && npm run test:grade5compare && npm run test:grade6compare && npm run test:illustration && npm run test:toddler && npm run test:age4 && npm run test:age5 && npm run test:age5ui && npm run test:norepeat && npm run test:flow && npm run test:playzone && npm run test:balloon && npm run test:audio && npm run test:sw && npm run test:pwa && npm run test:layout",
+    "test": "npm run test:store && npm run test:parent && npm run test:report && npm run test:trophies && npm run test:questions && npm run test:curriculum && npm run test:grade34compare && npm run test:grade5compare && npm run test:grade5arith && npm run test:grade6compare && npm run test:illustration && npm run test:toddler && npm run test:age4 && npm run test:age5 && npm run test:age5ui && npm run test:norepeat && npm run test:flow && npm run test:playzone && npm run test:balloon && npm run test:audio && npm run test:sw && npm run test:pwa && npm run test:layout",
     "test:store": "node tests/store.check.js",
     "test:parent": "node tests/parent.check.js",
     "test:report": "node tests/report.check.js",
@@ -14,6 +14,7 @@
     "test:curriculum": "node tests/curriculum.check.js",
     "test:grade34compare": "node tests/grade3-4-compare.check.js",
     "test:grade5compare": "node tests/grade5-compare.check.js",
+    "test:grade5arith": "node tests/grade5-arithmetic.check.js",
     "test:grade6compare": "node tests/grade6-compare.check.js",
     "test:illustration": "node tests/illustration-layout.check.js",
     "test:toddler": "node tests/toddler.check.js",

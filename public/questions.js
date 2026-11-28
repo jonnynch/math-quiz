@@ -889,18 +889,28 @@
   function makeGrade5ArithmeticQuestion(operator) {
     const numeric = (text, answer, extras = []) => makeNumericQuestion(text, answer, { sameLastDigit: true, extras });
     if (operator === '+' || operator === '−') {
-      const a = operator === '+' ? intBetween(120, 650) : intBetween(300, 999), b = operator === '+' ? intBetween(120, Math.min(300, 950 - a)) : intBetween(100, Math.min(500, a - 100));
+      // Most questions (85%) carry (+) or borrow (−) in at least one place-value column.
+      const digitAt = (n, place) => Math.floor(n / place) % 10;
+      const crosses = operator === '+'
+        ? (x, y) => [1, 10, 100].some(place => digitAt(x, place) + digitAt(y, place) >= 10)
+        : (x, y) => [1, 10, 100].some(place => digitAt(x, place) < digitAt(y, place));
+      const wantCross = Math.random() < 0.85;
+      let a, b;
+      do {
+        a = operator === '+' ? intBetween(250, 999) : intBetween(1000, 9999);
+        b = operator === '+' ? intBetween(250, 999) : intBetween(100, 999);
+      } while (wantCross && !crosses(a, b));
       const answer = operator === '+' ? a + b : a - b, kind = weightedChoose([['plain', 65], ['missing', 20], ['inverse', 15]]);
       if (kind === 'plain') return makeQuestion(a, operator, b, answer, true);
       if (kind === 'inverse') return numeric(`${a} ${operator} ${b} = ${answer}, so ${answer} ${operator === '+' ? '−' : '+'} ${operator === '+' ? a : b} = ?`, operator === '+' ? b : a, [a, b, answer]);
       return operator === '+' ? numeric(`□ + ${b} = ${answer}`, a, [b, answer]) : numeric(`${a} − □ = ${answer}`, b, [a, answer]);
     }
     if (operator === '×') {
-      const factor = intBetween(2, 9), value = intBetween(12, 35), answer = factor * value;
+      const factor = intBetween(6, 12), value = intBetween(25, 99), answer = factor * value;
       if (Math.random() < 0.25) return numeric(`□ × ${factor} = ${answer}`, value, [factor, answer - factor]);
       return makeQuestion(value, '×', factor, answer, true);
     }
-    const divisor = intBetween(2, 9), quotient = intBetween(12, 24), dividend = divisor * quotient;
+    const divisor = intBetween(6, 12), quotient = intBetween(25, 99), dividend = divisor * quotient;
     if (Math.random() < 0.25) return numeric(`${dividend} ÷ □ = ${quotient}`, divisor, [quotient, dividend - quotient]);
     return makeQuestion(dividend, '÷', divisor, quotient, true);
   }
