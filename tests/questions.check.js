@@ -84,9 +84,9 @@ for(const g of grades){
           if(a.every(x=>!isNaN(Number(x)))&&!a.some((x,j)=>j!==c&&x.slice(-1)===ans.slice(-1)))fail(k,'Grade 4 arithmetic lacks same-last-digit distractor',q);
           if(g===5){
             const values=(text.match(/\d+/g)||[]).map(Number);
-            if(values.some(value=>value>999))fail(k,'Grade 5 arithmetic operand/result too large',q);
+            if(values.some(value=>value>9999))fail(k,'Grade 5 arithmetic operand/result too large',q);
             const equation=text.match(/^(\d+) ([+−×÷]) (\d+) = \?$/);
-            if(equation){const x=+equation[1],y=+equation[3],op=equation[2];if((op==='+'||op==='−')&&(x<100||y<100)||op==='×'&&!((x>=12&&x<=35&&y>=2&&y<=9)||(y>=12&&y<=35&&x>=2&&x<=9))||op==='÷'&&(y<2||y>9||+ans<12||+ans>24))fail(k,'Grade 5 mental arithmetic range',q);}
+            if(equation){const x=+equation[1],y=+equation[3],op=equation[2];if(op==='+'&&(x<250||x>999||y<250||y>999)||op==='−'&&(x<1000||x>9999||y<100||y>999)||op==='×'&&(x<25||x>99||y<6||y>12)||op==='÷'&&(y<6||y>12||+ans<25||+ans>99))fail(k,'Grade 5 mental arithmetic range',q);}
           }
         }
         else if((m=text.match(/^(\d+) (\+|−|×|÷) (\d+) = \?$/))){const x=+m[1],y=+m[3];const r={'+':x+y,'−':x-y,'×':x*y,'÷':x/y}[m[2]]; if(r!==Number(ans)||!Number.isInteger(r)) fail(k,'wrong arithmetic',q);
