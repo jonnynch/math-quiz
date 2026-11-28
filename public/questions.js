@@ -1151,23 +1151,197 @@
     return done(Object.assign(textChoices(nth(d, c), [nth(d, -c), nth(d + 1, c), nth(d - 1, c), nth(d, c + (c > 0 ? 1 : -1))]), { question: `${show(terms)}, ... Rule for the sequence:` }));
   }
 
+  // ---------- Grade 6 statistics ----------
+  const sumOf = (values) => values.reduce((s, v) => s + v, 0);
+  const medianOf = (values) => { const s = [...values].sort((a, b) => a - b), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  // Random dataset of `n` whole numbers (1–30) around a random centre; `accept` filters it. Tries are capped.
+  function statsData(n, accept, fallback) {
+    for (let i = 0; i < 2000; i++) {
+      const centre = intBetween(6, 22), spread = intBetween(3, 9);
+      const lo = Math.max(1, centre - spread), hi = Math.min(30, centre + spread);
+      const values = Array.from({ length: n }, () => intBetween(lo, hi));
+      if (new Set(values).size > 1 && accept(values)) return shuffledCopy(values);
+    }
+    return shuffledCopy(fallback);
+  }
+  const statsText = (values, kind) => `Data: ${values.join(', ')}. Find the ${kind}.`;
+
   function makeGrade6StatisticsQuestion() {
-    const kind = choose(['mean', 'median', 'mode', 'range']);
-    const values = kind === 'mode' ? choose([[3, 5, 5, 7, 10], [2, 3, 3, 6, 11]]) : choose([[3, 5, 5, 7, 10], [4, 6, 8, 10], [2, 3, 3, 6, 11], [5, 7, 8, 9, 11]]);
-    const sorted = [...values].sort((a, b) => a - b), middle = Math.floor(sorted.length / 2), answer = kind === 'mean' ? values.reduce((sum, value) => sum + value, 0) / values.length : kind === 'median' ? sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2 : kind === 'mode' ? values.find(value => values.filter(item => item === value).length > 1) : sorted[sorted.length - 1] - sorted[0];
-    return Object.assign(makeNumericQuestion(`Data: ${values.join(', ')}. Find the ${kind}.`, answer, { extras: [sorted[0], sorted[middle], sorted[sorted.length - 1]] }), { topic: 'statistics', kind });
+    const kind = choose(['mean', 'median', 'mode', 'range']), n = choose([4, 5, 6, 7]);
+    const meta = { topic: 'statistics', kind };
+    if (kind === 'mean') {
+      // Whole or half mean, small total: 2 × total must divide by n.
+      const values = statsData(n, v => (2 * sumOf(v)) % n === 0 && sumOf(v) <= 100, [4, 6, 8, 10, 12, 14, 16].slice(0, n));
+      const sorted = [...values].sort((a, b) => a - b), answer = sumOf(values) / n;
+      return Object.assign(makeNumericQuestion(statsText(values, kind), answer, { extras: [sumOf(values), medianOf(values), sorted[n - 1]] }), meta);
+    }
+    if (kind === 'median') {
+      const wantHalf = n % 2 === 0 && Math.random() < 0.5, mid = Math.floor(n / 2);
+      const values = statsData(n, v => (medianOf(v) % 1 !== 0) === wantHalf, wantHalf ? [3, 5, 6, 8] : [3, 5, 6, 8, 9].slice(0, n));
+      const sorted = [...values].sort((a, b) => a - b), answer = medianOf(values);
+      // Typical mistakes: the middle of the unsorted list, or one of the two middle values.
+      return Object.assign(makeNumericQuestion(statsText(values, kind), answer, { extras: [values[mid], sorted[mid], sorted[mid - 1], Math.round(sumOf(values) / n)] }), meta);
+    }
+    if (kind === 'range') {
+      const lo = intBetween(1, 18), hi = Math.min(30, lo + intBetween(4, 25));
+      const values = shuffledCopy([lo, hi, ...Array.from({ length: n - 2 }, () => intBetween(lo, hi))]);
+      return Object.assign(makeNumericQuestion(statsText(values, kind), hi - lo, { extras: [hi, lo, medianOf(values)] }), meta);
+    }
+    // Mode: one clear mode, or no mode (every value once). "No mode" is always offered, so it never gives the answer away.
+    if (Math.random() < 0.3) {
+      const lo = intBetween(1, 12), values = shuffledCopy(shuffledCopy(Array.from({ length: intBetween(Math.max(n, 9), 18) }, (_, i) => lo + i)).slice(0, n));
+      return Object.assign(textChoices('No mode', values.map(String).filter((v, i, all) => all.indexOf(v) === i).slice(0, 3)), { question: statsText(values, kind) }, meta);
+    }
+    const counts = (v) => v.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
+    const values = statsData(n, v => {
+      const c = counts(v), top = Math.max(...c.values());
+      return top >= 2 && [...c.values()].filter(x => x === top).length === 1 && c.size >= 3;
+    }, [4, 7, 7, 9, 12, 15].slice(0, n).concat(n > 6 ? [7] : []).slice(0, n));
+    const c = counts(values), top = Math.max(...c.values()), mode = [...c.keys()].find(k => c.get(k) === top);
+    const others = shuffledCopy([...c.keys()].filter(k => k !== mode)).slice(0, 2);
+    return Object.assign(textChoices(String(mode), ['No mode', ...others.map(String)]), { question: statsText(values, kind) }, meta);
+  }
+
+  // ---------- Grade 6 probability ----------
+  const PROB_COLOURS = ['red', 'blue', 'green', 'yellow', 'white', 'black', 'purple', 'orange'];
+  const isPrime = (v) => v > 1 && Array.from({ length: v - 2 }, (_, i) => i + 2).every(d => v % d !== 0);
+  const probMeta = (kind) => ({ topic: 'probability', kind });
+  // Fraction choices use the shared helper. Only proper fractions are offered as typical mistakes, and the
+  // choices are redrawn until every one is a valid probability (no fraction above 1).
+  const probFraction = (kind, text, [n, d], mistakes = []) => {
+    let q;
+    for (let i = 0; i < 1000; i++) {
+      q = makeFractionQuestion(text, [n, d], mistakes.filter(([a, b]) => a > 0 && a < b));
+      if (q.keys.every(k => k <= 100)) break;
+    }
+    return Object.assign(q, probMeta(kind));
+  };
+  // Decimal / percent choices within 0–1 (0–100%). `h` is the answer in hundredths (the percent value);
+  // wrong answers come from the shared pickWithMistake helper so the correct position stays random.
+  const probValueQuestion = (text, h, asDecimal, places, mistakes = []) => {
+    const step = asDecimal && places === 1 ? 10 : 5, pool = [];
+    [1, 2, 3, 4].forEach(k => pool.push(h + step * k, h - step * k));
+    pool.push(h + 1, h - 1, h + 10, h - 10);
+    const ok = v => v >= 0 && v <= 100 && v !== h && (!asDecimal || places === 2 || v % 10 === 0);
+    const wrong = pickWithMistake(h, pool.filter(ok), 3, mistakes.filter(ok));
+    return { question: text, answers: [h, ...wrong].map(v => asDecimal ? (v / 100).toFixed(places) : String(v)), correct: 0 };
+  };
+  const listText = (parts) => parts.length === 2 ? parts.join(' and ') : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  const probPlaces = (hundredths) => hundredths % 10 === 0 ? 1 : 2;
+
+  // An event on the numbers 1..max (die faces or spinner numbers); favourable outcomes are counted from the real sample space.
+  function numberEvent(max) {
+    for (;;) {
+      const type = choose(['even', 'odd', 'greater', 'less', 'multiple', 'prime']), k = type === 'greater' ? intBetween(1, max - 1) : type === 'less' ? intBetween(2, max) : intBetween(2, Math.min(5, max));
+      const ev = { even: { text: 'an even number', test: v => v % 2 === 0 }, odd: { text: 'an odd number', test: v => v % 2 === 1 }, prime: { text: 'a prime number', test: isPrime },
+        greater: { text: `a number greater than ${k}`, test: v => v > k }, less: { text: `a number less than ${k}`, test: v => v < k }, multiple: { text: `a multiple of ${k}`, test: v => v % k === 0 } }[type];
+      const favourable = Array.from({ length: max }, (_, i) => i + 1).filter(ev.test).length;
+      if (favourable >= 1 && favourable < max) return Object.assign(ev, { favourable });
+    }
+  }
+
+  function makeGrade6DieQuestion() {
+    const ev = numberEvent(6), verb = choose(['rolling', 'getting']);
+    return probFraction('die', `A fair six-sided die is rolled. What is the probability of ${verb} ${ev.text}?`, [ev.favourable, 6], [[ev.favourable, 6 - ev.favourable]]);
+  }
+
+  function makeGrade6CoinQuestion() {
+    const side = choose(['heads', 'tails']), style = choose(['symbol', 'rolling', 'not']);
+    const text = style === 'symbol' ? `A fair coin is tossed. P(${choose(['', 'not '])}${side}) = ?` : style === 'rolling' ? `A fair coin is flipped. What is the probability of getting ${side}?` : `A fair coin is flipped. What is the probability of not getting ${side}?`;
+    return probFraction('coin', text, [1, 2]);
+  }
+
+  function makeGrade6SpinnerQuestion() {
+    const style = choose(['number', 'one', 'list']), n = intBetween(4, 10);
+    if (style === 'number') {
+      const ev = numberEvent(n);
+      return probFraction('sampleSpace', `A spinner has ${n} equal sections numbered 1 to ${n}. What is P(${ev.text})?`, [ev.favourable, n], [[ev.favourable, n - ev.favourable]]);
+    }
+    if (style === 'one') {
+      const colour = choose(PROB_COLOURS), k = intBetween(1, n - 1), sections = [...Array(k).fill(colour), ...Array(n - k).fill('other')];
+      const favourable = sections.filter(s => s === colour).length;
+      return probFraction('sampleSpace', `A spinner has ${n} equal sections, ${k} of which are ${colour}. What is P(${colour})?`, [favourable, n], [[favourable, n - favourable]]);
+    }
+    let counts;
+    do { counts = Array.from({ length: choose([2, 3]) }, () => intBetween(1, 5)); } while (sumOf(counts) < 4 || sumOf(counts) > 10);
+    const colours = shuffledCopy(PROB_COLOURS).slice(0, counts.length), pick = intBetween(0, counts.length - 1), not = Math.random() < 0.25;
+    const sections = counts.flatMap((c, i) => Array(c).fill(colours[i])), total = sections.length;
+    const favourable = sections.filter(s => (s === colours[pick]) !== not).length;
+    return probFraction('sampleSpace', `A spinner has ${total} equal sections: ${listText(counts.map((c, i) => `${c} ${colours[i]}`))}. What is P(${not ? 'not ' : ''}${colours[pick]})?`, [favourable, total], [[favourable, total - favourable]]);
+  }
+
+  function makeGrade6BagQuestion() {
+    const kinds = choose([2, 3]), counts = Array.from({ length: kinds }, () => kinds === 2 ? intBetween(2, 9) : intBetween(1, 7));
+    const colours = shuffledCopy(PROB_COLOURS).slice(0, kinds), pick = intBetween(0, kinds - 1), not = Math.random() < 0.3, total = sumOf(counts);
+    const favourable = not ? total - counts[pick] : counts[pick];
+    const mistakes = [[favourable, total - favourable], ...counts.filter((_, i) => i !== pick).map(c => [c, total])];
+    return probFraction('bag', `A bag contains ${listText(counts.map((c, i) => `${c} ${colours[i]}`))} counters. What is P(${not ? 'not ' : ''}${colours[pick]})?`, [favourable, total], mistakes);
+  }
+
+  function makeGrade6ComplementQuestion(kind) {
+    if (kind === 'complementFraction') {
+      const d = choose([3, 4, 5, 6, 8, 10, 12]), a = intBetween(1, d - 1);
+      return probFraction(kind, `P(A) = ${a}/${d}. What is P(not A)?`, [d - a, d], [[a, d]]);
+    }
+    const h = 5 * intBetween(1, 19);
+    if (kind === 'complementPercent') return Object.assign(probValueQuestion(`P(A) = ${h}%. What is P(not A)?`, 100 - h, false, 0, [h]), probMeta(kind));
+    const places = probPlaces(h);
+    return Object.assign(probValueQuestion(`P(A) = ${(h / 100).toFixed(places)}. What is P(not A)?`, 100 - h, true, places, [h]), probMeta(kind));
+  }
+
+  function makeGrade6ExperimentalQuestion() {
+    const coin = Math.random() < 0.5, t = choose([10, 12, 15, 20, 24, 25, 30, 40, 50]);
+    let s;
+    do { s = intBetween(1, t - 1); } while (gcd(s, t) === 1 || (coin && 2 * s === t));   // reducible; never equal to the theoretical 1/2
+    const out = coin ? choose(['heads', 'tails']) : choose(PROB_COLOURS.slice(0, 5));
+    const text = coin ? `A coin lands ${out} ${s} times in ${t} tosses. What is the experimental probability of ${out}?` : `A spinner lands on ${out} ${s} times in ${t} spins. What is the experimental probability of ${out}?`;
+    return probFraction('experimental', text, [s, t], [[t - s, t], [s, t - s], ...(coin ? [[1, 2]] : [])]);
+  }
+
+  function makeGrade6ConversionQuestion() {
+    const type = choose(['decimalToPercent', 'percentToDecimal', 'fractionToDecimal', 'fractionToPercent', 'decimalToFraction', 'percentToFraction']);
+    const d = choose([2, 4, 5, 10, 20, 25]), n = intBetween(1, d - 1);
+    const h = type.startsWith('fraction') ? n * 100 / d : 5 * intBetween(1, 19), places = probPlaces(h);
+    const source = type.startsWith('fraction') ? `${n}/${d}` : type.startsWith('decimal') ? (h / 100).toFixed(places) : `${h}%`;
+    const target = type.endsWith('Percent') ? 'a percent' : type.endsWith('Decimal') ? 'a decimal' : 'a fraction in simplest form';
+    const text = `P(A) = ${source}. Write P(A) as ${target}.`;
+    if (type.endsWith('Percent')) return Object.assign(probValueQuestion(text, h, false, 0, [100 - h]), probMeta('conversion'));
+    if (type.endsWith('Decimal')) return Object.assign(probValueQuestion(text, h, true, places, [100 - h]), probMeta('conversion'));
+    return probFraction('conversion', text, [h, 100]);
+  }
+
+  // Two bags or spinners: compare the actual probabilities, not the counts. Some pairs are equal.
+  function makeGrade6LikelyQuestion() {
+    const spinner = Math.random() < 0.35, colour = choose(PROB_COLOURS.slice(0, 4)), equal = Math.random() < 0.2, trap = Math.random() < 0.5, top = spinner ? 12 : 20;
+    let a, ta, b, tb;
+    for (let i = 0; i < 2000; i++) {
+      if (equal) {
+        const [n, d] = choose([[1, 2], [1, 3], [2, 3], [1, 4], [3, 4], [1, 5], [2, 5], [3, 5], [4, 5], [3, 10]]), k1 = intBetween(1, 5), k2 = intBetween(1, 5);
+        [a, ta, b, tb] = [n * k1, d * k1, n * k2, d * k2];
+        if (k1 === k2 || ta < 4 || tb < 4 || ta > top || tb > top) continue;
+        break;
+      }
+      ta = intBetween(4, top); tb = intBetween(4, top); a = intBetween(1, ta - 1); b = intBetween(1, tb - 1);
+      const cross = a * tb - b * ta;
+      if (cross === 0 || (trap && (a - b) * cross >= 0)) continue;
+      break;
+    }
+    const cross = a * tb - b * ta, word = spinner ? 'Spinner' : 'Bag', unit = spinner ? 'sections' : 'counters';
+    const correct = cross > 0 ? `${word} A` : cross < 0 ? `${word} B` : 'Equally likely';
+    const text = `${word} A: ${a} ${colour} out of ${ta} ${unit}. ${word} B: ${b} ${colour} out of ${tb} ${unit}. Which ${word.toLowerCase()} gives the greater probability of ${spinner ? 'landing on' : 'selecting'} ${colour}?`;
+    return Object.assign(textChoices(correct, [`${word} A`, `${word} B`, 'Equally likely', 'Cannot tell']), { question: text }, probMeta('likely'));
   }
 
   function makeGrade6ProbabilityQuestion() {
-    const kind = weightedChoose([['coin', 12], ['die', 16], ['sampleSpace', 14], ['complementDecimal', 14], ['complementPercent', 10], ['experimental', 12], ['asPercent', 12], ['likely', 10]]);
-    if (kind === 'coin') return Object.assign(makeFractionQuestion('A fair coin is tossed. P(heads) = ?', [1, 2]), { topic: 'probability', kind });
-    if (kind === 'die') return Object.assign(makeFractionQuestion('A fair die is rolled. P(number > 4) = ?', [2, 6]), { topic: 'probability', kind });
-    if (kind === 'sampleSpace') return Object.assign(makeFractionQuestion('A fair spinner has 4 equal sections numbered 1 to 4. P(even) = ?', [2, 4]), { topic: 'probability', kind });
-    if (kind === 'complementDecimal') return Object.assign(makeDecimalQuestion('P(A) = 0.3. What is P(not A)?', 0.7, 1), { topic: 'probability', kind });
-    if (kind === 'complementPercent') return Object.assign(makeNumericQuestion('P(A) = 35%. What is P(not A)?', 65, { extras: [35, 75, 55] }), { topic: 'probability', kind });
-    if (kind === 'experimental') return Object.assign(makeFractionQuestion('A coin landed heads 4 times in 10 tosses. Experimental P(heads) = ?', [4, 10]), { topic: 'probability', kind });
-    if (kind === 'asPercent') return Object.assign(makeNumericQuestion('P(A) = 0.3. Write P(A) as a percent.', 30, { extras: [3, 70, 33] }), { topic: 'probability', kind });
-    return Object.assign(textChoices('red', ['blue', 'equally likely', 'neither']), { question: 'A bag has 3 red and 2 blue counters. Which colour is more likely?', topic: 'probability', kind });
+    const kind = weightedChoose([['coin', 10], ['die', 14], ['sampleSpace', 14], ['bag', 14], ['complementFraction', 5], ['complementDecimal', 5], ['complementPercent', 5], ['experimental', 12], ['conversion', 12], ['likely', 9]]);
+    if (kind === 'coin') return makeGrade6CoinQuestion();
+    if (kind === 'die') return makeGrade6DieQuestion();
+    if (kind === 'sampleSpace') return makeGrade6SpinnerQuestion();
+    if (kind === 'bag') return makeGrade6BagQuestion();
+    if (kind === 'experimental') return makeGrade6ExperimentalQuestion();
+    if (kind === 'conversion') return makeGrade6ConversionQuestion();
+    if (kind === 'likely') return makeGrade6LikelyQuestion();
+    return makeGrade6ComplementQuestion(kind);
   }
 
   function makeGrade6ArithmeticQuestion(operator) {

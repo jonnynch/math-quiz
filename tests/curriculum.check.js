@@ -3,6 +3,7 @@
 // Every answer is recomputed here from the question text / picture data; the generators' own answers are never trusted.
 const path = require('path');
 const Q = require(path.join(__dirname, '..', 'public', 'questions.js'));
+const G6PS = require(path.join(__dirname, 'grade6-probability-statistics.check.js'));
 let bad = 0;
 const fail = (m, q) => { if (bad++ < 15) console.log('FAIL', m, JSON.stringify(q)); };
 const N = 4000;
@@ -627,7 +628,7 @@ for (const topic of grade6Topics.filter(t => t !== 'all')) {
     if (q.topic === 'statistics' && !/Find the (mean|median|mode|range)/.test(text)) fail('grade6 statistics missing', q);
     if (q.topic === 'ratio' && !/ratio|\d+:\d+/.test(text)) fail('grade6 ratio missing', q);
     if (q.topic === 'percentages' && !/%/.test(text)) fail('grade6 percentage missing', q);
-    if (q.topic === 'probability' && !/P\(|likely/.test(text)) fail('grade6 probability missing', q);
+    if (q.topic === 'probability') { const r = G6PS.verifyProbability(q); if (r.err) fail('grade6 probability: ' + r.err, q); }   // independent recalculation of every Grade 6 probability format
   }
 }
 for (const topic of ['numbers', 'fractions', 'decimals', 'percentages', 'ratio', 'probability', 'algebra', 'statistics', 'shapes']) if (!g6Seen[topic]) fail('grade6 topic generates no questions: ' + topic, g6Seen);

@@ -1,6 +1,7 @@
 // Validates every generated question for every level and topic (correct answer, order, ranges, no duplicates).
 const path=require('path');
 const Q=require(path.join(__dirname,'..','public','questions.js'));
+const G6PS=require(path.join(__dirname,'grade6-probability-statistics.check.js'));
 const gcd=(a,b)=>b?gcd(b,a%b):a;
 const frac=s=>{const m=s.match(/^(\d+)\/(\d+)$/);return m?[+m[1],+m[2]]:[+s,1]};
 const val=s=>{const [n,d]=frac(s);return n/d};
@@ -237,24 +238,14 @@ for(const g of grades){
         else if((m=text.match(/^(\d+):(\d+) = (\d+):□$/))){if(+m[1]*+ans!==+m[2]*+m[3])fail(k,'proportional ratio',q);}
         else fail(k,'unrecognised ratio question',q);
       }
-      if(t.value==='probability'){
+      if(t.value==='probability'&&g===6){const r=G6PS.verifyProbability(q);if(r.err)fail(k,'Grade 6 probability: '+r.err,q);}   // independent recalculation in grade6-probability-statistics.check.js
+      else if(t.value==='probability'){
         if((m=text.match(/^A bag has (\d+) red and (\d+) blue balls\. P\(red\) = \?$/))){if(Math.abs(val(ans)- +m[1]/(+m[1]+ +m[2]))>1e-9)fail(k,'bag probability',q);}
         else if(text==='A fair coin is tossed. P(heads) = ?'||text==='A fair die is rolled. P(even) = ?'){if(ans!=='1/2')fail(k,'fair-event probability',q);}
         else if(text==='A bag has 3 red and 2 blue balls. Which colour is more likely?'){if(ans!=='red')fail(k,'likely event',q);}
-        else if(text==='A fair die is rolled. P(number > 4) = ?'){if(Math.abs(val(ans)-1/3)>1e-9)fail(k,'die probability',q);}
-        else if(text==='A fair spinner has 4 equal sections numbered 1 to 4. P(even) = ?'){if(ans!=='1/2')fail(k,'sample space probability',q);}
-        else if(text==='A coin landed heads 4 times in 10 tosses. Experimental P(heads) = ?'){if(Math.abs(val(ans)-0.4)>1e-9)fail(k,'experimental probability',q);}
-        else if(text==='P(A) = 0.3. What is P(not A)?'){if(Math.abs(+ans-0.7)>1e-9)fail(k,'complementary probability',q);}
-        else if(text==='P(A) = 0.3. Write P(A) as a percent.'){if(+ans!==30)fail(k,'probability percent conversion',q);}
-        else if(text==='P(A) = 35%. What is P(not A)?'){if(+ans!==65)fail(k,'probability percent complement',q);}
-        else if((m=text.match(/^P\(A\) = (\d+)%. What is P\(not A\)\?$/))){if(+ans!==100- +m[1])fail(k,'probability percent complement',q);}
-        else if(text==='A bag has 3 red and 2 blue counters. Which colour is more likely?'){if(ans!=='red')fail(k,'likely event',q);}
         else fail(k,'unrecognised probability question',q);
       }
-      if(g===6&&t.value==='statistics'){
-        if((m=text.match(/^Data: ([\d, ]+)\. Find the (mean|median|mode|range)\.$/))){const values=m[1].split(', ').map(Number).sort((a,b)=>a-b),kind=m[2],expected=kind==='mean'?values.reduce((a,b)=>a+b,0)/values.length:kind==='median'?values.length%2?values[(values.length-1)/2]:(values[values.length/2-1]+values[values.length/2])/2:kind==='range'?values[values.length-1]-values[0]:values.find(v=>values.filter(x=>x===v).length>1);if(+ans!==expected)fail(k,'statistics answer',q);}
-        else fail(k,'unrecognised statistics question',q);
-      }
+      if(g===6&&t.value==='statistics'){const r=G6PS.verifyStatistics(q);if(r.err)fail(k,'Grade 6 statistics: '+r.err,q);}
       if(g===6&&t.value==='shapes'){
         if((m=text.match(/^Triangle area: base (\d+) cm × height (\d+) cm ÷ 2 = \? cm²$/))){if(+ans!==+m[1]*+m[2]/2)fail(k,'triangle area',q);}
         else if((m=text.match(/^Triangle perimeter: sides (\d+) cm, (\d+) cm and (\d+) cm = \? cm$/))){if(+ans!==+m[1]+ +m[2]+ +m[3])fail(k,'triangle perimeter',q);}
@@ -277,7 +268,7 @@ for(const g of grades){
 }
 function q0(g,t){return 1}
 for(const kind of ['numbers/compare','numbers/round','numbers/estimate','numbers/factors','numbers/multiple','numbers/divisible','numbers/orderOps','numbers/missingFactor','fractions/add','fractions/sub','fractions/amount','fractions/equivalent','fractions/simplify','fractions/multiplyWhole','fractions/compare','fractions/compareFractions','decimals/thousandths','decimals/compare','decimals/order','decimals/add','decimals/subtract','decimals/multiply','decimals/divide','decimals/fractionDecimal','decimals/decimalFraction','percentages/ofAmount','percentages/fraction','percentages/decimal','percentages/decimalToPercent','percentages/fractionToPercent','percentages/compare','ratio/simplify','ratio/partOfTotal','ratio/proportion','probability/bag','probability/coin','probability/die','probability/likely','shapes/area','shapes/squareArea','shapes/perimeter','shapes/compositeArea','shapes/volume','shapes/angle','shapes/convert','shapes/coordinate','shapes/duration']) if((grade5Kinds[kind]||0)<10)fail('g5/kind coverage',kind,{});
-for(const kind of ['numbers/negative','numbers/numberLine','numbers/compareExpr','percentages/compare','numbers/orderOps','fractions/addUnlike','fractions/subtractUnlike','fractions/multiplyWhole','fractions/mulFractions','fractions/divWhole','fractions/simplify','decimals/decimalFraction','percentages/increase','percentages/decrease','percentages/ofAmount','percentages/fractionToPercent','percentages/decimalToPercent','percentages/complement','ratio/threePart','ratio/scaling','ratio/simplify','ratio/totalParts','ratio/multiStep','probability/sampleSpace','probability/complementDecimal','probability/complementPercent','probability/experimental','probability/asPercent','algebra/substitute','algebra/likeTerms','algebra/oneStepAdd','algebra/oneStepMultiply','algebra/twoStep','algebra/patternRule','statistics/mean','statistics/median','statistics/mode','statistics/range','shapes/triangle','shapes/trianglePerimeter','shapes/volume','shapes/angleLine','shapes/coordinate','shapes/scale']) if((grade6Kinds[kind]||0)<10)fail('g6/kind coverage',kind,{});
+for(const kind of ['numbers/negative','numbers/numberLine','numbers/compareExpr','percentages/compare','numbers/orderOps','fractions/addUnlike','fractions/subtractUnlike','fractions/multiplyWhole','fractions/mulFractions','fractions/divWhole','fractions/simplify','decimals/decimalFraction','percentages/increase','percentages/decrease','percentages/ofAmount','percentages/fractionToPercent','percentages/decimalToPercent','percentages/complement','ratio/threePart','ratio/scaling','ratio/simplify','ratio/totalParts','ratio/multiStep','probability/coin','probability/die','probability/sampleSpace','probability/bag','probability/complementFraction','probability/complementDecimal','probability/complementPercent','probability/experimental','probability/conversion','probability/likely','algebra/substitute','algebra/likeTerms','algebra/oneStepAdd','algebra/oneStepMultiply','algebra/twoStep','algebra/patternRule','statistics/mean','statistics/median','statistics/mode','statistics/range','shapes/triangle','shapes/trianglePerimeter','shapes/volume','shapes/angleLine','shapes/coordinate','shapes/scale']) if((grade6Kinds[kind]||0)<10)fail('g6/kind coverage',kind,{});
 // "Mixed All Questions" (topic 'all'): every category the grade offers must appear, and nothing else.
 for(const g of grades){
   const avail=new Set(Q.topicsFor('grade'+g).map(t=>t.value)); const k=`g${g}/all`; const seen={};
