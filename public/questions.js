@@ -969,12 +969,56 @@
     return Object.assign(makeDecimalQuestion(`P(A) = ${pct}%. P(not A) = ?`, answer, 2), { topic: 'percentages', kind: 'complement' });
   }
 
+  // Grade 6 ratio: generated independently of Grade 5. Five equally likely kinds: threePart, scaling,
+  // simplify, totalParts and multiStep. Whole-number answers only; wrong choices are always positive.
   function makeGrade6RatioQuestion() {
-    if (Math.random() < 0.35) {
-      const [a, b, total] = choose([[2, 3, 30], [3, 5, 40], [1, 2, 24], [4, 5, 45]]), first = a * total / (a + b);
-      return Object.assign(makeNumericQuestion(`Divide ${total} in the ratio ${a}:${b}. How many are in the first part?`, first, { extras: [total - first, a, b] }), { topic: 'ratio', kind: 'sharing' });
+    const kind = choose(['threePart', 'scaling', 'simplify', 'totalParts', 'multiStep']);
+    const coprime = (lo, hi) => { let a, b; do { a = intBetween(lo, hi); b = intBetween(lo, hi); } while (a === b || gcd(a, b) !== 1); return [a, b]; };
+    const numeric = (text, answer, extras) => {
+      const valid = (v) => Number.isInteger(v) && v > 0 && v !== answer;
+      const pool = [];
+      (answer > 40 ? [1, 2, 3, 5, 10, 20] : [1, 2, 3, 4, 5, 6]).forEach(n => pool.push(answer + n, answer - n));
+      return { question: text, answers: [answer, ...pickWithMistake(answer, pool.filter(valid), 3, extras.filter(valid))].map(String), correct: 0 };
+    };
+    const pairs = [['boys', 'girls', 'children'], ['cats', 'dogs', 'pets'], ['apples', 'pears', 'fruits'], ['red pens', 'blue pens', 'pens'], ['fiction books', 'comic books', 'books'], ['cars', 'buses', 'vehicles'], ['roses', 'tulips', 'flowers']];
+    let q;
+    if (kind === 'threePart') {
+      const names = choose([['Red', 'Blue', 'Green', 'marbles'], ['Cats', 'Dogs', 'Birds', 'pets'], ['Apples', 'Pears', 'Plums', 'fruits'], ['Cars', 'Buses', 'Bikes', 'vehicles'], ['Roses', 'Tulips', 'Daisies', 'flowers']]);
+      let p, sum;
+      do { p = [intBetween(1, 9), intBetween(1, 9), intBetween(1, 9)]; sum = p[0] + p[1] + p[2]; } while (new Set(p).size < 2 || gcd(gcd(p[0], p[1]), p[2]) !== 1 || sum > 20);
+      const k = intBetween(2, Math.min(9, Math.floor(150 / sum))), total = sum * k, i = intBetween(0, 2), answer = p[i] * k;
+      q = numeric(`${names[0]} : ${names[1]} : ${names[2]} = ${p.join(':')}. There are ${total} ${names[3]}. How many are ${names[i].toLowerCase()}?`, answer, [k, total - answer, p[i], total / 3]);
+    } else if (kind === 'scaling') {
+      let a, b, k;
+      do { [a, b] = coprime(1, 9); k = intBetween(3, 12); } while (a * k < 8);
+      const v = [a, b, a * k, b * k], pos = intBetween(0, 3), t = v.map((x, i) => i === pos ? '□' : x);
+      const additive = [v[2] - (v[3] - v[1]), v[3] - (v[2] - v[0]), v[0] + (v[3] - v[1]), v[1] + (v[2] - v[0])][pos];
+      q = numeric(`${t[0]}:${t[1]} = ${t[2]}:${t[3]}`, v[pos], [additive, v[pos ^ 1], v[pos ^ 2]]);
+    } else if (kind === 'simplify') {
+      let x, y, g;
+      do { [x, y] = coprime(2, 9); g = intBetween(3, 12); } while (Math.max(x, y) * g < 24);
+      const a = x * g, b = y * g, answer = `${x}:${y}`, p = [2, 3, 5, 7, 11].find(f => g % f === 0);
+      const partial = g > p ? [`${a / p}:${b / p}`] : [];
+      const rest = shuffledCopy([`${y}:${x}`, `${x + 1}:${y}`, `${x}:${y + 1}`, `${x - 1}:${y}`, `${x}:${y - 1}`].filter(w => w.split(':')[0] !== w.split(':')[1]));
+      const answers = [answer, ...[...partial, ...rest].slice(0, 3)];
+      q = { question: `Simplify ${a}:${b}.`, answers, correct: 0, keys: answers.map(w => { const [m, n] = w.split(':').map(Number); return m * 1000 + n; }) };
+    } else {
+      const [n1, n2, group] = choose(pairs), names = [n1, n2], [a, b] = coprime(1, 9), r = [a, b], sum = a + b;
+      const k = intBetween(2, Math.min(12, Math.floor(150 / sum))), total = sum * k, i = intBetween(0, 1), hi = r[0] > r[1] ? 0 : 1, lo = 1 - hi;
+      const intro = `The ratio of ${n1} to ${n2} is ${a}:${b}.`;
+      if (kind === 'totalParts') {
+        q = numeric(`${intro} There are ${total} ${group}. How many are ${names[i]}?`, r[i] * k, [total - r[i] * k, k, r[i]]);
+      } else {
+        const sub = choose(['total', 'difference', 'share']);
+        if (sub === 'total') q = numeric(`${intro} There are ${r[i] * k} ${names[i]}. How many ${group} are there altogether?`, total, [k, r[i] * k + r[1 - i], sum, r[1 - i] * k]);
+        else if (sub === 'difference') q = numeric(`${intro} There are ${(r[hi] - r[lo]) * k} more ${names[hi]} than ${names[lo]}. How many ${names[hi]} are there?`, r[hi] * k, [(r[hi] - r[lo]) * k, k, r[lo] * k, r[hi] * k + (r[hi] - r[lo]) * k]);
+        else {
+          const item = choose(['stickers', 'marbles', 'coins', 'sweets', 'cards']);
+          q = numeric(`Share ${total} ${item} in the ratio ${a}:${b}. How many more does the larger share get?`, (r[hi] - r[lo]) * k, [r[hi] * k, r[lo] * k, k]);
+        }
+      }
     }
-    return makeGrade5RatioQuestion();
+    return Object.assign(q, { topic: 'ratio', kind });
   }
 
   function makeGrade6AlgebraQuestion() {
