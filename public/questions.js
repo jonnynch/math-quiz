@@ -2421,17 +2421,16 @@
     return makeCompareQuestion(`Compare: ${a[0]}/${a[1]} ? ${b[0]}/${b[1]}`, sign(a[0] * b[1] - b[0] * a[1]));
   }
 
-  // Whole numbers and arithmetic expressions (+, −, ×, decimal × whole); both sides are built from a target value so equal values appear in different forms.
+  // Arithmetic expression vs expression (+, −, ×, decimal × whole); both sides are built from a target value so equal values appear in different forms.
   function makeGrade5NumberCompare() {
     const side = {
       add: (T) => { const x = 5 * intBetween(Math.ceil(T / 20), Math.floor((T - 25) / 5)); return [`${x} + ${T - x}`, T]; },
       sub: (T) => { const y = 5 * intBetween(10, 80); return [`${T + y} − ${y}`, T]; },
       mul: (T) => { const fs = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25].filter(f => T % f === 0 && T / f >= 3); if (!fs.length) return null; const f = choose(fs); return [`${f} × ${T / f}`, T]; },
-      dec: (T) => { const ds = [20, 25, 40, 50, 60, 75, 80, 150, 250].filter(D => (T * 100) % (D * 10) === 0 && T * 100 / D >= 20 && T * 100 / D <= 1000); if (!ds.length) return null; const D = choose(ds); return [`${D / 100} × ${T * 100 / D}`, T]; },
-      plain: (T) => [String(T), T]
+      dec: (T) => { const ds = [20, 25, 40, 50, 60, 75, 80, 150, 250].filter(D => (T * 100) % (D * 10) === 0 && T * 100 / D >= 20 && T * 100 / D <= 1000); if (!ds.length) return null; const D = choose(ds); return [`${D / 100} × ${T * 100 / D}`, T]; }
     };
     const build = (T, skip) => {
-      const options = [['add', 28], ['sub', 22], ['mul', 22], ['dec', 28], ['plain', 8]].filter(([kind]) => kind !== skip);
+      const options = [['add', 30], ['sub', 24], ['mul', 24], ['dec', 30]].filter(([kind]) => kind !== skip);
       while (options.length) {
         const kind = weightedChoose(options), result = side[kind](T);
         if (result) return [...result, kind];
